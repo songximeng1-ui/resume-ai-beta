@@ -1,0 +1,307 @@
+export type Stage = 'junior' | 'senior';
+export type Mode = 'inventory' | 'jd';
+export type Step = 'start' | 'input' | 'assets' | 'dig' | 'direction' | 'match' | 'result';
+export type AiSource = 'real' | 'demo';
+
+export type FieldStatus = 'AI 已识别' | '待用户确认' | '用户已修改';
+export type AssetStatus = '已确认' | '待用户确认' | '用户已修改' | '暂未填写' | '暂不使用';
+export type DeliveryVerdict = '主投' | '可冲' | '过渡' | '暂不建议主投';
+
+export type AiUsage = {
+  model: string;
+  task: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number | null;
+  modelTier?: 'small' | 'report' | 'mixed';
+  byModelTier?: {
+    small: AiUsageTotals;
+    report: AiUsageTotals;
+  };
+  modules?: AiUsageModule[];
+};
+
+export type AiUsageTotals = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number | null;
+};
+
+export type AiUsageModule = {
+  task: string;
+  modelTier: 'small' | 'report' | 'rule';
+  calledAi: boolean;
+  model?: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number | null;
+};
+
+export type ReportTaskStatus = 'pending' | 'running' | 'partial' | 'retrying' | 'failed' | 'completed';
+
+export type ReportModuleKey = 'highlights' | 'directions' | 'jdFit' | 'rewrites' | 'interviews' | 'actionPlan' | 'assembledReport';
+
+export type ReportGenerationTask = {
+  id: string;
+  mode: Mode;
+  status: ReportTaskStatus;
+  currentModule?: ReportModuleKey;
+  failedModule?: ReportModuleKey;
+  completedModules: ReportModuleKey[];
+  completedCount: number;
+  totalModules: number;
+  isRetrying: boolean;
+  retryable: boolean;
+  message: string;
+  technicalDetail?: string;
+  estimate: string;
+  modules: Partial<Record<ReportModuleKey, unknown>>;
+  moduleUsages: AiUsageModule[];
+  usage: AiUsage | null;
+};
+
+export type AiStatus =
+  | {
+      configured: true;
+      mode: 'real';
+      smallModel: string;
+      reportModel: string;
+    }
+  | {
+      configured: false;
+      mode: 'demo';
+      message: string;
+    };
+
+export type AssetKind =
+  | 'education'
+  | 'internship'
+  | 'project'
+  | 'campus'
+  | 'partTime'
+  | 'awards'
+  | 'skills';
+
+export interface Profile {
+  education: string;
+  schoolName: string;
+  major: string;
+  graduation: string;
+  city: string;
+  targetRole: string;
+  internship: string;
+  project: string;
+  campus: string;
+  partTime: string;
+  awards: string;
+  skills: string;
+  portfolio: string;
+}
+
+export interface AssetCard {
+  id: AssetKind;
+  title: string;
+  content: string;
+  status: AssetStatus;
+  confirmed: boolean;
+  source: AiSource;
+  isGap: boolean;
+  gapAdvice?: string;
+  notes: string[];
+}
+
+export interface StructuredResume {
+  profile: Profile;
+  fieldStatuses: Record<keyof Profile, FieldStatus>;
+  assets: AssetCard[];
+  source: AiSource;
+}
+
+export interface DigQuestionSet {
+  assetId: AssetKind;
+  source: AiSource;
+  questions: string[];
+  encouragement: string;
+  digIntent: string;
+  potentialHighlight: string;
+  answerHint: string;
+  resumePreview: string;
+}
+
+export interface EvidenceMatrixRow {
+  requirement: string;
+  evidence: string;
+  gap: string;
+  resumeWriting: string;
+  interviewRisk: string;
+}
+
+export interface JdFitReport {
+  source: AiSource;
+  verdict: DeliveryVerdict;
+  basis: string;
+  maxAdvantage: string;
+  maxGap: string;
+  ifInsist: string;
+  matrix: EvidenceMatrixRow[];
+}
+
+export interface JdSummary {
+  source: AiSource;
+  role: string;
+  requirements: string[];
+  keywords: string[];
+  riskNotes: string[];
+}
+
+export interface ResumeRewrite {
+  original: string;
+  optimized: string;
+  reason: string;
+  jdRequirement: string;
+  risk: string;
+  interviewProbe: string;
+}
+
+export interface HiddenHighlight {
+  sourceExperience: string;
+  capability: string;
+  jdRequirement: string;
+  whyNotFlattery: string;
+  professionalExpression: string;
+}
+
+export interface InterviewPrep {
+  question: string;
+  whyAsk: string;
+  answerAngle: string;
+  concern: string;
+  sampleAnswer: string;
+  doNotExaggerate: string;
+}
+
+export interface ActionPlanItem {
+  period: string;
+  action: string;
+  deliverable: string;
+  resumeUsage: string;
+  targetAbility: string;
+}
+
+export interface ActionPlanReport {
+  source: AiSource;
+  plans: ActionPlanItem[];
+  confidenceSummary: string;
+}
+
+export interface DirectionOption {
+  name: string;
+  level: DeliveryVerdict;
+  why: string;
+  evidence: string;
+  gap: string;
+  next: string;
+  keywords: string[];
+}
+
+export type UnsafeFinding = {
+  path: string;
+  matchedText: string;
+  riskKind: 'fabrication' | 'exaggeration' | 'overpromise';
+  severity: 'blocker' | 'warning';
+};
+
+export interface ReportQualityResult {
+  passed: boolean;
+  score: number;
+  blockers: string[];
+  warnings: string[];
+  safetyFindings: UnsafeFinding[];
+}
+
+export interface DiagnosisReport {
+  mode?: Mode;
+  source: AiSource;
+  summary?: string;
+  highlights: HiddenHighlight[];
+  rewrites: ResumeRewrite[];
+  directionOptions?: DirectionOption[];
+  jdFit?: JdFitReport;
+  interviews?: InterviewPrep[];
+  actionPlan: ActionPlanReport;
+  safetyNotes?: string[];
+  resumeText: string[];
+  platformFields: string[];
+  previewLines: string[];
+  quality?: ReportQualityResult;
+  usage?: AiUsage | null;
+  reportTask?: ReportGenerationTask;
+}
+
+export interface ReportFeedback {
+  helpScore: number | null;
+  helpfulParts: string[];
+  inaccurateFeedback: string;
+  actionIntent: string;
+  willingnessToPay: string;
+  anonymousConsent: boolean;
+}
+
+export interface FeedbackSubmission extends ReportFeedback {
+  mode: Mode | null;
+  createdAt: string;
+}
+
+export const emptyProfile: Profile = {
+  education: '',
+  schoolName: '',
+  major: '',
+  graduation: '',
+  city: '',
+  targetRole: '',
+  internship: '',
+  project: '',
+  campus: '',
+  partTime: '',
+  awards: '',
+  skills: '',
+  portfolio: ''
+};
+
+export const assetTitles: Record<AssetKind, string> = {
+  education: '教育背景',
+  internship: '实习经历',
+  project: '项目经历',
+  campus: '校园经历',
+  partTime: '兼职经历',
+  awards: '荣誉证书',
+  skills: '技能作品'
+};
+
+export const profileLabels: Record<keyof Profile, string> = {
+  education: '学历',
+  schoolName: '学校名称',
+  major: '专业',
+  graduation: '毕业时间',
+  city: '城市意向（可选）',
+  targetRole: '目标岗位或行业（可选）',
+  internship: '实习经历',
+  project: '项目经历',
+  campus: '校园经历',
+  partTime: '兼职经历',
+  awards: '荣誉证书',
+  skills: '技能/作品',
+  portfolio: '作品集或链接'
+};
+
+export const fieldKeys = Object.keys(emptyProfile) as (keyof Profile)[];
+
+export const emptyFieldStatuses: Record<keyof Profile, FieldStatus> = fieldKeys.reduce(
+  (acc, key) => ({ ...acc, [key]: '待用户确认' }),
+  {} as Record<keyof Profile, FieldStatus>
+);
+
+export const diggableAssetIds: AssetKind[] = ['internship', 'project', 'campus', 'partTime', 'awards'];

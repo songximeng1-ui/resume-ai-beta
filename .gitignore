@@ -1,0 +1,14 @@
+node_modules
+dist
+.vite
+.agents/
+docs/v0.3/*real-sample*.md
+docs/v0.3/three-round-real-sample-acceptance-record.md
+.env
+.env.*
+!.env.example
+*.local
+*.log
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts

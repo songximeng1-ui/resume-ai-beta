@@ -1,0 +1,1420 @@
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { createAiServer, getServerListenConfig } from './index.ts';
+import { buildCompactReportContext, careerCoachSystemPrompt, jdFitPrompt, reportModulePrompt, reportPrompt } from './prompts.ts';
+import { diagnosisReportJsonSchema, digQuestionsJsonSchema, validateDiagnosisReport, validateDigQuestionSet } from './schemas.ts';
+import { AiServiceError } from './openaiClient.ts';
+import type { AiRuntime, JsonCallOptions } from './openaiClient.ts';
+
+function validInventoryReport() {
+  return {
+    mode: 'inventory' as const,
+    source: 'real' as const,
+    summary: '当前最可用的筹码是社群维护、内容整理、问卷调研和 Excel 汇总。',
+    highlights: [
+      {
+        sourceExperience: '教育机构新媒体运营实习',
+        capability: '社群维护与用户触达',
+        jdRequirement: '用户运营 / 社群运营',
+        whyNotFlattery: '用户确实做过社群提醒和内容整理，能支撑基础运营动作。',
+        professionalExpression: '协助维护学生社群，整理活动通知与反馈信息。'
+      },
+      {
+        sourceExperience: '校园调研项目',
+        capability: '信息整理与复盘',
+        jdRequirement: '数据运营助理',
+        whyNotFlattery: '问卷设计和 Excel 汇总可以对应基础数据整理。',
+        professionalExpression: '参与问卷设计，使用 Excel 汇总调研结果并完成课堂展示。'
+      }
+    ],
+    rewrites: [
+      {
+        original: '在教育机构帮忙发推文和群通知。',
+        optimized: '协助教育机构整理公众号推文素材，并在学生社群中发布活动通知。',
+        reason: '把零散动作整理成岗位能理解的内容支持和用户触达。',
+        jdRequirement: '可迁移到社群运营、内容运营助理方向。',
+        risk: '使用前确认推文素材整理频率和社群数量。',
+        interviewProbe: '可能被问到每周参与频率和具体工具。'
+      },
+      {
+        original: '用 Excel 整理问卷。',
+        optimized: '参与校园调研项目，使用 Excel 汇总问卷结果并支持展示汇报。',
+        reason: '突出工具、材料来源和交付物。',
+        jdRequirement: '可迁移到数据运营助理或项目助理方向。',
+        risk: '不能写成商业数据分析项目。',
+        interviewProbe: '可能被问到样本量和表格处理方式。'
+      }
+    ],
+    directionOptions: [
+      {
+        name: '用户运营 / 社群运营',
+        level: '主投' as const,
+        why: '基于当前经历，更值得优先探索的是需要社群维护、活动通知和反馈整理的岗位。',
+        evidence: '教育机构实习中有学生社群维护、公众号内容整理和用户触达。',
+        gap: '当前证据还不充分的是活动复盘、用户分层和数据记录。',
+        next: '未来 2 周补一份社群活动复盘表，记录对象、频率、反馈和改进。',
+        keywords: ['用户运营', '社群运营', '活动运营']
+      },
+      {
+        name: '新媒体运营助理',
+        level: '可冲' as const,
+        why: '公众号推文素材整理和剪映技能可以支持基础内容岗位尝试。',
+        evidence: '有公众号排版、推文整理和剪映基础。',
+        gap: '还需要补充可展示作品和内容数据复盘。',
+        next: '整理 2 篇内容作品，补充选题、排版和复盘说明。',
+        keywords: ['新媒体运营', '内容运营助理']
+      }
+    ],
+    actionPlan: {
+      source: 'real' as const,
+      plans: [
+        {
+          period: '2-4 周',
+          action: '整理 2 个经历复盘页：一个社群维护案例，一个问卷调研案例。',
+          deliverable: '2 页作品集或简历素材',
+          resumeUsage: '用于用户运营、项目助理和新媒体运营助理投递。',
+          targetAbility: '经历表达、内容整理、基础复盘'
+        }
+      ],
+      confidenceSummary: '你不是没有经历，而是需要把现有动作整理成岗位语言和可展示材料。'
+    },
+    safetyNotes: ['方向建议只作为探索起点，不替用户决定人生。'],
+    resumeText: ['协助整理内容素材，维护学生社群。'],
+    platformFields: ['社群维护；公众号排版；Excel'],
+    previewLines: ['可优先探索用户运营、社群运营和新媒体运营助理。']
+  };
+}
+
+const originalEnv = { ...process.env };
+
+beforeEach(() => {
+  process.env = { ...originalEnv };
+});
+
+afterEach(() => {
+  process.env = { ...originalEnv };
+  vi.restoreAllMocks();
+});
+
+async function withServer(runtime?: Partial<AiRuntime>) {
+  const server = createAiServer(runtime);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') {
+    throw new Error('Missing test server address');
+  }
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    close: () => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+  };
+}
+
+test('status returns demo mode when OPENAI_API_KEY is not configured', async () => {
+  delete process.env.OPENAI_API_KEY;
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const server = await withServer();
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/status`);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      configured: false,
+      mode: 'demo',
+      message: '当前为演示模式，请在服务端 .env 中配置 OPENAI_API_KEY'
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test('AI endpoints require beta access code when configured', async () => {
+  delete process.env.OPENAI_API_KEY;
+  process.env.BETA_ACCESS_CODE = 'private-beta';
+
+  const server = await withServer();
+  try {
+    const blocked = await fetch(`${server.baseUrl}/api/ai/structure-resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resumeText: '本科 用户运营', currentProfile: {} })
+    });
+    const blockedBody = await blocked.json();
+
+    expect(blocked.status).toBe(401);
+    expect(blockedBody.code).toBe('beta_access_required');
+
+    const wrong = await fetch(`${server.baseUrl}/api/ai/structure-resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resumeText: '本科 用户运营', currentProfile: {}, betaAccessCode: 'wrong-code' })
+    });
+
+    expect(wrong.status).toBe(401);
+
+    const allowed = await fetch(`${server.baseUrl}/api/ai/structure-resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resumeText: '本科 用户运营', currentProfile: {}, betaAccessCode: 'private-beta' })
+    });
+    const allowedBody = await allowed.json();
+
+    expect(allowed.status).toBe(200);
+    expect(allowedBody.source).toBe('demo');
+  } finally {
+    await server.close();
+  }
+});
+
+test('beta access check endpoint validates code without requiring AI configuration', async () => {
+  delete process.env.OPENAI_API_KEY;
+  process.env.BETA_ACCESS_CODE = 'private-beta';
+
+  const server = await withServer();
+  try {
+    const denied = await fetch(`${server.baseUrl}/api/beta/access`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ betaAccessCode: 'wrong-code' })
+    });
+    const allowed = await fetch(`${server.baseUrl}/api/beta/access`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ betaAccessCode: 'private-beta' })
+    });
+
+    expect(denied.status).toBe(401);
+    expect(allowed.status).toBe(200);
+    expect(await allowed.json()).toEqual({ ok: true });
+  } finally {
+    await server.close();
+  }
+});
+
+test('CORS allows configured frontend origin and rejects other origins', async () => {
+  delete process.env.OPENAI_API_KEY;
+  process.env.BETA_ACCESS_CODE = 'private-beta';
+  process.env.FRONTEND_ORIGIN = 'https://resume-beta.vercel.app';
+
+  const server = await withServer();
+  try {
+    const allowed = await fetch(`${server.baseUrl}/api/ai/status`, {
+      headers: {
+        Origin: 'https://resume-beta.vercel.app',
+        'x-beta-access-code': 'private-beta'
+      }
+    });
+    const rejected = await fetch(`${server.baseUrl}/api/ai/status`, {
+      headers: {
+        Origin: 'https://example.com',
+        'x-beta-access-code': 'private-beta'
+      }
+    });
+
+    expect(allowed.headers.get('access-control-allow-origin')).toBe('https://resume-beta.vercel.app');
+    expect(rejected.headers.get('access-control-allow-origin')).toBeNull();
+  } finally {
+    await server.close();
+  }
+});
+
+test('server listen config supports Render PORT and host binding', () => {
+  process.env.PORT = '10000';
+  process.env.API_HOST = '0.0.0.0';
+  process.env.AI_API_PORT = '8787';
+
+  expect(getServerListenConfig()).toEqual({
+    port: 10000,
+    host: '0.0.0.0'
+  });
+});
+
+test('small task endpoints use the small model runtime and return real source when configured', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const callSmallModelJson = vi.fn(async () => ({
+    source: 'real',
+    profile: {
+      education: '本科',
+      schoolName: '杭州应用技术学院',
+      major: '市场营销',
+      graduation: '2026 年 6 月',
+      city: '杭州',
+      targetRole: '用户运营',
+      internship: '',
+      project: '',
+      campus: '',
+      partTime: '',
+      awards: '',
+      skills: '',
+      portfolio: ''
+    },
+    fieldStatuses: {
+      education: 'AI 已识别',
+      schoolName: 'AI 已识别',
+      major: 'AI 已识别',
+      graduation: 'AI 已识别',
+      city: '待用户确认',
+      targetRole: 'AI 已识别',
+      internship: '待用户确认',
+      project: '待用户确认',
+      campus: '待用户确认',
+      partTime: '待用户确认',
+      awards: '待用户确认',
+      skills: '待用户确认',
+      portfolio: '待用户确认'
+    },
+    assets: []
+  }));
+
+  const server = await withServer({ callSmallModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/structure-resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resumeText: '本科 市场营销 目标用户运营', currentProfile: {} })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('real');
+    expect(callSmallModelJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'gpt-5.4-mini',
+        task: 'structure-resume'
+      })
+    );
+  } finally {
+    await server.close();
+  }
+});
+
+test('dig questions return helpful digging context and strict schema requires every field', () => {
+  const payload = {
+    source: 'real' as const,
+    assetId: 'internship',
+    encouragement: '你这段经历已经有真实任务线索，不需要硬包装，先把本人动作说清楚就有价值。',
+    digIntent: '我想确认这段实习里是否有用户沟通、内容整理和活动触达的证据。',
+    potentialHighlight: '这段经历可能不是普通打杂，而是基础用户触达与内容执行支持。',
+    questions: ['你提到维护学生社群，当时主要接触的是学生、家长还是老师？'],
+    answerHint: '不用写完整文章，按“对象 + 动作 + 频次 + 结果/反馈”回答即可。',
+    resumePreview: '待核实：协助维护学生社群，整理活动提醒与公众号素材，支持用户触达和反馈收集。'
+  };
+
+  expect(validateDigQuestionSet(payload)).toMatchObject(payload);
+  expect(digQuestionsJsonSchema.required).toEqual(expect.arrayContaining(Object.keys(digQuestionsJsonSchema.properties)));
+  expect(() =>
+    validateDigQuestionSet({
+      source: 'real',
+      assetId: 'internship',
+      questions: ['你做了什么？'],
+      encouragement: '这段经历有价值。'
+    })
+  ).toThrow(/digIntent/);
+});
+
+test('report endpoint uses the report model runtime and never falls back to demo on real failures', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const callReportModelJson = vi.fn(async () => {
+    throw new Error('model not found');
+  });
+
+  const server = await withServer({ callReportModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '' })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.reportTask).toMatchObject({
+      status: 'failed',
+      failedModule: 'highlights',
+      completedModules: [],
+      retryable: false
+    });
+    expect(body.reportTask.technicalDetail).toMatch(/model not found/);
+    expect(JSON.stringify(body)).not.toContain('演示结果');
+    expect(callReportModelJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'gpt-5.4',
+        task: 'report-highlights'
+      })
+    );
+  } finally {
+    await server.close();
+  }
+});
+
+test('demo report supports inventory mode without requiring JD fit or 5 interview questions', async () => {
+  delete process.env.OPENAI_API_KEY;
+
+  const server = await withServer();
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'inventory',
+        stage: 'senior',
+        profile: {
+          targetRole: '用户运营',
+          internship: '教育机构新媒体运营实习，维护学生社群，整理公众号推文。',
+          project: '校园二手交易调研项目，设计问卷并用 Excel 整理结果。',
+          skills: 'Excel、公众号排版、剪映'
+        },
+        assets: [],
+        jdText: ''
+      })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.mode).toBe('inventory');
+    expect(body.highlights.length).toBeGreaterThanOrEqual(2);
+    expect(body.directionOptions.length).toBeGreaterThanOrEqual(2);
+    expect(body.rewrites.length).toBeGreaterThanOrEqual(2);
+    expect(body.actionPlan.plans.length).toBeGreaterThanOrEqual(1);
+    expect(body.jdFit).toBeUndefined();
+    expect(body.interviews).toBeUndefined();
+    expect(body.quality).toMatchObject({
+      passed: true,
+      score: expect.any(Number),
+      blockers: [],
+      warnings: expect.any(Array)
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test('demo report supports JD mode with JD fit and 5 interview questions', async () => {
+  delete process.env.OPENAI_API_KEY;
+
+  const server = await withServer();
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'jd',
+        stage: 'senior',
+        profile: {
+          targetRole: '用户运营实习',
+          internship: '教育机构新媒体运营实习，维护学生社群，整理公众号推文。',
+          project: '校园二手交易调研项目，设计问卷并用 Excel 整理结果。'
+        },
+        assets: [],
+        jdText: '负责社群维护、用户反馈整理、活动执行。',
+        jdFit: null
+      })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.mode).toBe('jd');
+    expect(body.highlights.length).toBeGreaterThanOrEqual(2);
+    expect(body.rewrites.length).toBeGreaterThanOrEqual(2);
+    expect(body.interviews).toHaveLength(5);
+    expect(body.actionPlan.plans.length).toBeGreaterThanOrEqual(1);
+    expect(body.jdFit).toBeTruthy();
+    expect(body.quality).toMatchObject({
+      passed: true,
+      score: expect.any(Number),
+      blockers: [],
+      warnings: expect.any(Array)
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test('configured report endpoint attaches quality result after model validation', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const callReportModelJson = vi.fn(async () => ({
+    mode: 'inventory',
+    source: 'real',
+    summary: '当前最可用的筹码是社群维护、内容整理、问卷调研和 Excel 汇总。',
+    highlights: [
+      {
+        sourceExperience: '教育机构新媒体运营实习',
+        capability: '社群维护与用户触达',
+        jdRequirement: '用户运营 / 社群运营',
+        whyNotFlattery: '用户确实做过社群提醒和内容整理，能支撑基础运营动作。',
+        professionalExpression: '协助维护学生社群，整理活动通知与反馈信息。'
+      },
+      {
+        sourceExperience: '校园调研项目',
+        capability: '信息整理与复盘',
+        jdRequirement: '数据运营助理',
+        whyNotFlattery: '问卷设计和 Excel 汇总可以对应基础数据整理。',
+        professionalExpression: '参与问卷设计，使用 Excel 汇总调研结果并完成课堂展示。'
+      }
+    ],
+    rewrites: [
+      {
+        original: '在教育机构帮忙发推文和群通知。',
+        optimized: '协助教育机构整理公众号推文素材，并在学生社群中发布活动通知。',
+        reason: '把零散动作整理成岗位能理解的内容支持和用户触达。',
+        jdRequirement: '可迁移到社群运营、内容运营助理方向。',
+        risk: '使用前确认推文素材整理频率和社群数量。',
+        interviewProbe: '可能被问到每周参与频率和具体工具。'
+      },
+      {
+        original: '用 Excel 整理问卷。',
+        optimized: '参与校园调研项目，使用 Excel 汇总问卷结果并支持展示汇报。',
+        reason: '突出工具、材料来源和交付物。',
+        jdRequirement: '可迁移到数据运营助理或项目助理方向。',
+        risk: '不能写成商业数据分析项目。',
+        interviewProbe: '可能被问到样本量和表格处理方式。'
+      }
+    ],
+    directionOptions: [
+      {
+        name: '用户运营 / 社群运营',
+        level: '主投',
+        why: '基于当前经历，更值得优先探索的是需要社群维护、活动通知和反馈整理的岗位。',
+        evidence: '教育机构实习中有学生社群维护、公众号内容整理和用户触达。',
+        gap: '当前证据还不充分的是活动复盘、用户分层和数据记录。',
+        next: '未来 2 周补一份社群活动复盘表，记录对象、频率、反馈和改进。',
+        keywords: ['用户运营', '社群运营', '活动运营']
+      },
+      {
+        name: '新媒体运营助理',
+        level: '可冲',
+        why: '公众号推文素材整理和剪映技能可以支持基础内容岗位尝试。',
+        evidence: '有公众号排版、推文整理和剪映基础。',
+        gap: '还需要补充可展示作品和内容数据复盘。',
+        next: '整理 2 篇内容作品，补充选题、排版和复盘说明。',
+        keywords: ['新媒体运营', '内容运营助理']
+      }
+    ],
+    actionPlan: {
+      source: 'real',
+      plans: [
+        {
+          period: '2-4 周',
+          action: '整理 2 个经历复盘页：一个社群维护案例，一个问卷调研案例。',
+          deliverable: '2 页作品集或简历素材',
+          resumeUsage: '用于用户运营、项目助理和新媒体运营助理投递。',
+          targetAbility: '经历表达、内容整理、基础复盘'
+        }
+      ],
+      confidenceSummary: '你不是没有经历，而是需要把现有动作整理成岗位语言和可展示材料。'
+    },
+    safetyNotes: ['方向建议只作为探索起点，不替用户决定人生。'],
+    resumeText: ['协助整理内容素材，维护学生社群。'],
+    platformFields: ['社群维护；公众号排版；Excel'],
+    previewLines: ['可优先探索用户运营、社群运营和新媒体运营助理。']
+  }));
+
+  const server = await withServer({ callReportModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '' })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('real');
+    expect(body.quality).toMatchObject({
+      passed: true,
+      score: expect.any(Number),
+      blockers: [],
+      warnings: expect.any(Array)
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test('configured report endpoint returns AI usage when runtime provides it', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const usage = {
+    model: 'gpt-5.4',
+    task: 'report',
+    inputTokens: 2000,
+    outputTokens: 1000,
+    totalTokens: 3000,
+    estimatedCostUsd: 0.02
+  };
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: validInventoryReport().highlights }, usage };
+    if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: validInventoryReport().directionOptions }, usage };
+    if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: validInventoryReport().rewrites }, usage };
+    throw new Error(`unexpected task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '' })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('real');
+    expect(body.usage).toMatchObject({
+      model: 'gpt-5.4',
+      task: 'report',
+      inputTokens: 6000,
+      outputTokens: 3000,
+      totalTokens: 9000,
+      estimatedCostUsd: 0.06,
+      modelTier: 'mixed',
+      byModelTier: {
+        report: { inputTokens: 6000, outputTokens: 3000, totalTokens: 9000, estimatedCostUsd: 0.06 },
+        small: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 }
+      }
+    });
+    expect(body.usage.modules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ task: 'report-action-plan', modelTier: 'rule', calledAi: false, totalTokens: 0 })
+      ])
+    );
+    expect(body.quality).toMatchObject({
+      passed: true,
+      score: expect.any(Number)
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test('configured inventory report endpoint generates smaller modules and assembles original report shape', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const calls: string[] = [];
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    calls.push(`${options.task}:${options.model}`);
+    if (options.task === 'report-highlights') {
+      return {
+        data: { source: 'real', highlights: validInventoryReport().highlights },
+        usage: { model: options.model, task: options.task, inputTokens: 100, outputTokens: 100, totalTokens: 200, estimatedCostUsd: 0.001 }
+      };
+    }
+    if (options.task === 'report-directions') {
+      return {
+        data: { source: 'real', directionOptions: validInventoryReport().directionOptions },
+        usage: { model: options.model, task: options.task, inputTokens: 100, outputTokens: 100, totalTokens: 200, estimatedCostUsd: 0.001 }
+      };
+    }
+    if (options.task === 'report-rewrites') {
+      return {
+        data: { source: 'real', rewrites: validInventoryReport().rewrites },
+        usage: { model: options.model, task: options.task, inputTokens: 100, outputTokens: 100, totalTokens: 200, estimatedCostUsd: 0.001 }
+      };
+    }
+    throw new Error(`unexpected task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '' })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.mode).toBe('inventory');
+    expect(body.source).toBe('real');
+    expect(body.highlights).toHaveLength(2);
+    expect(body.directionOptions).toHaveLength(2);
+    expect(body.rewrites).toHaveLength(2);
+    expect(body.actionPlan.plans.length).toBeGreaterThanOrEqual(1);
+    expect(body.jdFit).toBeUndefined();
+    expect(body.interviews).toBeUndefined();
+    expect(body.quality.passed).toBe(true);
+    expect(body.usage).toMatchObject({
+      model: 'gpt-5.4',
+      task: 'report',
+      inputTokens: 300,
+      outputTokens: 300,
+      totalTokens: 600,
+      estimatedCostUsd: 0.003
+    });
+    expect(body.usage.modules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ task: 'report-action-plan', modelTier: 'rule', calledAi: false, totalTokens: 0 })
+      ])
+    );
+    expect(calls).toEqual([
+      'report-highlights:gpt-5.4',
+      'report-directions:gpt-5.4',
+      'report-rewrites:gpt-5.4'
+    ]);
+  } finally {
+    await server.close();
+  }
+});
+
+test('configured JD report uses small/report/rule tiers and returns tiered usage without demo fallback', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const valid = validInventoryReport();
+  const jdFit = {
+    source: 'real' as const,
+    verdict: '可冲' as const,
+    basis: '岗位要求与已有社群维护、用户反馈整理经历部分匹配。',
+    maxAdvantage: '已有真实用户触达和信息整理经历。',
+    maxGap: '缺少更完整的数据复盘和业务结果。',
+    ifInsist: '建议投递时突出协助边界和可核实产出。',
+    matrix: [
+      {
+        requirement: '用户运营实习生需要社群维护和反馈整理。',
+        evidence: '教育机构实习中维护学生社群并整理活动通知。',
+        gap: '缺少用户规模和反馈结果。',
+        resumeWriting: '协助维护学生社群，整理活动通知和用户反馈。',
+        interviewRisk: '可能追问社群数量、频次和具体反馈。'
+      }
+    ]
+  };
+  const interviews = Array.from({ length: 5 }, (_, index) => ({
+    question: `请说明社群维护经历中的具体分工 ${index + 1}`,
+    whyAsk: '核实经历真实性和岗位迁移价值。',
+    answerAngle: '按对象、动作、工具、结果或复盘回答。',
+    concern: '不要夸大负责范围或编造用户规模。',
+    sampleAnswer: '我主要协助整理活动通知和反馈信息，具体规模以真实记录为准。',
+    doNotExaggerate: '不要编造用户量、转化率或负责人身份。'
+  }));
+  const reportCalls: string[] = [];
+  const smallCalls: string[] = [];
+  const reportUsage = (task: string) => ({ model: 'gpt-5.4', task, inputTokens: 100, outputTokens: 100, totalTokens: 200, estimatedCostUsd: 0.001 });
+  const smallUsage = (task: string) => ({ model: 'gpt-5.4-mini', task, inputTokens: 50, outputTokens: 50, totalTokens: 100, estimatedCostUsd: 0.0002 });
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    reportCalls.push(`${options.task}:${options.model}`);
+    if (options.task === 'report-jd-fit-summary') return { data: { source: 'real', jdFit }, usage: reportUsage(options.task) };
+    if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: valid.rewrites }, usage: reportUsage(options.task) };
+    if (options.task === 'report-interview-question') {
+      const index = Number(options.prompt.match(/"interviewIndex":(\d)/)?.[1] || 1);
+      return { data: { source: 'real', interview: interviews[index - 1] }, usage: reportUsage(options.task) };
+    }
+    throw new Error(`unexpected report task ${options.task}`);
+  });
+  const callSmallModelJson = vi.fn(async (options: JsonCallOptions) => {
+    smallCalls.push(`${options.task}:${options.model}`);
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: smallUsage(options.task) };
+    throw new Error(`unexpected small task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson, callSmallModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'jd', stage: 'senior', profile: { targetRole: '用户运营' }, assets: [], jdText: '负责用户运营、社群维护和反馈整理。', jdFit })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.quality.passed).toBe(true);
+    expect(smallCalls).toEqual(['report-highlights:gpt-5.4-mini']);
+    expect(reportCalls).toEqual([
+      'report-jd-fit-summary:gpt-5.4',
+      'report-rewrites:gpt-5.4',
+      'report-interview-question:gpt-5.4',
+      'report-interview-question:gpt-5.4',
+      'report-interview-question:gpt-5.4',
+      'report-interview-question:gpt-5.4',
+      'report-interview-question:gpt-5.4'
+    ]);
+    expect(body.usage.byModelTier).toEqual({
+      small: { inputTokens: 50, outputTokens: 50, totalTokens: 100, estimatedCostUsd: 0.0002 },
+      report: { inputTokens: 700, outputTokens: 700, totalTokens: 1400, estimatedCostUsd: 0.007 }
+    });
+    expect(body.usage.modules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ task: 'report-highlights', modelTier: 'small', calledAi: true, model: 'gpt-5.4-mini' }),
+        expect.objectContaining({ task: 'report-jd-fit-summary', modelTier: 'report', calledAi: true, model: 'gpt-5.4' }),
+        expect.objectContaining({ task: 'report-interview-question', modelTier: 'report', calledAi: true, model: 'gpt-5.4' }),
+        expect.objectContaining({ task: 'report-action-plan', modelTier: 'rule', calledAi: false, totalTokens: 0 })
+      ])
+    );
+    expect(JSON.stringify(body)).not.toContain('演示结果');
+  } finally {
+    await server.close();
+  }
+});
+
+test('configured JD report sanitizes risky rewrite and interview wording before quality check', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const valid = validInventoryReport();
+  const jdFit = {
+    source: 'real' as const,
+    verdict: '可冲' as const,
+    basis: '岗位要求与已有社群维护经历部分匹配。',
+    maxAdvantage: '已有真实用户触达经历。',
+    maxGap: '缺少数据复盘。',
+    ifInsist: '突出协助边界。',
+    matrix: [
+      {
+        requirement: '用户运营实习生需要社群维护。',
+        evidence: '教育机构实习中维护学生社群。',
+        gap: '缺少用户规模和反馈结果。',
+        resumeWriting: '建议写成主导社群全流程并显著提升转化率。',
+        interviewRisk: '可能追问真实边界。'
+      }
+    ]
+  };
+  const riskyRewrites = [
+    {
+      ...valid.rewrites[0],
+      optimized: '主导社群运营并独立负责全流程闭环，从 0 到 1 显著提升转化率，保证通过筛选。',
+      risk: '',
+      interviewProbe: ''
+    },
+    {
+      ...valid.rewrites[1],
+      optimized: '可以包装成负责用户增长，独立完成数据复盘。',
+      risk: '可能追问是否真的主导。',
+      interviewProbe: '说明增长结果。'
+    }
+  ];
+  const interviews = Array.from({ length: 5 }, (_, index) => ({
+    question: `请说明社群维护经历中的具体分工 ${index + 1}`,
+    whyAsk: '核实经历真实性和岗位迁移价值。',
+    answerAngle: '按对象、动作、工具、结果或复盘回答。',
+    concern: '不要夸大负责范围或编造用户规模。',
+    sampleAnswer: index === 0 ? '我主导社群增长并独立完成全流程闭环，确保转化率大幅增长。' : '我主要协助整理活动通知和反馈信息。',
+    doNotExaggerate: '不要编造用户量、转化率或负责人身份。'
+  }));
+
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    if (options.task === 'report-jd-fit-summary') return { data: { source: 'real', jdFit }, usage: null };
+    if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: riskyRewrites }, usage: null };
+    if (options.task === 'report-interview-question') {
+      const index = Number(options.prompt.match(/"interviewIndex":(\d)/)?.[1] || 1);
+      return { data: { source: 'real', interview: interviews[index - 1] }, usage: null };
+    }
+    throw new Error(`unexpected report task ${options.task}`);
+  });
+  const callSmallModelJson = vi.fn(async (options: JsonCallOptions) => {
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
+    throw new Error(`unexpected small task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson, callSmallModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'jd', stage: 'senior', profile: { targetRole: '用户运营' }, assets: [], jdText: '负责用户运营、社群维护和反馈整理。', jdFit })
+    });
+    const body = await response.json();
+    const serialized = JSON.stringify(body);
+
+    expect(response.status).toBe(200);
+    expect(body.quality.passed).toBe(true);
+    expect(body.quality.blockers).toEqual([]);
+    expect(serialized).not.toMatch(/主导|独立负责|独立完成|显著提升|大幅增长|全流程|闭环|从 0 到 1|保证|确保|可以包装成/);
+    expect(body.rewrites[0].risk).toMatch(/需补充依据|按真实记录|待核实/);
+    expect(body.rewrites[0].interviewProbe).toMatch(/需补充依据|按真实记录|待核实/);
+    expect(body.interviews[0].sampleAnswer).toContain('按真实记录补充');
+    expect(JSON.stringify(body)).not.toContain('演示结果');
+  } finally {
+    await server.close();
+  }
+});
+
+test('configured JD report retries and falls back only the failed report module to small model', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const valid = validInventoryReport();
+  const calls: string[] = [];
+  const jdFit = {
+    source: 'real' as const,
+    verdict: '可冲' as const,
+    basis: '岗位要求与已有社群维护、用户反馈整理经历部分匹配。',
+    maxAdvantage: '已有真实用户触达和信息整理经历。',
+    maxGap: '缺少更完整的数据复盘和业务结果。',
+    ifInsist: '建议投递时突出协助边界和可核实产出。',
+    matrix: [
+      {
+        requirement: '用户运营实习生需要社群维护和反馈整理。',
+        evidence: '教育机构实习中维护学生社群并整理活动通知。',
+        gap: '缺少用户规模和反馈结果。',
+        resumeWriting: '协助维护学生社群，整理活动通知和用户反馈。',
+        interviewRisk: '可能追问社群数量、频次和具体反馈。'
+      }
+    ]
+  };
+  const interviews = Array.from({ length: 5 }, (_, index) => ({
+    question: `请说明社群维护经历中的具体分工 ${index + 1}`,
+    whyAsk: '核实经历真实性和岗位迁移价值。',
+    answerAngle: '按对象、动作、工具、结果或复盘回答。',
+    concern: '不要夸大负责范围或编造用户规模。',
+    sampleAnswer: '我主要协助整理活动通知和反馈信息，具体规模以真实记录为准。',
+    doNotExaggerate: '不要编造用户量、转化率或负责人身份。'
+  }));
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    calls.push(`strong:${options.task}:${options.model}`);
+    if (options.task === 'report-rewrites') {
+      throw new AiServiceError({
+        code: 'network_error',
+        message: 'OpenAI 网络连接失败，请检查网络或代理配置。',
+        detail: 'Connection error. (task: report-rewrites, model: gpt-5.4)',
+        retryable: true,
+        attempts: 3
+      });
+    }
+    if (options.task === 'report-highlights') return { source: 'real', highlights: valid.highlights };
+    if (options.task === 'report-jd-fit-summary') return { source: 'real', jdFit };
+    if (options.task === 'report-interview-question') {
+      const index = Number(options.prompt.match(/"interviewIndex":(\d)/)?.[1] || 1);
+      return { source: 'real', interview: interviews[index - 1] };
+    }
+    if (options.task === 'report-action-plan') {
+      return {
+        source: 'real',
+        summary: '本报告基于真实经历和 JD，判断可冲但需要补足数据复盘。',
+        actionPlan: valid.actionPlan,
+        safetyNotes: valid.safetyNotes,
+        resumeText: valid.resumeText,
+        platformFields: valid.platformFields,
+        previewLines: valid.previewLines
+      };
+    }
+    throw new Error(`unexpected task ${options.task}`);
+  });
+  const callSmallModelJson = vi.fn(async (options: JsonCallOptions) => {
+    calls.push(`small:${options.task}:${options.model}`);
+    if (options.task === 'report-highlights') return { source: 'real', highlights: valid.highlights };
+    if (options.task === 'report-rewrites') return { source: 'real', rewrites: valid.rewrites };
+    throw new Error(`unexpected small task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson, callSmallModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'jd',
+        stage: 'senior',
+        profile: {},
+        assets: [],
+        jdText: '负责用户运营、社群维护和反馈整理。',
+        jdFit
+      })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.mode).toBe('jd');
+    expect(body.jdFit).toBeTruthy();
+    expect(body.interviews).toHaveLength(5);
+    expect(body.rewrites).toHaveLength(2);
+    expect(body.quality.passed).toBe(true);
+    expect(calls).toContain('small:report-highlights:gpt-5.4-mini');
+    expect(calls).toContain('small:report-rewrites:gpt-5.4-mini');
+    expect(calls.filter((item) => item.includes('report-rewrites'))).toEqual([
+      'strong:report-rewrites:gpt-5.4',
+      'strong:report-rewrites:gpt-5.4',
+      'strong:report-rewrites:gpt-5.4',
+      'small:report-rewrites:gpt-5.4-mini'
+    ]);
+    expect(JSON.stringify(body)).not.toContain('演示结果');
+  } finally {
+    await server.close();
+  }
+});
+
+test('jd-fit first summarizes long JD then matches with compact input and retries connection errors', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const longJd = '用户运营岗位要求：'.repeat(300);
+  const calls: { task: string; prompt: string }[] = [];
+  let jdFitAttempts = 0;
+  const jdFit = {
+    source: 'real' as const,
+    verdict: '可冲' as const,
+    basis: '岗位要求与已有社群维护经历部分匹配。',
+    maxAdvantage: '已有真实用户触达和信息整理经历。',
+    maxGap: '缺少更完整的数据复盘和业务结果。',
+    ifInsist: '建议先投执行型运营实习，并补充真实数据复盘。',
+    matrix: [
+      {
+        requirement: '社群维护与用户反馈整理',
+        evidence: '用户材料中有社群维护和内容整理经历。',
+        gap: '缺少规模、频次和复盘结果。',
+        resumeWriting: '协助维护学生社群，整理用户反馈和活动提醒。',
+        interviewRisk: '可能追问社群规模、频次和本人边界。'
+      }
+    ]
+  };
+  const callSmallModelJson = vi.fn(async (options: JsonCallOptions) => {
+    calls.push({ task: options.task, prompt: options.prompt });
+    if (options.task === 'jd-summary') {
+      return {
+        data: {
+          source: 'real',
+          role: '用户运营实习生',
+          requirements: ['社群维护', '用户反馈整理', '活动执行'],
+          keywords: ['用户运营', '社群', 'Excel'],
+          riskNotes: ['不要承诺录取，不要编造数据']
+        },
+        usage: { model: options.model, task: options.task, inputTokens: 50, outputTokens: 30, totalTokens: 80, estimatedCostUsd: 0.0001 }
+      };
+    }
+    if (options.task === 'jd-fit') {
+      jdFitAttempts += 1;
+      if (jdFitAttempts === 1) {
+        throw new Error('Connection error.');
+      }
+      return {
+        data: jdFit,
+        usage: { model: options.model, task: options.task, inputTokens: 80, outputTokens: 80, totalTokens: 160, estimatedCostUsd: 0.0002 }
+      };
+    }
+    throw new Error(`unexpected small task ${options.task}`);
+  });
+
+  const server = await withServer({ callSmallModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/jd-fit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: 'senior', profile: { targetRole: '用户运营' }, assets: [], jdText: longJd })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.verdict).toBe('可冲');
+    expect(calls.map((item) => item.task)).toEqual(['jd-summary', 'jd-fit', 'jd-fit']);
+    expect(calls[1].prompt).not.toContain(longJd);
+    expect(calls[1].prompt).toContain('jdSummary');
+    expect(body.usage.totalTokens).toBe(240);
+  } finally {
+    await server.close();
+  }
+});
+
+test('JD report generates interviews as smaller question tasks and falls back failed question to small model', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const valid = validInventoryReport();
+  const jdFit = {
+    source: 'real' as const,
+    verdict: '可冲' as const,
+    basis: '岗位要求与已有社群维护、用户反馈整理经历部分匹配。',
+    maxAdvantage: '已有真实用户触达和信息整理经历。',
+    maxGap: '缺少更完整的数据复盘和业务结果。',
+    ifInsist: '建议先投执行型运营实习，并补充真实数据复盘。',
+    matrix: [
+      {
+        requirement: '社群维护与用户反馈整理',
+        evidence: '用户材料中有社群维护和内容整理经历。',
+        gap: '缺少规模、频次和复盘结果。',
+        resumeWriting: '协助维护学生社群，整理用户反馈和活动提醒。',
+        interviewRisk: '可能追问社群规模、频次和本人边界。'
+      }
+    ]
+  };
+  const interview = (index: number) => ({
+    source: 'real' as const,
+    interview: {
+      question: `问题 ${index}：请说明你的真实分工？`,
+      whyAsk: '核实经历真实性和岗位迁移能力。',
+      answerAngle: '按背景、任务、动作、结果或复盘回答。',
+      concern: '本人边界、规模、频次和证据。',
+      sampleAnswer: '我主要协助维护社群和整理反馈，具体规模按真实记录说明。',
+      doNotExaggerate: '不要编造用户量、转化率或负责人身份。'
+    }
+  });
+  const reportUsage = (task: string) => ({ model: 'gpt-5.4', task, inputTokens: 60, outputTokens: 40, totalTokens: 100, estimatedCostUsd: 0.0005 });
+  const smallUsage = (task: string) => ({ model: 'gpt-5.4-mini', task, inputTokens: 40, outputTokens: 30, totalTokens: 70, estimatedCostUsd: 0.0002 });
+  const reportCalls: string[] = [];
+  const smallCalls: string[] = [];
+
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    reportCalls.push(`${options.task}:${options.model}`);
+    if (options.task === 'report-jd-fit-summary') return { data: { source: 'real', jdFit }, usage: reportUsage(options.task) };
+    if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: valid.rewrites }, usage: reportUsage(options.task) };
+    if (options.task === 'report-interview-question') {
+      if (options.prompt.includes('"interviewIndex":3')) throw new Error('Connection error.');
+      return { data: interview(Number(options.prompt.match(/"interviewIndex":(\d)/)?.[1] || 1)), usage: reportUsage(options.task) };
+    }
+    throw new Error(`unexpected report task ${options.task}`);
+  });
+  const callSmallModelJson = vi.fn(async (options: JsonCallOptions) => {
+    smallCalls.push(`${options.task}:${options.model}`);
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: smallUsage(options.task) };
+    if (options.task === 'report-interview-question') return { data: interview(3), usage: smallUsage(options.task) };
+    throw new Error(`unexpected small task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson, callSmallModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'jd', stage: 'senior', profile: { targetRole: '用户运营' }, assets: [], jdText: '用户运营 JD', jdFit })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.interviews).toHaveLength(5);
+    expect(body.quality.passed).toBe(true);
+    expect(reportCalls.filter((item) => item.startsWith('report-interviews:'))).toEqual([]);
+    expect(reportCalls.filter((item) => item.startsWith('report-interview-question:')).length).toBe(7);
+    expect(smallCalls).toEqual(expect.arrayContaining(['report-highlights:gpt-5.4-mini', 'report-interview-question:gpt-5.4-mini']));
+    expect(body.usage.modules).toEqual(expect.arrayContaining([expect.objectContaining({ task: 'report-interview-question', modelTier: 'small' })]));
+  } finally {
+    await server.close();
+  }
+});
+
+test('report task returns partial modules on failure and resumes without repeating completed modules', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const valid = validInventoryReport();
+  const calls: string[] = [];
+  const usage = (task: string) => ({ model: 'gpt-5.4', task, inputTokens: 100, outputTokens: 50, totalTokens: 150, estimatedCostUsd: 0.001 });
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    calls.push(options.task);
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: usage(options.task) };
+    if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: valid.directionOptions }, usage: usage(options.task) };
+    if (options.task === 'report-rewrites' && !calls.includes('resume-started')) {
+      throw new AiServiceError({
+        code: 'network_error',
+        message: 'OpenAI 网络连接失败，请检查网络或代理配置。',
+        detail: 'Connection error. (task: report-rewrites, model: gpt-5.4, apiKey: sk-test-secret)',
+        retryable: true,
+        attempts: 3
+      });
+    }
+    if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: valid.rewrites }, usage: usage(options.task) };
+    throw new Error(`unexpected task ${options.task}`);
+  });
+  const callSmallModelJson = vi.fn(async (options: JsonCallOptions) => {
+    calls.push(`small:${options.task}`);
+    if (options.task === 'report-rewrites' && calls.includes('resume-started')) {
+      return { data: { source: 'real', rewrites: valid.rewrites }, usage: { ...usage(options.task), model: 'gpt-5.4-mini' } };
+    }
+    throw new AiServiceError({
+      code: 'network_error',
+      message: 'OpenAI 网络连接失败，请检查网络或代理配置。',
+      detail: 'Connection error. (task: report-rewrites, model: gpt-5.4-mini)',
+      retryable: true,
+      attempts: 3
+    });
+  });
+
+  const server = await withServer({ callReportModelJson, callSmallModelJson });
+  try {
+    const firstResponse = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '' })
+    });
+    const partial = await firstResponse.json();
+
+    expect(firstResponse.status).toBe(200);
+    expect(partial.reportTask).toMatchObject({
+      status: 'partial',
+      failedModule: 'rewrites',
+      completedModules: ['highlights', 'directions'],
+      completedCount: 2,
+      totalModules: 5,
+      retryable: true
+    });
+    expect(JSON.stringify(partial)).toContain('已完成内容不会丢失');
+    expect(JSON.stringify(partial)).not.toContain('sk-test-secret');
+
+    calls.push('resume-started');
+    const resumeResponse = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '', reportTask: partial.reportTask })
+    });
+    const resumed = await resumeResponse.json();
+
+    expect(resumeResponse.status).toBe(200);
+    expect(resumed.source).toBe('real');
+    expect(resumed.quality.passed).toBe(true);
+    expect(resumed.usage.totalTokens).toBe(450);
+    expect(calls).toEqual([
+      'report-highlights',
+      'report-directions',
+      'report-rewrites',
+      'report-rewrites',
+      'report-rewrites',
+      'small:report-rewrites',
+      'small:report-rewrites',
+      'small:report-rewrites',
+      'resume-started',
+      'report-rewrites'
+    ]);
+  } finally {
+    await server.close();
+  }
+});
+
+test('report module schema repair succeeds once and repair failure returns clear task error', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const valid = validInventoryReport();
+  const prompts: string[] = [];
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    prompts.push(options.prompt);
+    if (options.task === 'report-highlights' && !options.prompt.includes('修复')) return { data: { source: 'real', highlights: [valid.highlights[0]] }, usage: null };
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
+    if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: valid.directionOptions }, usage: null };
+    if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: valid.rewrites }, usage: null };
+    throw new Error(`unexpected task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '' })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('real');
+    expect(prompts.some((prompt) => prompt.includes('修复：上次 JSON 不符合 schema'))).toBe(true);
+  } finally {
+    await server.close();
+  }
+});
+
+test('report module schema repair failure returns clear failed task without leaking API key', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test-secret';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const callReportModelJson = vi.fn(async () => ({ data: { source: 'real', highlights: [] }, usage: null }));
+
+  const server = await withServer({ callReportModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '' })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.reportTask).toMatchObject({
+      status: 'failed',
+      failedModule: 'highlights',
+      retryable: true
+    });
+    expect(body.reportTask.technicalDetail).toMatch(/highlights must contain at least 2 items|schema/i);
+    expect(JSON.stringify(body)).not.toContain('sk-test-secret');
+    expect(JSON.stringify(body)).not.toContain('演示结果');
+  } finally {
+    await server.close();
+  }
+});
+
+test('diagnosis report validator rejects missing key fields for each mode', () => {
+  expect(() =>
+    validateDiagnosisReport({
+      mode: 'inventory',
+      source: 'real',
+      summary: 'summary',
+      highlights: [],
+      directionOptions: [],
+      rewrites: [],
+      actionPlan: { source: 'real', plans: [], confidenceSummary: '' },
+      resumeText: [],
+      platformFields: [],
+      previewLines: [],
+      safetyNotes: []
+    })
+  ).toThrow(/at least 2 highlights/);
+
+  expect(() =>
+    validateDiagnosisReport({
+      mode: 'jd',
+      source: 'real',
+      summary: 'summary',
+      highlights: [{ sourceExperience: 'a', capability: 'b', jdRequirement: 'c', whyNotFlattery: 'd', professionalExpression: 'e' }],
+      rewrites: [],
+      actionPlan: { source: 'real', plans: [], confidenceSummary: '' },
+      resumeText: [],
+      platformFields: [],
+      previewLines: [],
+      safetyNotes: []
+    })
+  ).toThrow(/jdFit/);
+});
+
+test('career prompts include V0.3 role, safety red lines, and mode-specific instructions', () => {
+  const jdPrompt = reportPrompt({ mode: 'jd', profile: {}, jdText: '用户运营 JD' });
+  const inventoryPrompt = reportPrompt({ mode: 'inventory', profile: {}, jdText: '' });
+  const combined = `${careerCoachSystemPrompt}\n${jdPrompt}\n${inventoryPrompt}`;
+
+  for (const keyword of ['资深 HR', '温和陪伴型', '普通本科', '不伪造', '不编造', '不承诺 offer', '真实经历', '待核实']) {
+    expect(combined).toContain(keyword);
+  }
+  expect(jdPrompt).toContain('有 JD 模式');
+  expect(jdPrompt).toContain('JD 证据匹配');
+  expect(inventoryPrompt).toContain('无 JD 模式');
+  expect(inventoryPrompt).toContain('不要输出 JD 证据矩阵');
+});
+
+test('compact report context summarizes inputs for split report modules without repeating full payload', () => {
+  const longResume = '简历正文'.repeat(500);
+  const longJd = '岗位要求'.repeat(400);
+  const payload = {
+    mode: 'jd',
+    stage: 'senior',
+    resumeText: longResume,
+    jdText: longJd,
+    profile: {
+      education: '本科',
+      schoolName: '某某学院',
+      major: '市场营销',
+      graduation: '2026',
+      city: '杭州',
+      targetRole: '用户运营',
+      internship: '教育机构实习，维护社群并整理反馈。',
+      project: '校园调研项目，问卷和 Excel 汇总。',
+      campus: '',
+      partTime: '',
+      awards: '',
+      skills: 'Excel，公众号排版',
+      portfolio: ''
+    },
+    assets: [
+      {
+        id: 'internship',
+        title: '实习经历',
+        content: `${longResume} 教育机构社群维护`,
+        notes: ['补充回答'.repeat(200)],
+        status: '已确认',
+        confirmed: true,
+        source: 'real',
+        isGap: false
+      }
+    ],
+    jdFit: {
+      verdict: '可冲',
+      basis: longJd,
+      maxAdvantage: '有社群维护经历。',
+      maxGap: '缺少数据复盘。',
+      ifInsist: '突出协助边界。',
+      matrix: [
+        {
+          requirement: longJd,
+          evidence: '教育机构社群维护。',
+          gap: '缺少规模。',
+          resumeWriting: '协助维护社群。',
+          interviewRisk: '追问边界。'
+        }
+      ]
+    }
+  };
+
+  const context = buildCompactReportContext(payload, 'report-rewrites');
+  const prompt = reportModulePrompt(payload, 'report-rewrites');
+
+  expect(JSON.stringify(context).length).toBeLessThan(JSON.stringify(payload).length / 2);
+  expect(prompt).not.toContain(longResume);
+  expect(prompt).not.toContain(longJd);
+  expect(prompt).toContain('用户运营');
+  expect(prompt).toContain('教育机构实习');
+  expect(prompt).toContain('协助');
+  expect(prompt.length).toBeLessThan(2600);
+});
+
+test('JD prompts explicitly constrain risky resume and interview language', () => {
+  const payload = {
+    mode: 'jd',
+    stage: 'senior',
+    profile: { targetRole: '用户运营', internship: '教育机构实习，维护社群并整理反馈。' },
+    assets: [{ id: 'internship', title: '实习', content: '协助维护学生社群。', notes: [] }],
+    jdSummary: { role: '用户运营', requirements: ['社群运营'], keywords: ['用户'], riskNotes: ['需要数据依据'] },
+    jdFit: {
+      verdict: '可冲',
+      basis: '部分匹配。',
+      maxAdvantage: '有社群维护经历。',
+      maxGap: '缺少数据依据。',
+      ifInsist: '突出协助边界。',
+      matrix: [
+        {
+          requirement: '社群运营',
+          evidence: '协助维护社群',
+          gap: '缺少规模',
+          resumeWriting: '协助维护社群',
+          interviewRisk: '追问边界'
+        }
+      ]
+    }
+  };
+
+  const prompts = [
+    jdFitPrompt(payload),
+    reportModulePrompt(payload, 'report-rewrites'),
+    reportModulePrompt(payload, 'report-jd-fit-summary'),
+    reportModulePrompt(payload, 'report-interview-question')
+  ].join('\n');
+
+  expect(prompts).toContain('协助、参与、支持、整理、跟进、配合、记录、复盘、尝试、约');
+  expect(prompts).toContain('禁止使用');
+  expect(prompts).toContain('主导');
+  expect(prompts).toContain('独立完成');
+  expect(prompts).toContain('显著提升');
+  expect(prompts).toContain('保证');
+  expect(prompts).toContain('每条简历改写必须包含 risk 和 interviewProbe');
+  expect(prompts).toContain('我主要参与的是');
+  expect(prompts).toContain('如果没有明确数据，不建议写成结果提升');
+});
+
+test('diagnosis report json schema is compatible with OpenAI strict response format', () => {
+  const properties = diagnosisReportJsonSchema.properties;
+  const required = diagnosisReportJsonSchema.required;
+
+  expect(required).toEqual(expect.arrayContaining(Object.keys(properties)));
+  expect(properties.jdFit).toMatchObject({
+    anyOf: expect.arrayContaining([expect.objectContaining({ type: 'null' })])
+  });
+  expect(properties.interviews).toMatchObject({
+    anyOf: expect.arrayContaining([expect.objectContaining({ type: 'null' })])
+  });
+  expect(properties.directionOptions).toMatchObject({
+    anyOf: expect.arrayContaining([expect.objectContaining({ type: 'null' })])
+  });
+});

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["server/**/*.ts", "src/types.ts", "src/services/aiService.ts"],
+  "exclude": ["server/**/*.test.ts"]
+}
