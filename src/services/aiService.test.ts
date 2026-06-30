@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { getAiService, verifyBetaAccessCode } from './aiService';
 
@@ -51,4 +53,10 @@ test('uses VITE_API_BASE_URL for backend requests when configured', async () => 
       })
     })
   );
+});
+
+test('reads VITE_API_BASE_URL through direct import.meta.env access for production builds', () => {
+  const source = readFileSync(join(process.cwd(), 'src/services/aiService.ts'), 'utf8');
+
+  expect(source).toContain('import.meta.env.VITE_API_BASE_URL');
 });

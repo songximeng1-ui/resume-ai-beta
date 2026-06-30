@@ -81,8 +81,7 @@ function readStoredBetaAccessCode() {
 }
 
 function getApiBaseUrl() {
-  const meta = import.meta as ImportMeta & { env?: Record<string, string | undefined> };
-  return (meta.env?.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+  return (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
 }
 
 function apiUrl(path: string) {
