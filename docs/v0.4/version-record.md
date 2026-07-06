@@ -39,3 +39,21 @@
 - `npm run build`：通过。
 
 本次没有新增环境变量，因此不需要更新 `.env.example`；README 暂无必要更新。
+
+## 2026-07-06：AI Task Package 构造器地基
+
+改动类型：智能体工作流、数据结构、测试、文档。
+
+本次完成 V0.4 智能体工作流的任务包构造器第一步：
+
+- 新增 `server/taskPackage.ts`，用于从请求输入中构造 V0.4 AI Task Package。
+- 任务包统一包含 meta、userProfile、confirmedAssets、excludedAssets、jd、currentTask、forbiddenInputs 等核心区块。
+- JD 模式下可把 `jdSummary.requirements` 转成稳定的 `req_1`、`req_2` 结构化岗位要求，供后续动态追问和报告模块绑定。
+- 生成模块只使用确认使用、编辑后确认或已确认的经历；未确认和暂不使用经历会进入 forbiddenInputs，避免被后续模型误用。
+- 安全规则明确写入任务包：不伪造经历、不编造数据、不夸大职责、不承诺 offer。
+
+验证结果：
+
+- `npm test -- server/taskPackage.test.ts`：通过，1 个测试文件、2 个测试通过。
+
+本次没有新增环境变量，因此不需要更新 `.env.example`；README 暂无必要更新。下一步应把该任务包接入动态追问或分模块报告调用。
