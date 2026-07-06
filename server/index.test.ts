@@ -1,9 +1,68 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createAiServer, getServerListenConfig } from './index.ts';
 import { buildCompactReportContext, careerCoachSystemPrompt, jdFitPrompt, reportModulePrompt, reportPrompt } from './prompts.ts';
-import { diagnosisReportJsonSchema, digQuestionsJsonSchema, validateDiagnosisReport, validateDigQuestionSet } from './schemas.ts';
+import {
+  diagnosisReportJsonSchema,
+  digQuestionsJsonSchema,
+  validateDiagnosisReport,
+  validateDigQuestionSet,
+  validateReportActionPlanModule,
+  validateReportRewritesModule
+} from './schemas.ts';
 import { AiServiceError } from './openaiClient.ts';
 import type { AiRuntime, JsonCallOptions } from './openaiClient.ts';
+
+function v04Rewrite(overrides: Record<string, string> = {}) {
+  const rewrite = {
+    relatedExperience: '教育机构新媒体运营实习',
+    originalIssue: '原表达只写“帮忙”，没有说明对象、动作和本人边界。',
+    capability: '社群维护、内容整理',
+    directVersion: '协助教育机构整理公众号推文素材，并在学生社群中发布活动通知。',
+    versionAfterSupplement: '补充推文频率、社群数量和活动反馈记录后，可进一步写清楚真实产出。',
+    usageReminder: '使用前确认推文素材整理频率和社群数量。',
+    original: '在教育机构帮忙发推文和群通知。',
+    optimized: '协助教育机构整理公众号推文素材，并在学生社群中发布活动通知。',
+    reason: '把零散动作整理成岗位能理解的内容支持和用户触达。',
+    jdRequirement: '可迁移到社群运营、内容运营助理方向。',
+    risk: '使用前确认推文素材整理频率和社群数量。',
+    interviewProbe: '可能被问到每周参与频率和具体工具。'
+  };
+  return { ...rewrite, ...overrides };
+}
+
+function v04ActionPlan(source: 'real' | 'demo' = 'real') {
+  const item = (
+    period: string,
+    what: string,
+    why: string,
+    how: string,
+    completionStandard: string,
+    jobSearchValue: string
+  ) => ({
+    period,
+    what,
+    why,
+    how,
+    completionStandard,
+    jobSearchValue,
+    action: what,
+    deliverable: completionStandard,
+    resumeUsage: jobSearchValue,
+    targetAbility: why
+  });
+  return {
+    source,
+    plans: [
+      item('7 天内', '整理一份已确认经历清单，标注每段经历的任务、工具和产出。', '先筛选能真实写入简历的经历证据。', '按任务、工具、产出、本人边界四列整理。', '1 份经历素材表', '用于筛选可写入简历的真实经历。'),
+      item('7 天内', '挑选 3 个真实岗位 JD，记录岗位名称、要求关键词和常见任务。', '用真实岗位要求验证当前材料。', '记录重复出现的能力词、任务描述和证据缺口。', '1 份岗位关键词对照表', '用于判断简历表达是否对应真实岗位。'),
+      item('14 天内', '补充一份社群维护或内容整理复盘，写清对象、频率、动作和反馈。', '把现有经历补成可被追问的事实材料。', '补充对象、频率、本人动作、反馈记录和不能夸大的边界。', '1 页经历复盘', '用于改写用户运营或内容运营相关经历。'),
+      item('14 天内', '整理 2 个可展示作品或过程材料，并补上本人分工说明。', '让简历表达有材料支撑。', '选择作品链接、截图或过程说明，并标注素材来源和本人参与部分。', '2 个作品材料链接或截图说明', '用于支撑新媒体运营助理投递。'),
+      item('30 天内', '完成 6 次小批量投递，并记录岗位、简历版本和反馈。', '用真实反馈验证方向和简历版本。', '记录岗位名称、JD 关键词、投递版本、反馈和下一步修改点。', '1 份投递记录表', '用于迭代简历关键词和投递方向。'),
+      item('30 天内', '针对反馈最高的方向准备 5 个面试追问题纲。', '确认简历内容能在面试中解释清楚。', '每个问题写清关联经历、可说事实、待核实信息和不能夸大的边界。', '1 份面试准备清单', '用于把简历经历转成可解释的面试素材。')
+    ],
+    confidenceSummary: '你不是没有经历，而是需要把现有动作整理成岗位语言和可展示材料。'
+  };
+}
 
 function validInventoryReport() {
   return {
@@ -27,22 +86,35 @@ function validInventoryReport() {
       }
     ],
     rewrites: [
-      {
-        original: '在教育机构帮忙发推文和群通知。',
-        optimized: '协助教育机构整理公众号推文素材，并在学生社群中发布活动通知。',
-        reason: '把零散动作整理成岗位能理解的内容支持和用户触达。',
-        jdRequirement: '可迁移到社群运营、内容运营助理方向。',
-        risk: '使用前确认推文素材整理频率和社群数量。',
-        interviewProbe: '可能被问到每周参与频率和具体工具。'
-      },
-      {
+      v04Rewrite(),
+      v04Rewrite({
+        relatedExperience: '校园调研项目',
+        originalIssue: '原表达没有说明材料来源、工具和交付物。',
+        capability: '问卷整理、Excel 汇总、展示支持',
+        directVersion: '参与校园调研项目，使用 Excel 汇总问卷结果并支持展示汇报。',
+        versionAfterSupplement: '补充样本量、问卷维度和表格处理方式后，可进一步说明调研产出。',
+        usageReminder: '不能写成商业数据分析项目。',
         original: '用 Excel 整理问卷。',
         optimized: '参与校园调研项目，使用 Excel 汇总问卷结果并支持展示汇报。',
         reason: '突出工具、材料来源和交付物。',
         jdRequirement: '可迁移到数据运营助理或项目助理方向。',
         risk: '不能写成商业数据分析项目。',
         interviewProbe: '可能被问到样本量和表格处理方式。'
-      }
+      }),
+      v04Rewrite({
+        relatedExperience: '技能与工具材料',
+        originalIssue: '工具能力如果只罗列名称，缺少真实使用场景。',
+        capability: '基础内容制作、公众号排版',
+        directVersion: '具备基础内容制作能力，可使用剪映处理短视频素材，并协助完成公众号内容排版。',
+        versionAfterSupplement: '补充作品链接、截图或具体排版样例后，可写得更具体。',
+        usageReminder: '使用前确认作品链接、排版样例和本人参与范围。',
+        original: '会剪映和公众号排版。',
+        optimized: '具备基础内容制作能力，可使用剪映处理短视频素材，并协助完成公众号内容排版。',
+        reason: '把工具能力连接到可验证的内容支持任务。',
+        jdRequirement: '可迁移到新媒体运营助理和内容运营助理方向。',
+        risk: '使用前确认作品链接、排版样例和本人参与范围。',
+        interviewProbe: '可能被问到具体作品、处理流程和使用频率。'
+      })
     ],
     directionOptions: [
       {
@@ -64,19 +136,7 @@ function validInventoryReport() {
         keywords: ['新媒体运营', '内容运营助理']
       }
     ],
-    actionPlan: {
-      source: 'real' as const,
-      plans: [
-        {
-          period: '2-4 周',
-          action: '整理 2 个经历复盘页：一个社群维护案例，一个问卷调研案例。',
-          deliverable: '2 页作品集或简历素材',
-          resumeUsage: '用于用户运营、项目助理和新媒体运营助理投递。',
-          targetAbility: '经历表达、内容整理、基础复盘'
-        }
-      ],
-      confidenceSummary: '你不是没有经历，而是需要把现有动作整理成岗位语言和可展示材料。'
-    },
+    actionPlan: v04ActionPlan(),
     safetyNotes: ['方向建议只作为探索起点，不替用户决定人生。'],
     resumeText: ['协助整理内容素材，维护学生社群。'],
     platformFields: ['社群维护；公众号排版；Excel'],
@@ -382,7 +442,7 @@ test('demo report supports inventory mode without requiring JD fit or 5 intervie
     expect(body.highlights.length).toBeGreaterThanOrEqual(2);
     expect(body.directionOptions.length).toBeGreaterThanOrEqual(2);
     expect(body.rewrites.length).toBeGreaterThanOrEqual(2);
-    expect(body.actionPlan.plans.length).toBeGreaterThanOrEqual(1);
+    expect(body.actionPlan.plans.length).toBeGreaterThanOrEqual(6);
     expect(body.jdFit).toBeUndefined();
     expect(body.interviews).toBeUndefined();
     expect(body.quality).toMatchObject({
@@ -424,7 +484,7 @@ test('demo report supports JD mode with JD fit and 5 interview questions', async
     expect(body.highlights.length).toBeGreaterThanOrEqual(2);
     expect(body.rewrites.length).toBeGreaterThanOrEqual(2);
     expect(body.interviews).toHaveLength(5);
-    expect(body.actionPlan.plans.length).toBeGreaterThanOrEqual(1);
+    expect(body.actionPlan.plans.length).toBeGreaterThanOrEqual(6);
     expect(body.jdFit).toBeTruthy();
     expect(body.quality).toMatchObject({
       passed: true,
@@ -442,82 +502,7 @@ test('configured report endpoint attaches quality result after model validation'
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
   process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
 
-  const callReportModelJson = vi.fn(async () => ({
-    mode: 'inventory',
-    source: 'real',
-    summary: '当前最可用的筹码是社群维护、内容整理、问卷调研和 Excel 汇总。',
-    highlights: [
-      {
-        sourceExperience: '教育机构新媒体运营实习',
-        capability: '社群维护与用户触达',
-        jdRequirement: '用户运营 / 社群运营',
-        whyNotFlattery: '用户确实做过社群提醒和内容整理，能支撑基础运营动作。',
-        professionalExpression: '协助维护学生社群，整理活动通知与反馈信息。'
-      },
-      {
-        sourceExperience: '校园调研项目',
-        capability: '信息整理与复盘',
-        jdRequirement: '数据运营助理',
-        whyNotFlattery: '问卷设计和 Excel 汇总可以对应基础数据整理。',
-        professionalExpression: '参与问卷设计，使用 Excel 汇总调研结果并完成课堂展示。'
-      }
-    ],
-    rewrites: [
-      {
-        original: '在教育机构帮忙发推文和群通知。',
-        optimized: '协助教育机构整理公众号推文素材，并在学生社群中发布活动通知。',
-        reason: '把零散动作整理成岗位能理解的内容支持和用户触达。',
-        jdRequirement: '可迁移到社群运营、内容运营助理方向。',
-        risk: '使用前确认推文素材整理频率和社群数量。',
-        interviewProbe: '可能被问到每周参与频率和具体工具。'
-      },
-      {
-        original: '用 Excel 整理问卷。',
-        optimized: '参与校园调研项目，使用 Excel 汇总问卷结果并支持展示汇报。',
-        reason: '突出工具、材料来源和交付物。',
-        jdRequirement: '可迁移到数据运营助理或项目助理方向。',
-        risk: '不能写成商业数据分析项目。',
-        interviewProbe: '可能被问到样本量和表格处理方式。'
-      }
-    ],
-    directionOptions: [
-      {
-        name: '用户运营 / 社群运营',
-        level: '主投',
-        why: '基于当前经历，更值得优先探索的是需要社群维护、活动通知和反馈整理的岗位。',
-        evidence: '教育机构实习中有学生社群维护、公众号内容整理和用户触达。',
-        gap: '当前证据还不充分的是活动复盘、用户分层和数据记录。',
-        next: '未来 2 周补一份社群活动复盘表，记录对象、频率、反馈和改进。',
-        keywords: ['用户运营', '社群运营', '活动运营']
-      },
-      {
-        name: '新媒体运营助理',
-        level: '可冲',
-        why: '公众号推文素材整理和剪映技能可以支持基础内容岗位尝试。',
-        evidence: '有公众号排版、推文整理和剪映基础。',
-        gap: '还需要补充可展示作品和内容数据复盘。',
-        next: '整理 2 篇内容作品，补充选题、排版和复盘说明。',
-        keywords: ['新媒体运营', '内容运营助理']
-      }
-    ],
-    actionPlan: {
-      source: 'real',
-      plans: [
-        {
-          period: '2-4 周',
-          action: '整理 2 个经历复盘页：一个社群维护案例，一个问卷调研案例。',
-          deliverable: '2 页作品集或简历素材',
-          resumeUsage: '用于用户运营、项目助理和新媒体运营助理投递。',
-          targetAbility: '经历表达、内容整理、基础复盘'
-        }
-      ],
-      confidenceSummary: '你不是没有经历，而是需要把现有动作整理成岗位语言和可展示材料。'
-    },
-    safetyNotes: ['方向建议只作为探索起点，不替用户决定人生。'],
-    resumeText: ['协助整理内容素材，维护学生社群。'],
-    platformFields: ['社群维护；公众号排版；Excel'],
-    previewLines: ['可优先探索用户运营、社群运营和新媒体运营助理。']
-  }));
+  const callReportModelJson = vi.fn(async () => validInventoryReport());
 
   const server = await withServer({ callReportModelJson });
   try {
@@ -642,8 +627,8 @@ test('configured inventory report endpoint generates smaller modules and assembl
     expect(body.source).toBe('real');
     expect(body.highlights).toHaveLength(2);
     expect(body.directionOptions).toHaveLength(2);
-    expect(body.rewrites).toHaveLength(2);
-    expect(body.actionPlan.plans.length).toBeGreaterThanOrEqual(1);
+    expect(body.rewrites).toHaveLength(3);
+    expect(body.actionPlan.plans.length).toBeGreaterThanOrEqual(6);
     expect(body.jdFit).toBeUndefined();
     expect(body.interviews).toBeUndefined();
     expect(body.quality.passed).toBe(true);
@@ -795,7 +780,8 @@ test('configured JD report sanitizes risky rewrite and interview wording before 
       optimized: '可以包装成负责用户增长，独立完成数据复盘。',
       risk: '可能追问是否真的主导。',
       interviewProbe: '说明增长结果。'
-    }
+    },
+    valid.rewrites[2]
   ];
   const interviews = Array.from({ length: 5 }, (_, index) => ({
     question: `请说明社群维护经历中的具体分工 ${index + 1}`,
@@ -932,7 +918,7 @@ test('configured JD report retries and falls back only the failed report module 
     expect(body.mode).toBe('jd');
     expect(body.jdFit).toBeTruthy();
     expect(body.interviews).toHaveLength(5);
-    expect(body.rewrites).toHaveLength(2);
+    expect(body.rewrites).toHaveLength(3);
     expect(body.quality.passed).toBe(true);
     expect(calls).toContain('small:report-highlights:gpt-5.4-mini');
     expect(calls).toContain('small:report-rewrites:gpt-5.4-mini');
@@ -1257,7 +1243,7 @@ test('diagnosis report validator rejects missing key fields for each mode', () =
       highlights: [],
       directionOptions: [],
       rewrites: [],
-      actionPlan: { source: 'real', plans: [], confidenceSummary: '' },
+      actionPlan: v04ActionPlan(),
       resumeText: [],
       platformFields: [],
       previewLines: [],
@@ -1272,7 +1258,7 @@ test('diagnosis report validator rejects missing key fields for each mode', () =
       summary: 'summary',
       highlights: [{ sourceExperience: 'a', capability: 'b', jdRequirement: 'c', whyNotFlattery: 'd', professionalExpression: 'e' }],
       rewrites: [],
-      actionPlan: { source: 'real', plans: [], confidenceSummary: '' },
+      actionPlan: v04ActionPlan(),
       resumeText: [],
       platformFields: [],
       previewLines: [],
@@ -1281,7 +1267,51 @@ test('diagnosis report validator rejects missing key fields for each mode', () =
   ).toThrow(/jdFit/);
 });
 
-test('career prompts include V0.3 role, safety red lines, and mode-specific instructions', () => {
+test('rewrite schema requires V0.4 resume suggestion fields', () => {
+  const legacyRewrite = {
+    original: '在教育机构帮忙发推文和群通知。',
+    optimized: '协助教育机构整理公众号推文素材，并在学生社群中发布活动通知。',
+    reason: '把零散动作整理成岗位能理解的内容支持和用户触达。',
+    jdRequirement: '社群维护、内容编辑、用户反馈整理',
+    risk: '使用前确认推文素材整理频率和社群数量。',
+    interviewProbe: '可能被问到每周参与频率和具体工具。'
+  };
+
+  expect(() =>
+    validateReportRewritesModule({
+      source: 'real',
+      rewrites: [legacyRewrite, legacyRewrite, legacyRewrite]
+    })
+  ).toThrow(/directVersion|relatedExperience|usageReminder/);
+});
+
+test('action plan schema requires V0.4 actionable fields and period coverage', () => {
+  const legacyPlan = {
+    period: '2-4 周',
+    action: '整理 2 个经历复盘页。',
+    deliverable: '2 页作品集或简历素材',
+    resumeUsage: '用于用户运营、项目助理和新媒体运营助理投递。',
+    targetAbility: '经历表达、内容整理、基础复盘'
+  };
+
+  expect(() =>
+    validateReportActionPlanModule({
+      source: 'real',
+      summary: '行动计划',
+      actionPlan: {
+        source: 'real',
+        plans: [legacyPlan],
+        confidenceSummary: '先把真实经历证据补清楚。'
+      },
+      safetyNotes: ['只基于真实经历。'],
+      resumeText: ['协助整理内容素材。'],
+      platformFields: ['社群维护'],
+      previewLines: ['可先验证用户运营。']
+    })
+  ).toThrow(/what|7 天内|14 天内|30 天内/);
+});
+
+test('career prompts include V0.4 role, safety red lines, and mode-specific instructions', () => {
   const jdPrompt = reportPrompt({ mode: 'jd', profile: {}, jdText: '用户运营 JD' });
   const inventoryPrompt = reportPrompt({ mode: 'inventory', profile: {}, jdText: '' });
   const combined = `${careerCoachSystemPrompt}\n${jdPrompt}\n${inventoryPrompt}`;
@@ -1291,8 +1321,11 @@ test('career prompts include V0.3 role, safety red lines, and mode-specific inst
   }
   expect(jdPrompt).toContain('有 JD 模式');
   expect(jdPrompt).toContain('JD 证据匹配');
+  expect(jdPrompt).toContain('至少 3 条简历改写建议');
+  expect(jdPrompt).toContain('7 天内、14 天内、30 天内');
   expect(inventoryPrompt).toContain('无 JD 模式');
   expect(inventoryPrompt).toContain('不要输出 JD 证据矩阵');
+  expect(inventoryPrompt).toContain('至少 3 条简历改写建议');
 });
 
 test('compact report context summarizes inputs for split report modules without repeating full payload', () => {

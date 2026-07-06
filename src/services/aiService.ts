@@ -265,6 +265,12 @@ function buildRewrites(profile: Profile, assets: AssetCard[]): ResumeRewrite[] {
 
   if (internship) {
     rewrites.push({
+      relatedExperience: '教育机构新媒体运营实习',
+      originalIssue: '原表达可能只写“实习”或零散任务，缺少对象、动作和本人边界。',
+      capability: '社群维护、内容整理、用户反馈收集',
+      directVersion: '协助完成教育机构新媒体运营支持工作，维护学生社群并整理公众号推文素材，配合活动提醒和用户反馈收集。',
+      versionAfterSupplement: '补充社群数量、推文频率、活动提醒周期和反馈记录后，可进一步写清楚真实参与范围。',
+      usageReminder: '如写人数、频次、效果，必须来自真实记录或能在面试中解释清楚。',
       original: internship.content,
       optimized: '协助完成教育机构新媒体运营支持工作，维护学生社群并整理公众号推文素材，配合活动提醒和用户反馈收集。',
       reason: '把“做过实习”拆成社群维护、内容整理、活动触达，岗位语言更清楚。',
@@ -276,6 +282,12 @@ function buildRewrites(profile: Profile, assets: AssetCard[]): ResumeRewrite[] {
 
   if (project) {
     rewrites.push({
+      relatedExperience: '校园二手交易调研项目',
+      originalIssue: '原表达容易停留在“做过项目”，没有说明调研动作、工具和交付物。',
+      capability: '调研执行、Excel 数据整理、展示汇报',
+      directVersion: '参与校园二手交易调研项目，完成问卷设计、Excel 结果整理和课堂展示，沉淀用户需求与交易痛点观察。',
+      versionAfterSupplement: '补充样本量、问卷维度、Excel 处理方式和展示结论后，可进一步说明项目产出。',
+      usageReminder: '不能把课程作业写成真实商业项目；样本量和结论需要按真实情况说明。',
       original: project.content,
       optimized: '参与校园二手交易调研项目，完成问卷设计、Excel 结果整理和课堂展示，沉淀用户需求与交易痛点观察。',
       reason: '课程项目不包装成企业项目，而是强调调研、数据整理和表达产出。',
@@ -285,8 +297,14 @@ function buildRewrites(profile: Profile, assets: AssetCard[]): ResumeRewrite[] {
     });
   }
 
-  if (rewrites.length < 2 && skills) {
+  if (skills) {
     rewrites.push({
+      relatedExperience: '技能与工具材料',
+      originalIssue: '工具能力如果只罗列名称，岗位方难以判断能支持什么真实任务。',
+      capability: '基础内容整理、数据归类、运营素材制作',
+      directVersion: `掌握 ${skills.content}，可支持基础内容整理、数据归类和运营素材制作。`,
+      versionAfterSupplement: '补充作品链接、截图、表格样例或使用场景后，可写成更具体的工具应用经历。',
+      usageReminder: '只写自己实际用过、能解释过程的工具，不把入门能力写成精通。',
       original: skills.content,
       optimized: `掌握 ${skills.content}，可支持基础内容整理、数据归类和运营素材制作。`,
       reason: '把工具清单改成能支持岗位任务的能力说明。',
@@ -296,8 +314,14 @@ function buildRewrites(profile: Profile, assets: AssetCard[]): ResumeRewrite[] {
     });
   }
 
-  while (rewrites.length < 2) {
+  while (rewrites.length < 3) {
     rewrites.push({
+      relatedExperience: '待补充真实经历',
+      originalIssue: '当前材料不足，不能直接生成看似完整但无法核实的经历。',
+      capability: '真实岗位证据整理',
+      directVersion: '可先补充一段真实项目或实践，再将任务、工具、产出按岗位要求改写。',
+      versionAfterSupplement: '补充真实对象、周期、本人动作、工具和交付物后，再形成可投递的简历 bullet。',
+      usageReminder: '不要为了简历好看虚构公司、岗位、证书、时间或项目结果。',
       original: profile.targetRole || '目标岗位相关经历待补充',
       optimized: '可先补充一段真实项目或实践，再将任务、工具、产出按岗位要求改写。',
       reason: '当前材料不足时，先标记缺口，不用编造经历。',
@@ -379,29 +403,83 @@ function buildInterviews(profile: Profile, rewrites: ResumeRewrite[]): Interview
   ].map((item) => ({ ...item, sampleAnswer: item.sampleAnswer.replace(base, base) }));
 }
 
+function actionPlanItem(
+  period: string,
+  what: string,
+  why: string,
+  how: string,
+  completionStandard: string,
+  jobSearchValue: string
+): ActionPlanReport['plans'][number] {
+  return {
+    period,
+    what,
+    why,
+    how,
+    completionStandard,
+    jobSearchValue,
+    action: what,
+    deliverable: completionStandard,
+    resumeUsage: jobSearchValue,
+    targetAbility: why
+  };
+}
+
 function buildActionPlan(stage: Stage, profile: Profile, jdFit?: JdFitReport): ActionPlanReport {
   const target = profile.targetRole || '目标岗位';
-  const period = stage === 'junior' ? '2-8 周' : '2-4 周';
   return {
     source: 'demo',
     plans: [
-      {
-        period: stage === 'junior' ? '7 天' : '3 天',
-        action: '完成一份目标岗位相关的数据复盘小项目：选择一个公众号或小红书账号，记录近 20 条内容的标题、点赞、评论、发布时间，用 Excel 整理互动表现。',
-        deliverable: '一张 Excel 表、一个 500 字复盘、一段可放进作品集的截图说明。',
-        resumeUsage: `可写成“围绕${target}完成内容表现复盘，整理 20 条样本并输出优化观察”。`,
-        targetAbility: '补强内容运营、数据整理和复盘表达能力。'
-      },
-      {
-        period,
-        action:
-          jdFit?.verdict === '主投'
-            ? '小批量投递 15-20 个岗位，记录 JD 要求、投递版本、反馈和面试问题。'
-            : '优先补一段与岗位相关的校内项目、短期实践或作品集，再小批量试投要求较贴近的岗位。',
-        deliverable: '岗位池表格、简历版本记录、面试追问清单。',
-        resumeUsage: '把新项目写成任务、工具、产出、复盘四段，不写无法解释的数据。',
-        targetAbility: '补强岗位匹配度、投递策略和面试可解释性。'
-      }
+      actionPlanItem(
+        '7 天内',
+        '整理已确认经历清单，标注每段经历的任务、工具、产出和本人边界。',
+        '先确定哪些经历可以真实写入简历。',
+        '按对象、周期、工具、本人动作、交付物和不能夸大的边界整理。',
+        '完成 1 份经历素材表。',
+        '用于筛选可直接写入简历的真实经历。'
+      ),
+      actionPlanItem(
+        '7 天内',
+        `围绕${target}搜索 3 个真实 JD，记录岗位要求关键词。`,
+        '用真实岗位要求验证当前材料是否对应市场需求。',
+        '记录岗位名称、重复出现的能力词、任务描述和证据缺口。',
+        '完成 1 份岗位要求对照表。',
+        '用于判断简历表达是否对应真实岗位。'
+      ),
+      actionPlanItem(
+        '14 天内',
+        '完成一份目标岗位相关的数据复盘小项目，使用 Excel 整理 20 条公开内容样本。',
+        '补充当前材料里较弱的数据整理和复盘证据。',
+        '记录标题、互动表现、发布时间和观察结论，只使用公开可查材料。',
+        '形成一张 Excel 表、一个 500 字复盘和一段截图说明。',
+        `可写成“围绕${target}完成内容表现复盘，整理 20 条样本并输出观察”。`
+      ),
+      actionPlanItem(
+        '14 天内',
+        '选择 2 段最相关经历补充对象、周期、工具、动作和可核实结果。',
+        '把已有经历补成能被面试追问的事实证据。',
+        '每段经历至少补充 1 个真实样例、1 个工具或材料、1 个本人分工边界。',
+        '完成 2 页经历复盘。',
+        '用于生成更稳妥的简历改写内容。'
+      ),
+      actionPlanItem(
+        '30 天内',
+        jdFit?.verdict === '主投'
+          ? '小批量投递 15-20 个岗位，记录 JD 要求、投递版本、反馈和面试问题。'
+          : '优先补一段与岗位相关的校内项目、短期实践或作品集，再小批量试投要求较贴近的岗位。',
+        '用真实反馈验证当前简历版本和岗位方向。',
+        '每次记录岗位名称、JD 关键词、投递版本、反馈结果和下一步修改点。',
+        '完成 1 份岗位池表格和简历版本记录。',
+        '用于迭代简历关键词和投递方向。'
+      ),
+      actionPlanItem(
+        '30 天内',
+        '根据反馈最高的方向准备 5 个面试追问题纲，只使用已确认经历回答。',
+        '确认简历内容能在面试中解释清楚。',
+        '每个问题写清关联经历、可说事实、待核实信息和不能夸大的边界。',
+        '完成 1 份面试准备清单。',
+        '用于把简历经历转成可解释的面试素材。'
+      )
     ],
     confidenceSummary: `事实型总结：你目前不是完全没有竞争力，而是已有的${profile.internship ? '实习' : '项目'}和课程/校园经历还没有被转译成岗位语言。当前最能使用的筹码是执行、信息整理和内容/社群相关任务；最需要补的短板是可核验的数据结果和复盘表达。下一步最值得做的是先补一个可展示的小项目，再把真实经历改写成能被面试追问解释清楚的版本。`
   };

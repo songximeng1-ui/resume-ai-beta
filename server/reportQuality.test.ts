@@ -2,6 +2,58 @@ import { describe, expect, test } from 'vitest';
 import type { DiagnosisReport } from '../src/types.ts';
 import { containsUnsafeAdvice, findUnsafeAdvice, sanitizeRiskyResumeLanguage, validateReportQuality } from './reportQuality.ts';
 
+function v04Rewrite(overrides: Record<string, string> = {}) {
+  const rewrite = {
+    relatedExperience: '教育机构新媒体运营实习',
+    originalIssue: '原表达只写通知动作，缺少对象、周期和本人边界。',
+    capability: '社群维护、活动通知、反馈整理',
+    directVersion: '协助维护 3 个学生社群，按活动节奏发布通知并整理到课反馈。',
+    versionAfterSupplement: '补充通知频率、社群规模来源和反馈记录方式后，可进一步写清楚真实产出。',
+    usageReminder: '社群数量和到课反馈方式需要用户确认真实。',
+    original: '维护学生群，发通知。',
+    optimized: '协助维护 3 个学生社群，按活动节奏发布通知并整理到课反馈。',
+    reason: '把动作、对象和产出边界说清楚，保留“协助”表述。',
+    jdRequirement: '社群维护',
+    risk: '社群数量和到课反馈方式需要用户确认真实。',
+    interviewProbe: '可能会追问通知频率、社群规模和反馈记录方式。'
+  };
+  return { ...rewrite, ...overrides };
+}
+
+function v04ActionPlan(source: 'real' | 'demo' = 'demo') {
+  const item = (
+    period: string,
+    what: string,
+    why: string,
+    how: string,
+    completionStandard: string,
+    jobSearchValue: string
+  ) => ({
+    period,
+    what,
+    why,
+    how,
+    completionStandard,
+    jobSearchValue,
+    action: what,
+    deliverable: completionStandard,
+    resumeUsage: jobSearchValue,
+    targetAbility: why
+  });
+  return {
+    source,
+    plans: [
+      item('7 天内', '整理一份已确认经历清单，标注每段经历的任务、工具和产出。', '先筛选能真实写入简历的经历证据。', '按任务、工具、产出、本人边界四列整理。', '1 份经历素材表', '用于筛选可写入简历的真实经历。'),
+      item('7 天内', '挑选 3 个真实岗位 JD，记录岗位名称、要求关键词和常见任务。', '用真实岗位要求验证当前材料。', '记录重复出现的能力词、任务描述和证据缺口。', '1 份岗位关键词对照表', '用于判断简历表达是否对应真实岗位。'),
+      item('14 天内', '补充一份社群维护或内容整理复盘，写清对象、频率、动作和反馈。', '把现有经历补成可被追问的事实材料。', '补充对象、频率、本人动作、反馈记录和不能夸大的边界。', '1 页经历复盘', '用于改写用户运营或内容运营相关经历。'),
+      item('14 天内', '整理 2 个可展示作品或过程材料，并补上本人分工说明。', '让简历表达有材料支撑。', '选择作品链接、截图或过程说明，并标注素材来源和本人参与部分。', '2 个作品材料链接或截图说明', '用于支撑新媒体运营助理投递。'),
+      item('30 天内', '完成 6 次小批量投递，并记录岗位、简历版本和反馈。', '用真实反馈验证方向和简历版本。', '记录岗位名称、JD 关键词、投递版本、反馈和下一步修改点。', '1 份投递记录表', '用于迭代简历关键词和投递方向。'),
+      item('30 天内', '针对反馈最高的方向准备 5 个面试追问题纲。', '确认简历内容能在面试中解释清楚。', '每个问题写清关联经历、可说事实、待核实信息和不能夸大的边界。', '1 份面试准备清单', '用于把简历经历转成可解释的面试素材。')
+    ],
+    confidenceSummary: '当前经历可以支撑基础运营岗位尝试，重点是把真实边界讲清楚。'
+  };
+}
+
 function jdReport(overrides: Partial<DiagnosisReport> = {}): DiagnosisReport {
   const report: DiagnosisReport = {
     mode: 'jd',
@@ -24,22 +76,35 @@ function jdReport(overrides: Partial<DiagnosisReport> = {}): DiagnosisReport {
       }
     ],
     rewrites: [
-      {
-        original: '维护学生群，发通知。',
-        optimized: '协助维护 3 个学生社群，按活动节奏发布通知并整理到课反馈。',
-        reason: '把动作、对象和产出边界说清楚，保留“协助”表述。',
-        jdRequirement: '社群维护',
-        risk: '社群数量和到课反馈方式需要用户确认真实。',
-        interviewProbe: '可能会追问通知频率、社群规模和反馈记录方式。'
-      },
-      {
+      v04Rewrite(),
+      v04Rewrite({
+        relatedExperience: '校园二手交易调研项目',
+        originalIssue: '原表达没有说明项目场景、工具和本人分工。',
+        capability: '问卷设计、Excel 汇总、展示支持',
+        directVersion: '参与校园二手交易调研，设计问卷并用 Excel 汇总结果，支持课堂展示。',
+        versionAfterSupplement: '补充问卷样本量、问题维度和展示结论后，可进一步说明项目产出。',
+        usageReminder: '不能写成独立负责完整商业调研。',
         original: '做过问卷和表格。',
         optimized: '参与校园二手交易调研，设计问卷并用 Excel 汇总结果，支持课堂展示。',
         reason: '补充项目场景、工具和交付物，更方便 HR 理解。',
         jdRequirement: '用户反馈整理',
         risk: '不能写成独立负责完整商业调研。',
         interviewProbe: '可能会追问问卷样本量和你负责的具体部分。'
-      }
+      }),
+      v04Rewrite({
+        relatedExperience: '公众号排版和剪映素材处理',
+        originalIssue: '工具能力需要连接到真实任务，不能只罗列软件名称。',
+        capability: '内容整理、基础排版、短视频素材处理',
+        directVersion: '整理公众号推文素材并完成基础排版，同时使用剪映处理活动短视频素材。',
+        versionAfterSupplement: '补充作品截图、素材来源和参与频率后，可写成更具体的内容支持经历。',
+        usageReminder: '使用前需要确认参与频率、素材来源和具体产出是否真实。',
+        original: '会公众号排版和剪映。',
+        optimized: '整理公众号推文素材并完成基础排版，同时使用剪映处理活动短视频素材。',
+        reason: '把工具能力放回真实任务场景，避免只罗列软件名称。',
+        jdRequirement: '内容整理、基础内容制作',
+        risk: '使用前需要确认参与频率、素材来源和具体产出是否真实。',
+        interviewProbe: '可能会追问你负责的是素材整理、排版还是完整内容策划。'
+      })
     ],
     jdFit: {
       source: 'demo',
@@ -66,19 +131,7 @@ function jdReport(overrides: Partial<DiagnosisReport> = {}): DiagnosisReport {
       sampleAnswer: '我主要协助老师维护学生社群，每周整理活动通知并记录学生反馈。',
       doNotExaggerate: '不能把参与通知发布说成完整负责社群增长。'
     })),
-    actionPlan: {
-      source: 'demo',
-      plans: [
-        {
-          period: '2 周',
-          action: '整理一次社群活动通知到反馈的完整记录，补充频率、对象和工具。',
-          deliverable: '1 份社群维护复盘表',
-          resumeUsage: '用于补充社群维护经历的真实细节。',
-          targetAbility: '用户沟通与运营复盘'
-        }
-      ],
-      confidenceSummary: '当前经历可以支撑基础运营岗位尝试，重点是把真实边界讲清楚。'
-    },
+    actionPlan: v04ActionPlan(),
     safetyNotes: ['只基于真实经历，不伪造、不编造，不承诺 offer。'],
     resumeText: ['协助维护学生社群，整理活动通知和反馈。'],
     platformFields: ['用户运营实习；社群维护；Excel'],
@@ -93,28 +146,11 @@ function inventoryReport(overrides: Partial<DiagnosisReport> = {}): DiagnosisRep
     source: 'demo',
     summary: '当前最可用的筹码是社群维护、内容整理、问卷调研和 Excel 汇总。',
     highlights: jdReport().highlights,
-    rewrites: [
-      {
-        original: '在教育机构帮忙发推文和群通知。',
-        optimized: '协助教育机构整理公众号推文素材，并在学生社群中发布活动通知。',
-        reason: '把零散动作整理成岗位能理解的内容支持和用户触达。',
-        jdRequirement: '可迁移到社群运营、内容运营助理方向。',
-        risk: '使用前确认推文素材整理频率和社群数量。',
-        interviewProbe: '可能被问到每周参与频率和具体工具。'
-      },
-      {
-        original: '用 Excel 整理问卷。',
-        optimized: '参与校园调研项目，使用 Excel 汇总问卷结果并支持展示汇报。',
-        reason: '突出工具、材料来源和交付物。',
-        jdRequirement: '可迁移到数据运营助理或项目助理方向。',
-        risk: '不能写成商业数据分析项目。',
-        interviewProbe: '可能被问到样本量和表格处理方式。'
-      }
-    ],
+    rewrites: jdReport().rewrites,
     directionOptions: [
       {
         name: '用户运营 / 社群运营',
-        level: '优先探索',
+        level: '主投',
         why: '基于当前经历，更值得优先探索的是需要社群维护、活动通知和反馈整理的岗位。',
         evidence: '教育机构实习中有学生社群维护、公众号内容整理和用户触达。',
         gap: '当前证据还不充分的是活动复盘、用户分层和数据记录。',
@@ -123,7 +159,7 @@ function inventoryReport(overrides: Partial<DiagnosisReport> = {}): DiagnosisRep
       },
       {
         name: '新媒体运营助理',
-        level: '可以尝试',
+        level: '可冲',
         why: '公众号推文素材整理和剪映技能可以支持基础内容岗位尝试。',
         evidence: '有公众号排版、推文整理和剪映基础。',
         gap: '还需要补充可展示作品和内容数据复盘。',
@@ -131,19 +167,7 @@ function inventoryReport(overrides: Partial<DiagnosisReport> = {}): DiagnosisRep
         keywords: ['新媒体运营', '内容运营助理']
       }
     ],
-    actionPlan: {
-      source: 'demo',
-      plans: [
-        {
-          period: '2-4 周',
-          action: '整理 2 个经历复盘页：一个社群维护案例，一个问卷调研案例。',
-          deliverable: '2 页作品集或简历素材',
-          resumeUsage: '用于用户运营、项目助理和新媒体运营助理投递。',
-          targetAbility: '经历表达、内容整理、基础复盘'
-        }
-      ],
-      confidenceSummary: '你不是没有经历，而是需要把现有动作整理成岗位语言和可展示材料。'
-    },
+    actionPlan: v04ActionPlan(),
     safetyNotes: ['方向建议只作为探索起点，不替用户决定人生。'],
     resumeText: ['协助整理内容素材，维护学生社群。'],
     platformFields: ['社群维护；公众号排版；Excel'],
@@ -224,7 +248,8 @@ describe('report quality checks', () => {
           {
             ...jdReport().rewrites[1],
             interviewProbe: '可能会被问是否主导项目；如无证据，不要说独立完成或显著提升。'
-          }
+          },
+          jdReport().rewrites[2]
         ],
         safetyNotes: ['避免编造数据；不要伪造经历；不承诺 offer；所有不确定内容写待核实。']
       }),
@@ -243,7 +268,8 @@ describe('report quality checks', () => {
             ...jdReport().rewrites[0],
             optimized: '主导社群运营并独立完成用户增长方案，显著提升转化率。'
           },
-          jdReport().rewrites[1]
+          jdReport().rewrites[1],
+          jdReport().rewrites[2]
         ]
       }),
       'jd'
@@ -261,7 +287,8 @@ describe('report quality checks', () => {
             ...jdReport().rewrites[0],
             optimized: '负责社群用户增长和活动转化。'
           },
-          jdReport().rewrites[1]
+          jdReport().rewrites[1],
+          jdReport().rewrites[2]
         ]
       }),
       'jd'
@@ -294,7 +321,8 @@ describe('report quality checks', () => {
           optimized: '可以包装成负责用户增长，独立完成数据复盘。',
           risk: '可能被问是否真的主导。',
           interviewProbe: '说明增长结果。'
-        }
+        },
+        jdReport().rewrites[2]
       ],
       jdFit: {
         ...jdReport().jdFit!,
@@ -413,12 +441,18 @@ describe('report quality checks', () => {
           ...inventoryReport().actionPlan,
           plans: [
             {
-              period: '未来',
+              ...inventoryReport().actionPlan.plans[0],
+              what: '努力提升综合素质，增强岗位认知。',
+              why: '提升综合能力。',
+              how: '继续努力。',
+              completionStandard: '完成记录',
+              jobSearchValue: '用于求职准备',
               action: '努力提升综合素质，增强岗位认知。',
-              deliverable: '',
-              resumeUsage: '',
+              deliverable: '完成记录',
+              resumeUsage: '用于求职准备',
               targetAbility: '综合能力'
-            }
+            },
+            ...inventoryReport().actionPlan.plans.slice(1)
           ]
         }
       }),

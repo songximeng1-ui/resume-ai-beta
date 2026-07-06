@@ -238,10 +238,20 @@ function sanitizeInterviewAnswer(text: string): string {
 
 export function sanitizeRiskyRewrite(rewrite: ResumeRewrite): ResumeRewrite {
   const optimized = sanitizeClaimText(rewrite.optimized);
-  const needsBoundary = hasRiskyClaimText(rewrite.optimized) || !rewrite.risk.trim() || !rewrite.interviewProbe.trim();
+  const directVersion = sanitizeClaimText(rewrite.directVersion || rewrite.optimized);
+  const usageReminder = rewrite.usageReminder || rewrite.risk;
+  const needsBoundary = hasRiskyClaimText(`${rewrite.optimized} ${directVersion}`) || !rewrite.risk.trim() || !rewrite.interviewProbe.trim();
   return {
     ...rewrite,
     optimized,
+    directVersion,
+    versionAfterSupplement: withBoundary(
+      rewrite.versionAfterSupplement || '补充对象、周期、工具、本人动作和交付物后，再形成更具体表达。',
+      '补充后的写法也必须基于真实材料'
+    ),
+    usageReminder: needsBoundary
+      ? withBoundary(usageReminder, '使用前确认所有对象、周期、工具和结果都可核实')
+      : sanitizeClaimText(usageReminder),
     reason: sanitizeClaimText(rewrite.reason),
     risk: needsBoundary
       ? withBoundary(rewrite.risk, '这条改写涉及职责、规模或结果边界')
@@ -274,6 +284,11 @@ function sanitizeActionPlan(report: DiagnosisReport['actionPlan']): DiagnosisRep
     ...report,
     plans: report.plans.map((plan) => ({
       ...plan,
+      what: sanitizeClaimText(plan.what || plan.action),
+      why: sanitizeClaimText(plan.why || plan.targetAbility),
+      how: sanitizeClaimText(plan.how || plan.action),
+      completionStandard: sanitizeClaimText(plan.completionStandard || plan.deliverable),
+      jobSearchValue: sanitizeClaimText(plan.jobSearchValue || plan.resumeUsage),
       action: sanitizeClaimText(plan.action),
       deliverable: sanitizeClaimText(plan.deliverable),
       resumeUsage: sanitizeClaimText(plan.resumeUsage),
@@ -325,10 +340,21 @@ export function sanitizeRiskyResumeLanguage(report: DiagnosisReport): DiagnosisR
 }
 
 function hasConcreteActionPlan(report: DiagnosisReport): boolean {
-  return report.actionPlan.plans.some((plan) => {
-    const hasPeriod = /天|周|月/.test(plan.period);
+  const requiredPeriods = ['7 天内', '14 天内', '30 天内'];
+  return requiredPeriods.every((period) => report.actionPlan.plans.filter((plan) => plan.period === period).length >= 2) &&
+    report.actionPlan.plans.every((plan) => {
+    const hasPeriod = requiredPeriods.includes(plan.period);
     const hasAction = hasUsefulText(plan.action, 12) && !hasGenericText(plan.action);
-    return hasPeriod && hasAction && isNonEmptyText(plan.deliverable) && isNonEmptyText(plan.resumeUsage);
+    return (
+      hasPeriod &&
+      hasAction &&
+      isNonEmptyText(plan.why) &&
+      isNonEmptyText(plan.how) &&
+      isNonEmptyText(plan.completionStandard) &&
+      isNonEmptyText(plan.jobSearchValue) &&
+      isNonEmptyText(plan.deliverable) &&
+      isNonEmptyText(plan.resumeUsage)
+    );
   });
 }
 
@@ -337,12 +363,12 @@ function checkCommonReport(report: DiagnosisReport, blockers: string[], warnings
     blockers.push('报告必须包含至少 2 个用户可能没意识到的亮点。');
   }
 
-  if (report.rewrites.length < 2) {
-    blockers.push('报告必须包含至少 2 条可直接复制的简历改写。');
+  if (report.rewrites.length < 3) {
+    blockers.push('报告必须包含至少 3 条可直接复制的简历改写。');
   }
 
-  if (report.actionPlan.plans.length < 1) {
-    blockers.push('报告必须包含至少 1 个具体补强计划。');
+  if (report.actionPlan.plans.length < 6) {
+    blockers.push('报告必须包含 7 天内、14 天内、30 天内各至少 2 条具体行动。');
   } else if (!hasConcreteActionPlan(report)) {
     warnings.push('补强计划存在偏空泛或不可验证的表达。');
   }

@@ -211,7 +211,25 @@ function validateHighlight(value: unknown, index: number): HiddenHighlight {
 
 function validateRewrite(value: unknown, index: number): ResumeRewrite {
   if (!isRecord(value)) throw new Error(`rewrites.${index} must be an object`);
+  const relatedExperience = assertString(value.relatedExperience, `rewrites.${index}.relatedExperience`);
+  const originalIssue = assertString(value.originalIssue, `rewrites.${index}.originalIssue`);
+  const capability = assertString(value.capability, `rewrites.${index}.capability`);
+  const directVersion = assertString(value.directVersion, `rewrites.${index}.directVersion`);
+  const versionAfterSupplement = assertString(value.versionAfterSupplement, `rewrites.${index}.versionAfterSupplement`);
+  const usageReminder = assertString(value.usageReminder, `rewrites.${index}.usageReminder`);
+  if (!relatedExperience.trim()) throw new Error(`rewrites.${index}.relatedExperience must be non-empty`);
+  if (!originalIssue.trim()) throw new Error(`rewrites.${index}.originalIssue must be non-empty`);
+  if (!capability.trim()) throw new Error(`rewrites.${index}.capability must be non-empty`);
+  if (!directVersion.trim()) throw new Error(`rewrites.${index}.directVersion must be non-empty`);
+  if (!versionAfterSupplement.trim()) throw new Error(`rewrites.${index}.versionAfterSupplement must be non-empty`);
+  if (!usageReminder.trim()) throw new Error(`rewrites.${index}.usageReminder must be non-empty`);
   return {
+    relatedExperience,
+    originalIssue,
+    capability,
+    directVersion,
+    versionAfterSupplement,
+    usageReminder,
     original: assertString(value.original, `rewrites.${index}.original`),
     optimized: assertString(value.optimized, `rewrites.${index}.optimized`),
     reason: assertString(value.reason, `rewrites.${index}.reason`),
@@ -239,8 +257,23 @@ function validateActionPlan(value: unknown): ActionPlanReport {
     source: assertSource(value.source || 'real', 'actionPlan.source'),
     plans: assertArray(value.plans, 'actionPlan.plans', (item, index) => {
       if (!isRecord(item)) throw new Error(`actionPlan.plans.${index} must be an object`);
+      const what = assertString(item.what, `actionPlan.plans.${index}.what`);
+      const why = assertString(item.why, `actionPlan.plans.${index}.why`);
+      const how = assertString(item.how, `actionPlan.plans.${index}.how`);
+      const completionStandard = assertString(item.completionStandard, `actionPlan.plans.${index}.completionStandard`);
+      const jobSearchValue = assertString(item.jobSearchValue, `actionPlan.plans.${index}.jobSearchValue`);
+      if (!what.trim()) throw new Error(`actionPlan.plans.${index}.what must be non-empty`);
+      if (!why.trim()) throw new Error(`actionPlan.plans.${index}.why must be non-empty`);
+      if (!how.trim()) throw new Error(`actionPlan.plans.${index}.how must be non-empty`);
+      if (!completionStandard.trim()) throw new Error(`actionPlan.plans.${index}.completionStandard must be non-empty`);
+      if (!jobSearchValue.trim()) throw new Error(`actionPlan.plans.${index}.jobSearchValue must be non-empty`);
       return {
         period: assertString(item.period, `actionPlan.plans.${index}.period`),
+        what,
+        why,
+        how,
+        completionStandard,
+        jobSearchValue,
         action: assertString(item.action, `actionPlan.plans.${index}.action`),
         deliverable: assertString(item.deliverable, `actionPlan.plans.${index}.deliverable`),
         resumeUsage: assertString(item.resumeUsage, `actionPlan.plans.${index}.resumeUsage`),
@@ -249,6 +282,14 @@ function validateActionPlan(value: unknown): ActionPlanReport {
     }),
     confidenceSummary: assertString(value.confidenceSummary, 'actionPlan.confidenceSummary')
   };
+}
+
+function validateV04ActionPlanCoverage(actionPlan: ActionPlanReport): void {
+  const requiredPeriods = ['7 天内', '14 天内', '30 天内'];
+  const missingPeriods = requiredPeriods.filter((period) => actionPlan.plans.filter((plan) => plan.period === period).length < 2);
+  if (missingPeriods.length > 0) {
+    throw new Error('actionPlan must include at least 2 actions for each period: 7 天内, 14 天内, 30 天内');
+  }
 }
 
 function validateDirectionOption(value: unknown, index: number): DirectionOption {
@@ -331,7 +372,7 @@ export function validateReportDirectionsModule(value: unknown): ReportDirections
 export function validateReportRewritesModule(value: unknown): ReportRewritesModule {
   if (!isRecord(value)) throw new Error('ReportRewritesModule must be an object');
   const rewrites = assertArray(value.rewrites, 'rewrites', validateRewrite);
-  if (rewrites.length < 2) throw new Error('rewrites must contain at least 2 items');
+  if (rewrites.length < 3) throw new Error('rewrites must contain at least 3 items');
   return {
     source: assertRealSource(value.source || 'real', 'source'),
     rewrites
@@ -366,10 +407,12 @@ export function validateReportInterviewQuestionModule(value: unknown): ReportInt
 
 export function validateReportActionPlanModule(value: unknown): ReportActionPlanModule {
   if (!isRecord(value)) throw new Error('ReportActionPlanModule must be an object');
+  const actionPlan = validateActionPlan(value.actionPlan);
+  validateV04ActionPlanCoverage(actionPlan);
   return {
     source: assertRealSource(value.source || 'real', 'source'),
     summary: assertString(value.summary || '', 'summary'),
-    actionPlan: validateActionPlan(value.actionPlan),
+    actionPlan,
     safetyNotes: value.safetyNotes ? assertArray(value.safetyNotes, 'safetyNotes', (item) => assertString(item, 'safetyNotes item')) : [],
     resumeText: assertArray(value.resumeText, 'resumeText', (item) => assertString(item, 'resumeText item')),
     platformFields: assertArray(value.platformFields, 'platformFields', (item) => assertString(item, 'platformFields item')),
@@ -385,6 +428,7 @@ export function validateDiagnosisReport(value: unknown): DiagnosisReport {
   const highlights = assertArray(value.highlights, 'highlights', validateHighlight);
   const rewrites = assertArray(value.rewrites, 'rewrites', validateRewrite);
   const actionPlan = validateActionPlan(value.actionPlan);
+  validateV04ActionPlanCoverage(actionPlan);
   const report: DiagnosisReport = {
     mode,
     source: assertSource(value.source || 'real', 'source'),
@@ -543,8 +587,27 @@ const highlightSchema = {
 const rewriteSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['original', 'optimized', 'reason', 'jdRequirement', 'risk', 'interviewProbe'],
+  required: [
+    'relatedExperience',
+    'originalIssue',
+    'capability',
+    'directVersion',
+    'versionAfterSupplement',
+    'usageReminder',
+    'original',
+    'optimized',
+    'reason',
+    'jdRequirement',
+    'risk',
+    'interviewProbe'
+  ],
   properties: {
+    relatedExperience: stringSchema,
+    originalIssue: stringSchema,
+    capability: stringSchema,
+    directVersion: stringSchema,
+    versionAfterSupplement: stringSchema,
+    usageReminder: stringSchema,
     original: stringSchema,
     optimized: stringSchema,
     reason: stringSchema,
@@ -569,9 +632,25 @@ const interviewSchema = {
 const actionPlanItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['period', 'action', 'deliverable', 'resumeUsage', 'targetAbility'],
+  required: [
+    'period',
+    'what',
+    'why',
+    'how',
+    'completionStandard',
+    'jobSearchValue',
+    'action',
+    'deliverable',
+    'resumeUsage',
+    'targetAbility'
+  ],
   properties: {
     period: stringSchema,
+    what: stringSchema,
+    why: stringSchema,
+    how: stringSchema,
+    completionStandard: stringSchema,
+    jobSearchValue: stringSchema,
     action: stringSchema,
     deliverable: stringSchema,
     resumeUsage: stringSchema,
@@ -584,7 +663,7 @@ const actionPlanSchema = {
   required: ['source', 'plans', 'confidenceSummary'],
   properties: {
     source: { enum: ['real'] },
-    plans: { type: 'array', minItems: 1, items: actionPlanItemSchema },
+    plans: { type: 'array', minItems: 6, items: actionPlanItemSchema },
     confidenceSummary: stringSchema
   }
 };
@@ -629,7 +708,7 @@ export const reportRewritesJsonSchema = {
   required: ['source', 'rewrites'],
   properties: {
     source: { enum: ['real'] },
-    rewrites: { type: 'array', minItems: 2, items: rewriteSchema }
+    rewrites: { type: 'array', minItems: 3, items: rewriteSchema }
   }
 };
 
@@ -705,7 +784,7 @@ export const diagnosisReportJsonSchema = {
     source: { enum: ['real'] },
     summary: stringSchema,
     highlights: { type: 'array', minItems: 2, items: highlightSchema },
-    rewrites: { type: 'array', minItems: 2, items: rewriteSchema },
+    rewrites: { type: 'array', minItems: 3, items: rewriteSchema },
     jdFit: nullableSchema(jdFitJsonSchema),
     interviews: nullableSchema({ type: 'array', minItems: 5, maxItems: 5, items: interviewSchema }),
     directionOptions: nullableSchema({ type: 'array', minItems: 2, maxItems: 3, items: directionOptionSchema }),

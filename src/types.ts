@@ -158,6 +158,12 @@ export interface JdSummary {
 }
 
 export interface ResumeRewrite {
+  relatedExperience: string;
+  originalIssue: string;
+  capability: string;
+  directVersion: string;
+  versionAfterSupplement: string;
+  usageReminder: string;
   original: string;
   optimized: string;
   reason: string;
@@ -185,6 +191,11 @@ export interface InterviewPrep {
 
 export interface ActionPlanItem {
   period: string;
+  what: string;
+  why: string;
+  how: string;
+  completionStandard: string;
+  jobSearchValue: string;
   action: string;
   deliverable: string;
   resumeUsage: string;

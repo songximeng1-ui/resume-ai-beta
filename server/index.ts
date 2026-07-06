@@ -82,6 +82,7 @@ import {
   type Profile,
   type ReportGenerationTask,
   type ReportModuleKey,
+  type ResumeRewrite,
   type Stage,
   type StructuredResume
 } from '../src/types.ts';
@@ -273,17 +274,81 @@ function demoJdFit(body: unknown): JdFitReport {
   };
 }
 
+function actionPlanItem(
+  period: string,
+  what: string,
+  why: string,
+  how: string,
+  completionStandard: string,
+  jobSearchValue: string
+): ActionPlanReport['plans'][number] {
+  return {
+    period,
+    what,
+    why,
+    how,
+    completionStandard,
+    jobSearchValue,
+    action: what,
+    deliverable: completionStandard,
+    resumeUsage: jobSearchValue,
+    targetAbility: why
+  };
+}
+
 function demoActionPlan(stage: Stage, profile: Profile): ActionPlanReport {
+  const target = profile.targetRole || '目标岗位';
   return {
     source: 'demo',
     plans: [
-      {
-        period: stage === 'junior' ? '2-8 周' : '2-4 周',
-        action: `围绕${profile.targetRole || '目标岗位'}补一个可展示的小项目，并记录任务、工具、产出和复盘。`,
-        deliverable: '一张过程表、一个 500 字复盘、一段可写入简历的真实项目描述。',
-        resumeUsage: '只写真实完成的动作和产出，使用“参与、协助、支持、约”等克制表达。',
-        targetAbility: '补强岗位证据、数据整理和面试可解释性。'
-      }
+      actionPlanItem(
+        '7 天内',
+        '整理已确认经历清单，标注每段经历的任务、工具、产出和本人边界。',
+        '先确定哪些经历可以真实写入简历。',
+        '按对象、周期、工具、本人动作、交付物和不能夸大的边界整理。',
+        '完成 1 份经历素材表。',
+        '用于筛选可直接写入简历的真实经历。'
+      ),
+      actionPlanItem(
+        '7 天内',
+        `围绕${target}搜索 3 个真实 JD，记录岗位要求关键词。`,
+        '用真实岗位要求验证当前材料是否对应市场需求。',
+        '记录岗位名称、重复出现的能力词、任务描述和证据缺口。',
+        '完成 1 份岗位要求对照表。',
+        '用于判断简历表达是否对应真实岗位。'
+      ),
+      actionPlanItem(
+        '14 天内',
+        '完成一份目标岗位相关的数据复盘小项目，使用 Excel 整理 20 条公开内容样本。',
+        '补充当前材料里较弱的数据整理和复盘证据。',
+        '记录标题、互动表现、发布时间和观察结论，只使用公开可查材料。',
+        '形成一张 Excel 表、一个 500 字复盘和一段截图说明。',
+        `可写成“围绕${target}完成内容表现复盘，整理 20 条样本并输出观察”。`
+      ),
+      actionPlanItem(
+        '14 天内',
+        '选择 2 段最相关经历补充对象、周期、工具、动作和可核实结果。',
+        '把已有经历补成能被面试追问的事实证据。',
+        '每段经历至少补充 1 个真实样例、1 个工具或材料、1 个本人分工边界。',
+        '完成 2 页经历复盘。',
+        '用于生成更稳妥的简历改写内容。'
+      ),
+      actionPlanItem(
+        '30 天内',
+        '完成 6 次小批量投递或岗位验证，并记录岗位、简历版本和反馈。',
+        '用真实反馈验证当前简历版本和岗位方向。',
+        '每次记录岗位名称、JD 关键词、投递版本、反馈结果和下一步修改点。',
+        '完成 1 份投递/验证记录表。',
+        '用于迭代简历关键词和投递方向。'
+      ),
+      actionPlanItem(
+        '30 天内',
+        '根据反馈最高的方向准备 5 个面试追问题纲，只使用已确认经历回答。',
+        '确认简历内容能在面试中解释清楚。',
+        '每个问题写清关联经历、可说事实、待核实信息和不能夸大的边界。',
+        '完成 1 份面试准备清单。',
+        '用于把简历经历转成可解释的面试素材。'
+      )
     ],
     confidenceSummary: '事实型总结：你目前不是完全没有竞争力，而是已有材料还没有被整理成岗位语言。当前最能使用的筹码是真实执行、信息整理和项目参与；下一步要补的是可核验的结果和复盘。'
   };
@@ -356,6 +421,34 @@ function demoDirectionOptions(profile: Profile): DirectionOption[] {
   return options.slice(0, 3);
 }
 
+function rewriteItem(
+  relatedExperience: string,
+  originalIssue: string,
+  capability: string,
+  directVersion: string,
+  versionAfterSupplement: string,
+  usageReminder: string,
+  original: string,
+  reason: string,
+  jdRequirement: string,
+  interviewProbe: string
+): ResumeRewrite {
+  return {
+    relatedExperience,
+    originalIssue,
+    capability,
+    directVersion,
+    versionAfterSupplement,
+    usageReminder,
+    original,
+    optimized: directVersion,
+    reason,
+    jdRequirement,
+    risk: usageReminder,
+    interviewProbe
+  };
+}
+
 function demoReport(body: unknown): DiagnosisReport {
   const payload = isRecord(body) ? body : {};
   const mode: Mode = payload.mode === 'inventory' ? 'inventory' : 'jd';
@@ -392,22 +485,42 @@ function demoReport(body: unknown): DiagnosisReport {
       }
     ],
     rewrites: [
-      {
-        original: internship,
-        optimized: '协助完成目标岗位相关支持工作，参与信息整理、用户触达和任务推进，沉淀可复盘的过程材料。',
-        reason: '把普通经历拆成任务、对象和产出，形成更清晰的岗位语言。',
-        jdRequirement: '执行推进、用户触达、信息整理',
-        risk: '人数、频次、结果必须按真实情况补充，不能把协助写成负责。',
-        interviewProbe: '可能被追问具体分工、周期和产出证据。'
-      },
-      {
-        original: project,
-        optimized: '参与课程/校园项目，完成问题整理、资料收集、基础分析和展示汇报，支持形成可说明的项目结论。',
-        reason: '保留真实项目属性，不包装成企业真实项目。',
-        jdRequirement: '调研、数据整理、复盘表达',
-        risk: '不能虚构样本量、业务结果或商业影响。',
-        interviewProbe: '可能被问样本来源、分析方法和你本人完成的部分。'
-      }
+      rewriteItem(
+        '实习/实践经历',
+        '原表达可能只写了做过什么，缺少对象、动作和本人边界。',
+        '执行推进、用户触达、信息整理',
+        '协助完成目标岗位相关支持工作，参与信息整理、用户触达和任务推进，沉淀可复盘的过程材料。',
+        '补充对象、周期、工具和交付物后，可进一步写清楚具体支持内容。',
+        '人数、频次、结果必须按真实情况补充，不能把协助写成负责。',
+        internship,
+        '把普通经历拆成任务、对象和产出，形成更清晰的岗位语言。',
+        '执行推进、用户触达、信息整理',
+        '可能被追问具体分工、周期和产出证据。'
+      ),
+      rewriteItem(
+        '项目/课程经历',
+        '项目属性和本人分工需要更清楚。',
+        '调研、数据整理、复盘表达',
+        '参与课程/校园项目，完成问题整理、资料收集、基础分析和展示汇报，支持形成可说明的项目结论。',
+        '补充样本来源、处理工具和展示材料后，可以形成更完整的项目表达。',
+        '不能虚构样本量、业务结果或商业影响。',
+        project,
+        '保留真实项目属性，不包装成企业真实项目。',
+        '调研、数据整理、复盘表达',
+        '可能被问样本来源、分析方法和你本人完成的部分。'
+      ),
+      rewriteItem(
+        '技能与材料',
+        '工具能力需要连接到真实任务或作品，不能只罗列软件名。',
+        '内容整理、工具使用、材料沉淀',
+        '使用已掌握工具协助完成内容整理、素材处理或表格汇总，并保留真实作品或过程材料。',
+        '补充作品链接、截图或过程说明后，可写成更具体的工具应用经历。',
+        '只有实际用过并能解释过程的工具才建议写入。',
+        profile.skills || '技能与作品材料待补充',
+        '把工具能力放回真实使用场景。',
+        '工具使用、内容整理、基础执行',
+        '可能被要求说明工具的具体使用场景和产出。'
+      )
     ],
     directionOptions,
     jdFit,
@@ -685,7 +798,6 @@ function buildRuleActionPlanModule(body: unknown, mode: Mode): ReportModuleResul
   const assets = activeAssetSummaries(body);
   const target = profile.targetRole || (mode === 'jd' ? '目标岗位' : '可探索岗位方向');
   const mainEvidence = firstUsefulText(profile.internship, profile.project, profile.campus, profile.partTime, profile.skills, assets[0], '已确认的真实经历材料');
-  const period = stage === 'junior' ? '2-4 周' : '7-14 天';
   const actionPlan: ReportActionPlanModule = {
     source: 'real',
     summary:
@@ -695,13 +807,54 @@ function buildRuleActionPlanModule(body: unknown, mode: Mode): ReportModuleResul
     actionPlan: {
       source: 'real',
       plans: [
-        {
-          period,
-          action: `围绕${target}整理 1 个真实经历复盘页，补清楚对象、动作、工具、周期、可核实产出和本人边界。`,
-          deliverable: '1 页经历复盘表、2 条可放入简历的克制表达、3 个面试追问回答要点。',
-          resumeUsage: '用于补充简历中的经历描述和面试回答，不写没有依据的数据。',
-          targetAbility: '岗位证据表达、任务复盘、面试可解释性'
-        }
+        actionPlanItem(
+          '7 天内',
+          `围绕${target}整理 1 份已确认经历清单，标注任务、工具、产出和本人边界。`,
+          '先筛出能真实写入简历和报告的经历证据。',
+          '按任务、工具、产出、本人边界四列整理已确认经历。',
+          '完成 1 份经历素材表。',
+          '用于筛选可直接写入简历的真实经历。'
+        ),
+        actionPlanItem(
+          '7 天内',
+          mode === 'jd' ? '逐条拆解目标 JD 的岗位要求，标注当前材料能证明和不能证明的部分。' : '搜索 3 个真实岗位 JD，记录岗位名称、要求关键词和常见任务。',
+          '用岗位要求校验当前材料，不凭感觉判断适合度。',
+          '把每条岗位要求对应到已有证据、证据不足或待补充材料。',
+          '完成 1 份岗位要求对照表。',
+          '用于判断简历表达是否对应真实岗位。'
+        ),
+        actionPlanItem(
+          '14 天内',
+          '选择 2 段最相关经历补充事实细节，包括对象、周期、工具、动作和可核实结果。',
+          '把现有经历补成可被 HR 追问的事实材料。',
+          '每段经历补充对象、周期、工具、本人动作和可核实交付物。',
+          '完成 2 页经历复盘。',
+          '用于生成更稳妥的简历改写内容。'
+        ),
+        actionPlanItem(
+          '14 天内',
+          mode === 'jd' ? '针对证据不足的岗位要求补一项小任务或作品材料。' : '为优先探索方向整理 2 个可展示作品或过程材料。',
+          '补足当前最影响投递判断的岗位证据。',
+          '选择表格、截图、作品链接或复盘说明，并写明本人分工。',
+          '形成 2 个作品材料或过程说明。',
+          '用于补充投递前的证明材料。'
+        ),
+        actionPlanItem(
+          '30 天内',
+          mode === 'jd' ? '完成 5 次目标岗位投递，并记录简历版本、岗位要求和反馈。' : '围绕 2 个方向各完成 3 次小批量投递或岗位咨询。',
+          '用真实反馈验证当前方向和简历版本。',
+          '记录岗位名称、JD 关键词、投递版本、反馈结果和下一步修改点。',
+          '完成 1 份投递/验证记录表。',
+          '用于迭代简历关键词和投递方向。'
+        ),
+        actionPlanItem(
+          '30 天内',
+          '根据反馈最高的方向准备 5 个面试追问题纲，只使用已确认经历回答。',
+          '确认简历内容能在面试中解释清楚。',
+          '每个问题写清关联经历、可说事实、待核实信息和不能夸大的边界。',
+          '完成 1 份面试准备清单。',
+          '用于把简历经历转成可解释的面试素材。'
+        )
       ],
       confidenceSummary: `当前材料不是没有价值，最可用的是${mainEvidence.slice(0, 80)}。下一步要把真实动作、交付物和边界补清楚。`
     },
@@ -723,7 +876,7 @@ function buildRuleActionPlanModule(body: unknown, mode: Mode): ReportModuleResul
       target,
       [profile.education, profile.schoolName, profile.major].filter(Boolean).join(' / ') || '教育背景待补充',
       mainEvidence.slice(0, 80),
-      `下一步：${period} 内整理经历复盘和可核实材料`
+      '下一步：7 天内整理经历复盘和可核实材料'
     ]
   };
   const data = validateReportActionPlanModule(actionPlan);

@@ -93,17 +93,17 @@ ${JSON.stringify(compact)}`;
 export function reportPrompt(payload: unknown) {
   const mode = typeof payload === 'object' && payload && 'mode' in payload ? (payload as { mode?: unknown }).mode : 'jd';
   if (mode === 'inventory') {
-    return `任务：生成 V0.3 无 JD 模式经历诊断报告。
+    return `任务：生成 V0.4 无 JD 模式经历诊断报告。
 
 无 JD 模式要求：
 - mode 必须为 "inventory"。
 - 不要假装已经有 JD，不要输出 JD 证据矩阵，不要强制输出 5 个 JD 面试题。
 - 至少 2 个经历亮点 hiddenHighlights/highlights。
-- 至少 2 条可直接复制的简历表达 resumeRewrites/rewrites。
+- 至少 3 条简历改写建议 rewrites，只优化表达，不新增事实。
 - 2-3 个适合探索的岗位方向 directionOptions，每个方向说明：为什么适合、当前经历证据、风险或缺口、下一步应该补什么、搜索关键词。
-- 至少 1 个 2-4 周内可执行的补强计划。
+- actionPlan 固定 7 天内、14 天内、30 天内，每个阶段至少 2 条。
 - confidenceMessage/actionPlan.confidenceSummary 必须是事实型总结，不承诺结果。
-- 简历改写必须包含：原句、改写后、为什么这样改、是否可直接写入；如果缺证据，标注“需补充依据”或“待核实”。
+- 无 JD 简历改写每条包含 relatedExperience/originalIssue/capability/directVersion/versionAfterSupplement/usageReminder，并兼容填充 original/optimized/reason/jdRequirement/risk/interviewProbe；如果缺证据，标注“需补充依据”或“待核实”。
 - safetyNotes 必须提醒：不伪造、不编造、不承诺 offer、只基于真实经历。
 
 source 必须为 "real"。
@@ -112,18 +112,18 @@ source 必须为 "real"。
 ${JSON.stringify(payload)}`;
   }
 
-  return `任务：生成 V0.3 有 JD 模式定制诊断报告。
+  return `任务：生成 V0.4 有 JD 模式定制诊断报告。
 
 有 JD 模式要求：
 - mode 必须为 "jd"。
 - 必须输出 JD 证据匹配 jdFit：JD 要求、用户已有证据、证据强度、缺口、如何补强。
 - 至少 2 个用户自己可能没意识到的亮点 hiddenHighlights/highlights。
-- 至少 2 条可直接复制到简历里的改写 resumeRewrites/rewrites。
+- 至少 3 条简历改写建议 rewrites，只优化表达，不新增事实。
 - 5 个目标岗位 HR 可能追问的问题 interviewQuestions/interviews。
 - 每个面试问题必须包含：HR 为什么问、回答角度、需要注意的风险、用户可参考的回答示例。
 - 1 条明确投递判断：建议投递、可以投但需要调整简历、暂不建议主投、不建议投递；如使用主投/可冲/过渡/暂不建议主投，也必须解释原因。
-- 至少 1 个具体补强计划。
-- 简历改写必须包含：原句、改写后、为什么这样改、是否可直接写入；如果缺证据，标注“需补充依据”或“待核实”。
+- actionPlan 固定 7 天内、14 天内、30 天内，每个阶段至少 2 条。
+- 有 JD 简历改写每条包含 relatedExperience/originalIssue/capability/directVersion/versionAfterSupplement/usageReminder，并兼容填充 original/optimized/reason/jdRequirement/risk/interviewProbe；如果缺证据，标注“需补充依据”或“待核实”。
 - safetyNotes 必须提醒：不伪造、不编造、不承诺 offer、只基于真实经历。
 
 source 必须为 "real"。
@@ -265,8 +265,9 @@ ${common}`;
 ${common}`;
     case 'report-rewrites':
       return `任务：生成 rewrites。
-- 至少 2 条可复制但克制的改写。
-- 每条含 original/optimized/reason/jdRequirement/risk/interviewProbe。
+- 至少 3 条可复制但克制的简历改写建议。
+- 每条含 relatedExperience/originalIssue/capability/directVersion/versionAfterSupplement/usageReminder。
+- 同时兼容填充 original/optimized/reason/jdRequirement/risk/interviewProbe，optimized=directVersion，risk=usageReminder。
 - 每条简历改写必须包含 risk 和 interviewProbe；不确定信息必须写“待核实/需补充依据”。
 - 禁止把参与写成负责，不能把课程作业包装成企业项目。
 
@@ -297,7 +298,8 @@ ${common}`;
 ${common}`;
     case 'report-action-plan':
       return `任务：生成 summary/actionPlan/safetyNotes/resumeText/platformFields/previewLines。
-- actionPlan 至少 1 条，2-4 周或 7-14 天内可执行，有 deliverable/resumeUsage。
+- actionPlan 固定 7 天内、14 天内、30 天内，每个阶段至少 2 条。
+- 每条行动包含 what/why/how/completionStandard/jobSearchValue，并兼容填充 action/deliverable/resumeUsage/targetAbility。
 - confidenceSummary 基于事实修复信心，不承诺结果。
 - resumeText/platformFields/previewLines 使用克制真实表达。
 - safetyNotes 写不伪造、不编造、不承诺 offer、只基于真实经历。
