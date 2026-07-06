@@ -209,11 +209,16 @@ export interface ActionPlanReport {
 }
 
 export interface DirectionOption {
+  directionName: string;
   name: string;
   level: DeliveryVerdict;
+  priority: DeliveryVerdict;
+  searchableJobNames: string[];
+  whyExplore: string;
   why: string;
   evidence: string;
   gap: string;
+  sevenDayValidation: string;
   next: string;
   keywords: string[];
 }

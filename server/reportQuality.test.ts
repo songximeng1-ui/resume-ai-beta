@@ -149,22 +149,32 @@ function inventoryReport(overrides: Partial<DiagnosisReport> = {}): DiagnosisRep
     rewrites: jdReport().rewrites,
     directionOptions: [
       {
+        directionName: '用户运营 / 社群运营',
         name: '用户运营 / 社群运营',
         level: '主投',
+        priority: '主投',
+        searchableJobNames: ['用户运营', '社群运营', '活动运营'],
+        whyExplore: '基于当前经历，更值得优先探索的是需要社群维护、活动通知和反馈整理的岗位。',
         why: '基于当前经历，更值得优先探索的是需要社群维护、活动通知和反馈整理的岗位。',
         evidence: '教育机构实习中有学生社群维护、公众号内容整理和用户触达。',
         gap: '当前证据还不充分的是活动复盘、用户分层和数据记录。',
+        sevenDayValidation: '7 天内搜索 3 个用户运营或社群运营 JD，补一份社群活动复盘表，记录对象、频率、反馈和改进。',
         next: '未来 2 周补一份社群活动复盘表，记录对象、频率、反馈和改进。',
         keywords: ['用户运营', '社群运营', '活动运营']
       },
       {
+        directionName: '新媒体运营助理',
         name: '新媒体运营助理',
         level: '可冲',
+        priority: '可冲',
+        searchableJobNames: ['新媒体运营', '内容运营助理', '公众号运营'],
+        whyExplore: '公众号推文素材整理和剪映技能可以支持基础内容岗位尝试。',
         why: '公众号推文素材整理和剪映技能可以支持基础内容岗位尝试。',
         evidence: '有公众号排版、推文整理和剪映基础。',
         gap: '还需要补充可展示作品和内容数据复盘。',
+        sevenDayValidation: '7 天内搜索 3 个新媒体运营助理 JD，整理 2 篇内容作品，补充选题、排版和复盘说明。',
         next: '整理 2 篇内容作品，补充选题、排版和复盘说明。',
-        keywords: ['新媒体运营', '内容运营助理']
+        keywords: ['新媒体运营', '内容运营助理', '公众号运营']
       }
     ],
     actionPlan: v04ActionPlan(),

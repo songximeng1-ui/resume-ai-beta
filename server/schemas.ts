@@ -298,14 +298,32 @@ function validateDirectionOption(value: unknown, index: number): DirectionOption
   if (!verdicts.includes(level)) {
     throw new Error(`directionOptions.${index}.level must be 主投, 可冲, 过渡, or 暂不建议主投`);
   }
+  const priority = assertString(value.priority, `directionOptions.${index}.priority`) as DirectionOption['priority'];
+  if (!verdicts.includes(priority)) {
+    throw new Error(`directionOptions.${index}.priority must be 主投, 可冲, 过渡, or 暂不建议主投`);
+  }
+  const searchableJobNames = assertArray(
+    value.searchableJobNames,
+    `directionOptions.${index}.searchableJobNames`,
+    (item) => assertString(item, 'searchableJobNames item')
+  );
+  if (searchableJobNames.length < 3 || searchableJobNames.length > 5) {
+    throw new Error(`directionOptions.${index}.searchableJobNames must contain 3-5 searchable job names`);
+  }
+  const keywords = assertArray(value.keywords, `directionOptions.${index}.keywords`, (item) => assertString(item, 'keyword'));
   return {
+    directionName: assertString(value.directionName, `directionOptions.${index}.directionName`),
     name: assertString(value.name, `directionOptions.${index}.name`),
     level,
+    priority,
+    searchableJobNames,
+    whyExplore: assertString(value.whyExplore, `directionOptions.${index}.whyExplore`),
     why: assertString(value.why, `directionOptions.${index}.why`),
     evidence: assertString(value.evidence, `directionOptions.${index}.evidence`),
     gap: assertString(value.gap, `directionOptions.${index}.gap`),
+    sevenDayValidation: assertString(value.sevenDayValidation, `directionOptions.${index}.sevenDayValidation`),
     next: assertString(value.next, `directionOptions.${index}.next`),
-    keywords: assertArray(value.keywords, `directionOptions.${index}.keywords`, (item) => assertString(item, 'keyword'))
+    keywords
   };
 }
 
@@ -670,15 +688,33 @@ const actionPlanSchema = {
 const directionOptionSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['name', 'level', 'why', 'evidence', 'gap', 'next', 'keywords'],
+  required: [
+    'directionName',
+    'name',
+    'level',
+    'priority',
+    'searchableJobNames',
+    'whyExplore',
+    'why',
+    'evidence',
+    'gap',
+    'sevenDayValidation',
+    'next',
+    'keywords'
+  ],
   properties: {
+    directionName: stringSchema,
     name: stringSchema,
     level: { enum: [...verdicts] },
+    priority: { enum: [...verdicts] },
+    searchableJobNames: { type: 'array', minItems: 3, maxItems: 5, items: stringSchema },
+    whyExplore: stringSchema,
     why: stringSchema,
     evidence: stringSchema,
     gap: stringSchema,
+    sevenDayValidation: stringSchema,
     next: stringSchema,
-    keywords: { type: 'array', items: stringSchema }
+    keywords: { type: 'array', minItems: 3, maxItems: 5, items: stringSchema }
   }
 };
 

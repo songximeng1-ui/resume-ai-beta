@@ -358,63 +358,91 @@ function demoDirectionOptions(profile: Profile): DirectionOption[] {
   const text = `${profile.targetRole} ${profile.internship} ${profile.project} ${profile.campus} ${profile.skills}`.toLowerCase();
   const options: DirectionOption[] = [];
   const evidence = (fallback: string) => profile.internship || profile.project || profile.campus || profile.skills || fallback;
+  const direction = (
+    name: string,
+    level: DirectionOption['level'],
+    why: string,
+    evidenceText: string,
+    gap: string,
+    next: string,
+    keywords: string[]
+  ): DirectionOption => ({
+    directionName: name,
+    name,
+    level,
+    priority: level,
+    searchableJobNames: keywords.slice(0, 5),
+    whyExplore: why,
+    why,
+    evidence: evidenceText,
+    gap,
+    sevenDayValidation: next,
+    next,
+    keywords: keywords.slice(0, 5)
+  });
 
   if (/运营|社群|用户|活动|公众号|推文/.test(text)) {
-    options.push({
-      name: '用户运营 / 社群运营',
-      level: '主投',
-      why: '当前经历里已经有社群维护、内容整理或用户触达线索，适合作为优先探索方向。',
-      evidence: evidence('已有社群维护或内容整理相关材料。'),
-      gap: '还需要补清楚用户规模、触达频率、活动反馈和复盘结论。',
-      next: '用 7-14 天整理一段真实社群维护案例，补齐对象、动作、频率和产出。',
-      keywords: ['用户运营', '社群运营', '运营助理']
-    });
+    options.push(
+      direction(
+        '用户运营 / 社群运营',
+        '主投',
+        '当前经历里已经有社群维护、内容整理或用户触达线索，适合作为优先探索方向。',
+        evidence('已有社群维护或内容整理相关材料。'),
+        '还需要补清楚用户规模、触达频率、活动反馈和复盘结论。',
+        '7 天内搜索 3 个用户运营或社群运营 JD，整理一段真实社群维护案例，补齐对象、动作、频率和产出。',
+        ['用户运营', '社群运营', '运营助理']
+      )
+    );
   }
 
   if (/公众号|内容|推文|剪映|视频|排版|新媒体|小红书/.test(text)) {
-    options.push({
-      name: '新媒体运营助理',
-      level: options.length ? '可冲' : '主投',
-      why: '公众号、推文、剪映或排版材料可以转成内容执行和素材整理证据。',
-      evidence: profile.skills || profile.internship || '已有内容工具或素材整理相关材料。',
-      gap: '需要补清楚选题来源、制作流程、发布反馈和本人承担边界。',
-      next: '复盘一篇真实推文或短视频素材，写清楚素材、制作、发布和反馈。',
-      keywords: ['新媒体运营', '内容运营', '公众号排版']
-    });
+    options.push(
+      direction(
+        '新媒体运营助理',
+        options.length ? '可冲' : '主投',
+        '公众号、推文、剪映或排版材料可以转成内容执行和素材整理证据。',
+        profile.skills || profile.internship || '已有内容工具或素材整理相关材料。',
+        '需要补清楚选题来源、制作流程、发布反馈和本人承担边界。',
+        '7 天内搜索 3 个新媒体运营助理 JD，复盘一篇真实推文或短视频素材，写清楚素材、制作、发布和反馈。',
+        ['新媒体运营', '内容运营助理', '公众号运营']
+      )
+    );
   }
 
   if (/excel|问卷|调研|数据|表格/.test(text)) {
-    options.push({
-      name: '数据运营助理 / 运营分析助理',
-      level: options.length ? '可冲' : '主投',
-      why: '问卷、调研和 Excel 整理经历可以作为数据整理与基础分析的入门证据。',
-      evidence: profile.project || profile.skills || '已有问卷、调研或 Excel 整理相关材料。',
-      gap: '需要补清楚数据来源、处理方法、结论和使用场景。',
-      next: '把一次问卷或表格整理做成小作品，补上数据处理过程和输出截图。',
-      keywords: ['数据运营', '运营分析助理', 'Excel']
-    });
+    options.push(
+      direction(
+        '数据运营助理 / 运营分析助理',
+        options.length ? '可冲' : '主投',
+        '问卷、调研和 Excel 整理经历可以作为数据整理与基础分析的入门证据。',
+        profile.project || profile.skills || '已有问卷、调研或 Excel 整理相关材料。',
+        '需要补清楚数据来源、处理方法、结论和使用场景。',
+        '7 天内搜索 3 个数据运营助理 JD，把一次问卷或表格整理做成小作品，补上数据处理过程和输出截图。',
+        ['数据运营', '运营分析助理', '数据分析助理']
+      )
+    );
   }
 
   if (options.length < 2) {
     options.push(
-      {
-        name: '运营助理',
-        level: '过渡',
-        why: '如果方向暂时不清晰，可以先探索执行、整理和沟通要求更明确的入门岗位。',
-        evidence: evidence('当前材料较少，建议继续补充真实经历证据。'),
-        gap: '岗位相关场景和结果反馈还需要继续补充。',
-        next: '补一个围绕目标行业的小型复盘项目，形成可展示材料。',
-        keywords: ['运营助理', '执行支持', '信息整理']
-      },
-      {
-        name: '项目助理 / 行政助理',
-        level: '过渡',
-        why: '作为过渡方向，可以先把信息整理、流程跟进和协作支持经历转成可投递表达。',
-        evidence: evidence('当前材料较少，建议继续补充真实经历证据。'),
-        gap: '需要证明能稳定推进任务，而不仅是参与过。',
-        next: '整理一段任务推进经历，写清楚分工、节点和交付物。',
-        keywords: ['项目助理', '行政助理', '流程跟进']
-      }
+      direction(
+        '运营助理',
+        '过渡',
+        '如果方向暂时不清晰，可以先探索执行、整理和沟通要求更明确的入门岗位。',
+        evidence('当前材料较少，建议继续补充真实经历证据。'),
+        '岗位相关场景和结果反馈还需要继续补充。',
+        '7 天内搜索 3 个运营助理 JD，并补一个围绕目标行业的小型复盘项目，形成可展示材料。',
+        ['运营助理', '执行支持', '活动执行助理']
+      ),
+      direction(
+        '项目助理 / 行政助理',
+        '过渡',
+        '作为过渡方向，可以先把信息整理、流程跟进和协作支持经历转成可投递表达。',
+        evidence('当前材料较少，建议继续补充真实经历证据。'),
+        '需要证明能稳定推进任务，而不仅是参与过。',
+        '7 天内搜索 3 个项目助理或行政助理 JD，整理一段任务推进经历，写清楚分工、节点和交付物。',
+        ['项目助理', '行政助理', '流程跟进']
+      )
     );
   }
 

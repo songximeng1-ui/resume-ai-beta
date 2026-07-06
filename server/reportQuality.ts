@@ -46,6 +46,7 @@ const prohibitionMarkers = [
   '需核实'
 ];
 const genericPatterns = [/提升综合素质/, /增强岗位认知/, /加强学习/, /努力提升/, /认真准备/, /全面提高/];
+const directionPriorities = ['主投', '可冲', '过渡', '暂不建议主投'];
 const riskyClaimPatterns = [
   /没有也可以写/,
   /可以包装成/,
@@ -440,15 +441,21 @@ function checkInventoryReport(report: DiagnosisReport, blockers: string[]) {
 
   const incompleteDirection = (report.directionOptions ?? []).some(
     (direction) =>
+      !hasUsefulText(direction.directionName) ||
       !hasUsefulText(direction.name) ||
+      !directionPriorities.includes(direction.priority) ||
+      !hasUsefulText(direction.whyExplore) ||
       !hasUsefulText(direction.why) ||
       !hasUsefulText(direction.evidence) ||
       !hasUsefulText(direction.gap) ||
+      !hasUsefulText(direction.sevenDayValidation) ||
       !hasUsefulText(direction.next) ||
-      direction.keywords.length < 1
+      direction.searchableJobNames.length < 3 ||
+      direction.searchableJobNames.length > 5 ||
+      direction.keywords.length < 3
   );
   if (incompleteDirection) {
-    blockers.push('每个方向建议都必须说明为什么适合、用户已有证据、风险或缺口、下一步补什么。');
+    blockers.push('每个方向建议都必须包含方向名称、3-5 个可搜索岗位、探索原因、用户已有证据、风险或缺口、7 天验证动作。');
   }
 }
 
