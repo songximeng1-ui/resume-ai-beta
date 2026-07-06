@@ -1201,24 +1201,10 @@ function DigPage({
             </div>
           ) : null}
 
-          {questionSet?.digIntent ? (
-            <div className="dig-context">
-              <h2>这轮想帮你确认什么</h2>
-              <p>{questionSet.digIntent}</p>
-            </div>
-          ) : null}
-
-          {questionSet?.potentialHighlight ? (
-            <div className="dig-context">
-              <h2>可能挖出的亮点</h2>
-              <p>{questionSet.potentialHighlight}</p>
-            </div>
-          ) : null}
-
           <div className="question-list">
             <h2>AI 想进一步确认</h2>
             <AiTaskNotice estimate={getAiWaitEstimate('dig')} loadingMessage={loadingMessage} />
-            {questionSet?.questions.map((question) => (
+            {(questionSet?.userVisibleQuestions ?? []).map((question) => (
               <p key={question}>{question}</p>
             ))}
           </div>
@@ -1233,16 +1219,8 @@ function DigPage({
               rows={5}
               placeholder="能想起多少写多少。优先写真实动作、对象、规模、工具、结果或复盘。"
             />
-            <p className="helper-text">{questionSet?.answerHint || '没有数据也没关系，可以写“大约、每周、参与、协助”等真实边界。'}</p>
+            <p className="helper-text">没有数据也没关系，可以写“大约、每周、参与、协助”等真实边界。</p>
           </label>
-
-          {questionSet?.resumePreview ? (
-            <div className="dig-context">
-              <h2>如果补充得出来，可能可以这样写</h2>
-              <p>{questionSet.resumePreview}</p>
-              <p className="safety-note">这只是待核实草稿，只有你确认真实后才适合写入简历。</p>
-            </div>
-          ) : null}
 
           {encouragement ? <p className="encouragement">{encouragement}</p> : null}
 

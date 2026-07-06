@@ -57,3 +57,23 @@
 - `npm test -- server/taskPackage.test.ts`：通过，1 个测试文件、2 个测试通过。
 
 本次没有新增环境变量，因此不需要更新 `.env.example`；README 暂无必要更新。下一步应把该任务包接入动态追问或分模块报告调用。
+
+## 2026-07-06：动态追问 V0.4 合同迁移
+
+改动类型：智能体工作流、数据结构、后端接口校验、提示词、前端体验、测试。
+
+本次完成 V0.4 动态追问契约迁移：
+
+- `DigQuestionSet` 从 V0.3 的 questions、digIntent、potentialHighlight、answerHint、resumePreview 迁移为 userVisibleQuestions、internalMetadata、encouragement。
+- 后端 schema 要求内部元数据包含 questionId、relatedAssetId、relatedJdRequirementId、method、factDimensions、internalWhy。
+- userVisibleQuestions 会拒绝 TAR、PART、PREP、HR 视角、为什么问、事实回忆维度等内部标签。
+- 后端 demo 与前端 demo 均输出自然问题，内部保留 HR/TAR/PART 等方法 metadata。
+- 动态追问页面不再展示“可能挖出的亮点”、回答提示和待核实简历草稿，避免诱导用户照着答案编造。
+- 提示词明确：JD 模式结合 JD 要求、确认经历和已有回答；无 JD 模式也使用内部追问逻辑，但不向用户展示。
+
+验证结果：
+
+- `npm test -- server/index.test.ts src/services/aiService.test.ts`：通过，2 个测试文件、34 个测试通过。
+- `npm run build`：通过。
+
+本次没有新增环境变量，因此不需要更新 `.env.example`；README 暂无必要更新。

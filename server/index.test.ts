@@ -363,16 +363,22 @@ test('small task endpoints use the small model runtime and return real source wh
   }
 });
 
-test('dig questions return helpful digging context and strict schema requires every field', () => {
+test('dig questions use V0.4 hidden internal metadata and natural user questions', () => {
   const payload = {
     source: 'real' as const,
     assetId: 'internship',
-    encouragement: '你这段经历已经有真实任务线索，不需要硬包装，先把本人动作说清楚就有价值。',
-    digIntent: '我想确认这段实习里是否有用户沟通、内容整理和活动触达的证据。',
-    potentialHighlight: '这段经历可能不是普通打杂，而是基础用户触达与内容执行支持。',
-    questions: ['你提到维护学生社群，当时主要接触的是学生、家长还是老师？'],
-    answerHint: '不用写完整文章，按“对象 + 动作 + 频次 + 结果/反馈”回答即可。',
-    resumePreview: '待核实：协助维护学生社群，整理活动提醒与公众号素材，支持用户触达和反馈收集。'
+    userVisibleQuestions: ['你提到维护学生社群，当时主要接触的是学生、家长还是老师？'],
+    internalMetadata: [
+      {
+        questionId: 'q_1',
+        relatedAssetId: 'internship',
+        relatedJdRequirementId: 'req_1',
+        method: 'hr',
+        factDimensions: ['task', 'action'],
+        internalWhy: '核实用户触达和本人分工。'
+      }
+    ],
+    encouragement: '你这段经历已经有真实任务线索，不需要硬包装，先把本人动作说清楚就有价值。'
   };
 
   expect(validateDigQuestionSet(payload)).toMatchObject(payload);
@@ -381,10 +387,56 @@ test('dig questions return helpful digging context and strict schema requires ev
     validateDigQuestionSet({
       source: 'real',
       assetId: 'internship',
-      questions: ['你做了什么？'],
+      userVisibleQuestions: ['请按 TAR 说一下你的任务、行动、结果'],
+      internalMetadata: [
+        {
+          questionId: 'q_1',
+          relatedAssetId: 'internship',
+          method: 'tar',
+          factDimensions: ['task', 'action', 'result'],
+          internalWhy: '补齐事实证据。'
+        }
+      ],
       encouragement: '这段经历有价值。'
     })
-  ).toThrow(/digIntent/);
+  ).toThrow(/userVisibleQuestions/);
+});
+
+test('demo dig-question endpoint returns natural questions without exposing internal methods', async () => {
+  delete process.env.OPENAI_API_KEY;
+  const server = await withServer();
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/dig-questions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'jd',
+        profile: { targetRole: '用户运营' },
+        jdSummary: { requirements: ['整理用户反馈'] },
+        asset: {
+          id: 'internship',
+          title: '实习经历',
+          content: '维护学生社群并整理公众号推文',
+          status: '确认使用',
+          confirmed: true
+        },
+        jdText: '负责用户反馈整理。',
+        previousAnswers: []
+      })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.userVisibleQuestions).toHaveLength(3);
+    expect(body.userVisibleQuestions.join(' ')).not.toMatch(/TAR|PART|PREP|HR 视角|为什么问|事实回忆维度/i);
+    expect(body.internalMetadata[0]).toMatchObject({
+      relatedJdRequirementId: expect.any(String),
+      method: expect.stringMatching(/hr|tar|part|prep/)
+    });
+    expect(JSON.stringify(body)).not.toMatch(/potentialHighlight|answerHint|resumePreview/);
+  } finally {
+    await server.close();
+  }
 });
 
 test('report endpoint uses the report model runtime and never falls back to demo on real failures', async () => {

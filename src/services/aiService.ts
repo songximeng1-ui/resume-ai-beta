@@ -559,22 +559,22 @@ class DemoCareerService implements AiCareerService {
   }): Promise<DigQuestionSet> {
     const target = input.profile.targetRole || '目标岗位';
     const content = snippet(input.asset.content || input.asset.gapAdvice || input.asset.title);
-    const questions = [
-      `你这段${input.asset.title}里提到“${content}”，我想帮你判断它能不能转成${target}需要的能力。你当时最核心的动作是哪 1-2 个？`,
+    const userVisibleQuestions = [
+      `结合你想探索的${target}，你这段${input.asset.title}里提到“${content}”，你自己实际完成的动作是哪 1-2 个？`,
       `这段经历有没有可核实的规模、频次或周期，例如人数、社群数量、每周次数、持续多久？`,
-      `如果面试官追问结果或反馈，你能说明一个真实变化、产出或复盘结论吗？`
+      `如果面试时被问到困难，你能想到一个真实问题和你的处理方式吗？`
     ];
 
     return {
       assetId: input.asset.id,
       source: 'demo',
-      questions,
-      digIntent: `我想确认这段${input.asset.title}里是否有${target}需要的沟通、执行、信息整理或复盘证据。`,
-      potentialHighlight: `这段经历可能不只是普通经历，而是可以挖出${input.asset.title}中的执行推进、用户触达或协作支持价值。`,
-      answerHint: '不用写完整文章，按“对象 + 动作 + 频次 + 结果/反馈”回答即可；没有数据可以写大约、待核实或需补充依据。',
-      resumePreview: `待核实：协助完成${content}相关支持工作，参与信息整理、触达跟进和反馈收集，具体规模与结果需补充依据。`,
-      encouragement:
-        '这段经历不是没有价值，它可能体现的是执行推进和现场协调能力。我们再补一个规模或结果信息，就能判断它是否适合写进简历。'
+      userVisibleQuestions,
+      internalMetadata: [
+        { questionId: 'q_1', relatedAssetId: input.asset.id, relatedJdRequirementId: input.jdText.trim() ? 'req_1' : undefined, method: 'hr', factDimensions: ['action'], internalWhy: '确认本人分工' },
+        { questionId: 'q_2', relatedAssetId: input.asset.id, relatedJdRequirementId: input.jdText.trim() ? 'req_1' : undefined, method: 'tar', factDimensions: ['task', 'scale', 'tool', 'result'], internalWhy: `补齐${target}相关的事实证据` },
+        { questionId: 'q_3', relatedAssetId: input.asset.id, relatedJdRequirementId: input.jdText.trim() ? 'req_1' : undefined, method: 'part', factDimensions: ['reflection', 'risk'], internalWhy: '准备面试解释边界' }
+      ],
+      encouragement: '这一步只是在帮你回忆真实细节，不需要写得很完整。'
     };
   }
 

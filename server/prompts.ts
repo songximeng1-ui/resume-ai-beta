@@ -28,15 +28,18 @@ ${JSON.stringify(payload)}`;
 }
 
 export function digQuestionsPrompt(payload: unknown) {
-  return `任务：根据用户经历、目标岗位 JD、已有回答，动态生成一组“有帮助感”的经历挖掘追问。
+  return `任务：根据用户已确认经历、目标岗位 JD、已有补充回答，生成 V0.4 动态追问。
 
 要求：
-- encouragement：一句基于这段真实经历的温和鼓励，不能空泛鸡汤。
-- digIntent：说明这轮为什么问，要确认哪些岗位证据，例如用户沟通、数据整理、活动执行、内容产出、协作跟进。
-- potentialHighlight：告诉用户这段经历可能挖出的亮点，用“可能”“如果能补充依据”表达，不要下定论。
-- questions：1-3 个问题，必须具体引用用户原经历、目标岗位或已有回答；不要问“你做了什么”这类泛泛问题。
-- answerHint：告诉用户怎么轻松回答，例如按“对象 + 动作 + 频次 + 结果/反馈”回答即可。
-- resumePreview：基于当前已有信息给一条“如果补充得出来，可能可以写成”的简历表达草稿，必须包含“待核实”或“需补充依据”，不能编造数据。
+- 输出字段只能包含：source、assetId、userVisibleQuestions、internalMetadata、encouragement。
+- userVisibleQuestions：1-3 个自然问题，必须具体引用用户原经历、目标岗位 JD 或已有回答；不要问“你做了什么”这类泛泛问题。
+- internalMetadata：每个问题的内部追问依据，包含 questionId、relatedAssetId、relatedJdRequirementId、method、factDimensions、internalWhy。
+- method 只能用 hr、tar、part、prep、custom；factDimensions 只能用 task、action、result、reflection、scale、tool、risk。
+- JD 模式必须结合 JD 要求、用户已确认经历、用户已有补充回答；relatedJdRequirementId 优先绑定 jdSummary.requirements 对应的 req_x。
+- 无 JD 模式也可以用 HR/TAR/PART/PREP 逻辑做内部追问，但不要展示这些方法名称。
+- userVisibleQuestions 里禁止出现 TAR、PART、PREP、HR 视角、为什么问、事实回忆维度等内部标签。
+- 不展示可能挖出的亮点，不给“你可以这样回答”的明确答案，不给完整示例，不输出简历草稿。
+- encouragement：一句事实型、温和的提醒，告诉用户这一步只是回忆真实细节。
 - source 必须为 "real"。
 - 不要制造焦虑，不要羞辱用户；问题要帮助用户看见真实价值。
 - 禁止编造规模、业绩、转化率、公司、岗位职责；没有依据必须标注待核实或需补充依据。

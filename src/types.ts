@@ -6,6 +6,8 @@ export type AiSource = 'real' | 'demo';
 export type FieldStatus = 'AI 已识别' | '待用户确认' | '用户已修改';
 export type AssetStatus = '已确认' | '待用户确认' | '用户已修改' | '暂未填写' | '暂不使用';
 export type DeliveryVerdict = '主投' | '可冲' | '过渡' | '暂不建议主投';
+export type QuestionMethod = 'hr' | 'tar' | 'part' | 'prep' | 'custom';
+export type FactDimension = 'task' | 'action' | 'result' | 'reflection' | 'scale' | 'tool' | 'risk';
 
 export type AiUsage = {
   model: string;
@@ -120,15 +122,21 @@ export interface StructuredResume {
   source: AiSource;
 }
 
+export interface DigQuestionMetadata {
+  questionId: string;
+  relatedAssetId: AssetKind;
+  relatedJdRequirementId?: string;
+  method: QuestionMethod;
+  factDimensions: FactDimension[];
+  internalWhy: string;
+}
+
 export interface DigQuestionSet {
   assetId: AssetKind;
   source: AiSource;
-  questions: string[];
+  userVisibleQuestions: string[];
+  internalMetadata: DigQuestionMetadata[];
   encouragement: string;
-  digIntent: string;
-  potentialHighlight: string;
-  answerHint: string;
-  resumePreview: string;
 }
 
 export interface EvidenceMatrixRow {

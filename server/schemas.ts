@@ -17,7 +17,10 @@ import type {
 
 const fieldStatuses = ['AI 已识别', '待用户确认', '用户已修改'] as const;
 const verdicts = ['主投', '可冲', '过渡', '暂不建议主投'] as const;
+const questionMethods = ['hr', 'tar', 'part', 'prep', 'custom'] as const;
+const factDimensions = ['task', 'action', 'result', 'reflection', 'scale', 'tool', 'risk'] as const;
 const reportModes = ['inventory', 'jd'] as const;
+const internalQuestionMarkers = /TAR|PART|PREP|HR\s*视角|为什么问|事实回忆维度/i;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -137,19 +140,41 @@ export function validateDigQuestionSet(value: unknown): DigQuestionSet {
   if (!isRecord(value)) {
     throw new Error('DigQuestionSet must be an object');
   }
-  const questions = assertArray(value.questions, 'questions', (item) => assertString(item, 'question')).slice(0, 3);
-  if (questions.length < 1) {
-    throw new Error('questions must contain 1-3 items');
+  const userVisibleQuestions = assertArray(value.userVisibleQuestions, 'userVisibleQuestions', (item) => assertString(item, 'userVisibleQuestions item')).slice(0, 3);
+  if (userVisibleQuestions.length < 1) {
+    throw new Error('userVisibleQuestions must contain 1-3 items');
   }
+  if (userVisibleQuestions.some((question) => internalQuestionMarkers.test(question))) {
+    throw new Error('userVisibleQuestions must not expose internal questioning methods or reasoning labels');
+  }
+  const internalMetadata = assertArray(value.internalMetadata, 'internalMetadata', (item, index) => {
+    if (!isRecord(item)) throw new Error(`internalMetadata.${index} must be an object`);
+    const method = assertString(item.method, `internalMetadata.${index}.method`) as DigQuestionSet['internalMetadata'][number]['method'];
+    if (!questionMethods.includes(method)) {
+      throw new Error(`internalMetadata.${index}.method must be hr, tar, part, prep, or custom`);
+    }
+    const dimensions = assertArray(item.factDimensions, `internalMetadata.${index}.factDimensions`, (dimension) =>
+      assertString(dimension, `internalMetadata.${index}.factDimensions item`) as DigQuestionSet['internalMetadata'][number]['factDimensions'][number]
+    );
+    const invalidDimension = dimensions.find((dimension) => !factDimensions.includes(dimension));
+    if (invalidDimension) {
+      throw new Error(`internalMetadata.${index}.factDimensions contains invalid dimension`);
+    }
+    return {
+      questionId: assertString(item.questionId, `internalMetadata.${index}.questionId`),
+      relatedAssetId: assertString(item.relatedAssetId, `internalMetadata.${index}.relatedAssetId`) as DigQuestionSet['assetId'],
+      relatedJdRequirementId: item.relatedJdRequirementId ? assertString(item.relatedJdRequirementId, `internalMetadata.${index}.relatedJdRequirementId`) : undefined,
+      method,
+      factDimensions: dimensions,
+      internalWhy: assertString(item.internalWhy, `internalMetadata.${index}.internalWhy`)
+    };
+  });
   return {
     assetId: assertString(value.assetId, 'assetId') as DigQuestionSet['assetId'],
     source: assertSource(value.source || 'real', 'source'),
-    questions,
-    encouragement: assertString(value.encouragement, 'encouragement'),
-    digIntent: assertString(value.digIntent, 'digIntent'),
-    potentialHighlight: assertString(value.potentialHighlight, 'potentialHighlight'),
-    answerHint: assertString(value.answerHint, 'answerHint'),
-    resumePreview: assertString(value.resumePreview, 'resumePreview')
+    userVisibleQuestions,
+    internalMetadata,
+    encouragement: assertString(value.encouragement, 'encouragement')
   };
 }
 
@@ -549,16 +574,30 @@ export const structuredResumeJsonSchema = {
 export const digQuestionsJsonSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['source', 'assetId', 'questions', 'encouragement', 'digIntent', 'potentialHighlight', 'answerHint', 'resumePreview'],
+  required: ['source', 'assetId', 'userVisibleQuestions', 'internalMetadata', 'encouragement'],
   properties: {
     source: { enum: ['real'] },
     assetId: stringSchema,
-    questions: { type: 'array', minItems: 1, maxItems: 3, items: stringSchema },
-    encouragement: stringSchema,
-    digIntent: stringSchema,
-    potentialHighlight: stringSchema,
-    answerHint: stringSchema,
-    resumePreview: stringSchema
+    userVisibleQuestions: { type: 'array', minItems: 1, maxItems: 3, items: stringSchema },
+    internalMetadata: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 3,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['questionId', 'relatedAssetId', 'method', 'factDimensions', 'internalWhy'],
+        properties: {
+          questionId: stringSchema,
+          relatedAssetId: stringSchema,
+          relatedJdRequirementId: stringSchema,
+          method: { enum: [...questionMethods] },
+          factDimensions: { type: 'array', minItems: 1, items: { enum: [...factDimensions] } },
+          internalWhy: stringSchema
+        }
+      }
+    },
+    encouragement: stringSchema
   }
 };
 

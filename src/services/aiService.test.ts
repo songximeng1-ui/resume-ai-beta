@@ -60,3 +60,65 @@ test('reads VITE_API_BASE_URL through direct import.meta.env access for producti
 
   expect(source).toContain('import.meta.env.VITE_API_BASE_URL');
 });
+
+test('dig-question service contract uses V0.4 user-visible questions and hidden metadata', async () => {
+  window.localStorage.setItem(BETA_STORAGE_KEY, JSON.stringify({ authorized: true, betaAccessCode: 'private-beta' }));
+  vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({
+    source: 'real',
+    assetId: 'project',
+    userVisibleQuestions: [
+      '你这段项目里，自己实际完成的动作是哪 1-2 个？',
+      '这件事有没有可以核实的对象、周期、工具或交付物？',
+      '如果面试时被问到困难，你能想到一个真实问题和你的处理方式吗？'
+    ],
+    internalMetadata: [
+      {
+        questionId: 'q_1',
+        relatedAssetId: 'project',
+        relatedJdRequirementId: 'req_1',
+        method: 'tar',
+        factDimensions: ['task', 'action'],
+        internalWhy: '补齐项目证据'
+      }
+    ],
+    encouragement: '这一步只是在帮你回忆真实细节，不需要写得很完整。'
+  }));
+
+  const result = await getAiService().generateDigQuestions({
+    profile: {
+      education: '',
+      schoolName: '',
+      major: '',
+      graduation: '',
+      city: '',
+      targetRole: '用户运营',
+      internship: '',
+      project: '问卷调研',
+      campus: '',
+      partTime: '',
+      awards: '',
+      skills: '',
+      portfolio: ''
+    },
+    asset: {
+      id: 'project',
+      title: '项目经历',
+      content: '问卷调研',
+      status: '确认使用',
+      confirmed: true,
+      source: 'demo',
+      isGap: false,
+      notes: []
+    },
+    jdText: '岗位要求：整理用户反馈。',
+    previousAnswers: []
+  });
+
+  expect(result.userVisibleQuestions).toHaveLength(3);
+  expect(result.internalMetadata[0]).toMatchObject({
+    method: 'tar',
+    factDimensions: expect.arrayContaining(['task'])
+  });
+  expect(JSON.stringify(result.userVisibleQuestions)).not.toMatch(/TAR|PART|PREP|HR 视角|为什么问|事实回忆维度/i);
+  expect(JSON.stringify(result)).not.toMatch(/potentialHighlight|answerHint|resumePreview/);
+});
