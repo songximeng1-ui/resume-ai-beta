@@ -2,6 +2,7 @@ node_modules
 dist
 .vite
 .agents/
+.worktrees/
 docs/v0.3/*real-sample*.md
 docs/v0.3/three-round-real-sample-acceptance-record.md
 .env
