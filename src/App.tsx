@@ -245,6 +245,13 @@ function canEnterDig(asset: AssetCard) {
   return diggableAssetIds.includes(asset.id) && !asset.isGap && asset.status !== '暂不使用' && Boolean(asset.content.trim());
 }
 
+function isAssetProcessed(asset: AssetCard) {
+  if (asset.isGap || !asset.content.trim()) {
+    return true;
+  }
+  return asset.status === '已确认' || asset.status === '暂不使用';
+}
+
 function readFileAsText(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -474,6 +481,10 @@ function App() {
       setTruthError('请先确认真实性条款，再进入经历资产卡。');
       return;
     }
+    if (mode === 'jd' && !jdText.trim()) {
+      setTruthError('请先补充目标岗位 JD。系统需要先理解岗位要求，再结合你的经历生成追问。');
+      return;
+    }
     const nextAssets = assets.length ? assets : createAssetCardsFromProfile(profile, aiStatus?.configured ? 'real' : 'demo');
     setAssets(nextAssets);
     setTruthError('');
@@ -542,6 +553,16 @@ function App() {
   };
 
   const enterDig = async () => {
+    const firstPending = assets.find((asset) => diggableAssetIds.includes(asset.id) && !isAssetProcessed(asset));
+    if (firstPending) {
+      setTruthError(`请先处理「${firstPending.title}」经历卡，再进入下一步。`);
+      const pendingElement = document.querySelector(`[data-asset-id="${firstPending.id}"]`);
+      if (pendingElement instanceof HTMLElement && typeof pendingElement.scrollIntoView === 'function') {
+        pendingElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+    setTruthError('');
     setDigIndex(0);
     setStep('dig');
     await loadDigQuestion(diggableAssets[0]);
@@ -735,9 +756,11 @@ function App() {
 
       {betaAuthorized && step === 'input' ? (
         <InputPage
+          mode={mode}
           profile={profile}
           fieldStatuses={fieldStatuses}
           resumeText={resumeText}
+          jdText={jdText}
           structureSource={structureSource}
           structureMessage={structureMessage}
           truthConfirmed={truthConfirmed}
@@ -746,6 +769,7 @@ function App() {
           loadingMessage={structureLoadingMessage}
           onProfileChange={updateProfile}
           onResumeTextChange={setResumeText}
+          onJdTextChange={setJdText}
           resumeFileMessage={resumeFileMessage}
           onResumeFile={attachResumeFile}
           onStructure={structureResume}
@@ -764,6 +788,7 @@ function App() {
       {betaAuthorized && step === 'assets' ? (
         <AssetsPage
           assets={assets}
+          truthError={truthError}
           editingId={editingId}
           onEdit={setEditingId}
           onUpdateAsset={updateAsset}
@@ -831,9 +856,11 @@ function App() {
 }
 
 function InputPage({
+  mode,
   profile,
   fieldStatuses,
   resumeText,
+  jdText,
   structureSource,
   structureMessage,
   aiStatusMessage,
@@ -843,6 +870,7 @@ function InputPage({
   loadingMessage,
   onProfileChange,
   onResumeTextChange,
+  onJdTextChange,
   resumeFileMessage,
   onResumeFile,
   onStructure,
@@ -850,9 +878,11 @@ function InputPage({
   onGenerateAssets,
   onBack
 }: {
+  mode: Mode | null;
   profile: Profile;
   fieldStatuses: Record<keyof Profile, FieldStatus>;
   resumeText: string;
+  jdText: string;
   structureSource: 'real' | 'demo' | null;
   structureMessage: string;
   aiStatusMessage: string;
@@ -862,6 +892,7 @@ function InputPage({
   loadingMessage: string;
   onProfileChange: (key: keyof Profile, value: string) => void;
   onResumeTextChange: (value: string) => void;
+  onJdTextChange: (value: string) => void;
   resumeFileMessage: string;
   onResumeFile: (file: File | null) => void;
   onStructure: () => void;
@@ -924,6 +955,21 @@ function InputPage({
         <p className="helper-text">没有正式简历也可以，粘贴经历材料或自我介绍即可。</p>
       </label>
 
+      {mode === 'jd' ? (
+        <label className="field" htmlFor="jdTextInput">
+          <span>粘贴目标岗位 JD</span>
+          <textarea
+            aria-label="粘贴目标岗位 JD"
+            id="jdTextInput"
+            value={jdText}
+            onChange={(event) => onJdTextChange(event.target.value)}
+            rows={6}
+            placeholder="把目标岗位 JD、职责和任职要求粘贴到这里。后续追问会先理解岗位要求，再结合你的真实经历生成问题。"
+          />
+          <p className="helper-text">有 JD 模式会先基于岗位要求和你的经历生成追问；页面不会展示内部追问方法。</p>
+        </label>
+      ) : null}
+
       <div className="action-row">
         <button className="primary-button" type="button" onClick={onStructure} disabled={isBusy || !resumeText.trim()}>
           {isBusy ? 'AI 正在整理...' : 'AI 帮我整理基础信息'}
@@ -978,7 +1024,7 @@ function InputPage({
         />
         <span>我确认以上学历、学校、证书、实习、项目、时间和成果均基于真实经历。系统只帮助我优化真实表达，不帮助伪造经历。</span>
       </label>
-      {truthError ? <p className="error-note">{truthError}</p> : null}
+      <ErrorNotice message={truthError} />
 
       <div className="action-row">
         <button className="secondary-button" type="button" onClick={onBack}>
@@ -994,6 +1040,7 @@ function InputPage({
 
 function AssetsPage({
   assets,
+  truthError,
   editingId,
   onEdit,
   onUpdateAsset,
@@ -1004,6 +1051,7 @@ function AssetsPage({
   onEnterDig
 }: {
   assets: AssetCard[];
+  truthError: string;
   editingId: AssetKind | null;
   onEdit: (id: AssetKind | null) => void;
   onUpdateAsset: (id: AssetKind, patch: Partial<AssetCard>) => void;
@@ -1049,7 +1097,7 @@ function AssetsPage({
           const isEditing = editingId === asset.id;
 
           return (
-          <article className={isBlank ? 'asset-card gap-card' : 'asset-card'} data-testid={`asset-card-${asset.id}`} key={asset.id}>
+          <article className={isBlank ? 'asset-card gap-card' : 'asset-card'} data-asset-id={asset.id} data-testid={`asset-card-${asset.id}`} key={asset.id}>
             <div className="asset-head">
               <div>
                 <span className="asset-kicker">{assetTitles[asset.id]}</span>
@@ -1118,6 +1166,8 @@ function AssetsPage({
           );
         })}
       </div>
+
+      <ErrorNotice message={truthError} />
 
       <div className="action-row">
         <button className="secondary-button" type="button" onClick={onBack}>
