@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { readFileSync } from 'node:fs';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
@@ -13,6 +14,7 @@ import type {
 } from './types';
 
 const BETA_STORAGE_KEY = 'job-map-v0.3-beta-access';
+const STYLES_TEXT = readFileSync('src/styles.css', 'utf8');
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -888,6 +890,7 @@ test('有 JD 模式输出证据矩阵和 V2 完整诊断报告', async () => {
 
   expect(screen.getByRole('heading', { name: '岗位要求匹配分析' })).toBeInTheDocument();
   expect(screen.getByText(/这份报告基于你确认的真实经历和目标岗位描述生成。判断只是投递建议，不是录取预测。/)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: '岗位要求匹配分析' }).closest('section')?.querySelector('table')).toBeNull();
 
   for (const heading of [
     '投递判断摘要',
@@ -961,6 +964,22 @@ test('JD 证据匹配页空 JD 不分析，短 JD 显示提示', async () => {
 
   await user.type(screen.getByLabelText('粘贴目标岗位描述'), '用户运营');
   expect(screen.getByText('当前岗位描述较短，分析可能不完整')).toBeInTheDocument();
+});
+
+test('移动端结果页核心容器具备防横向溢出样式', () => {
+  render(<App />);
+
+  const css = STYLES_TEXT;
+  expect(css).toMatch(/\.flow-section[\s\S]*min-width:\s*0/);
+  expect(css).toMatch(/\.result-block[\s\S]*min-width:\s*0/);
+  expect(css).toMatch(/\.card-list[\s\S]*min-width:\s*0/);
+  expect(css).toMatch(/\.rewrite-card[\s\S]*min-width:\s*0/);
+  expect(css).toMatch(/\.interview-card[\s\S]*min-width:\s*0/);
+  expect(css).toMatch(/\.plan-card[\s\S]*min-width:\s*0/);
+  expect(css).toMatch(/\.verdict-panel[\s\S]*min-width:\s*0/);
+  expect(css).toMatch(/\.result-block p[\s\S]*overflow-wrap:\s*anywhere/);
+  expect(css).toMatch(/@media \(max-width:\s*720px\)[\s\S]*\.action-row[\s\S]*flex-direction:\s*column/);
+  expect(css).toMatch(/@media \(max-width:\s*720px\)[\s\S]*\.result-block[\s\S]*overflow-x:\s*hidden/);
 });
 
 test('结果页不向用户展示 usage、token、成本或模型明细', () => {

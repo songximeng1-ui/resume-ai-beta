@@ -694,6 +694,16 @@ li {
   gap: 16px;
 }
 
+.flow-section,
+.result-block,
+.card-list,
+.rewrite-card,
+.interview-card,
+.plan-card,
+.verdict-panel {
+  min-width: 0;
+}
+
 .verdict-panel,
 .mini-panel,
 .result-block {
@@ -823,12 +833,19 @@ li {
 pre {
   overflow-x: auto;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   margin: 0;
   padding: 16px;
   border-radius: 8px;
   color: #273530;
   background: #f3f6f1;
   line-height: 1.75;
+}
+
+textarea,
+.result-block p {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .safety-note {
@@ -904,5 +921,16 @@ pre {
 
   h1 {
     font-size: 38px;
+  }
+}
+
+@media (max-width: 720px) {
+  .action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .result-block {
+    overflow-x: hidden;
   }
 }
