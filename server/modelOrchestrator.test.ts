@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { defaultModelRoles, shouldUseExtractor, callJsonWithPrimaryBackup } from './modelOrchestrator.ts';
 import { AiServiceError, type AiRuntime, type JsonCallOptions } from './openaiClient.ts';
+import { validateKimiExtract } from './schemas.ts';
 
 function runtimeWithCalls(
   calls: string[],
@@ -157,5 +158,36 @@ describe('callJsonWithPrimaryBackup', () => {
       'primary:module-test:deepseek-test:same complete task package',
       'backup:module-test:qwen-test:same complete task package'
     ]);
+  });
+});
+
+describe('validateKimiExtract', () => {
+  test('Kimi extract rejects judgment recommendation and rewrite fields', () => {
+    expect(() =>
+      validateKimiExtract({
+        source: 'real',
+        sourceSnippets: ['JD 原文片段'],
+        verificationNotes: ['岗位要求需核实'],
+        structuredFields: [{ field: '岗位要求', value: '社群维护', sourceSnippet: '社群维护' }],
+        recommendation: '建议优先投递',
+        rewrite: '可写成负责社群运营'
+      })
+    ).toThrow(/Kimi extract must not contain judgment, recommendation, or rewrite fields/);
+  });
+
+  test('Kimi extract accepts source snippets verification notes and structured fields', () => {
+    expect(
+      validateKimiExtract({
+        source: 'real',
+        sourceSnippets: ['负责社群维护和用户反馈整理'],
+        verificationNotes: ['用户规模未出现，需要待核实'],
+        structuredFields: [{ field: '岗位要求', value: '社群维护', sourceSnippet: '负责社群维护和用户反馈整理' }]
+      })
+    ).toEqual({
+      source: 'real',
+      sourceSnippets: ['负责社群维护和用户反馈整理'],
+      verificationNotes: ['用户规模未出现，需要待核实'],
+      structuredFields: [{ field: '岗位要求', value: '社群维护', sourceSnippet: '负责社群维护和用户反馈整理' }]
+    });
   });
 });

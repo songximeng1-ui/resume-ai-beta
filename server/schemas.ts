@@ -421,6 +421,17 @@ export interface ReportActionPlanModule {
   previewLines: string[];
 }
 
+export interface KimiExtract {
+  source: 'real';
+  sourceSnippets: string[];
+  verificationNotes: string[];
+  structuredFields: Array<{
+    field: string;
+    value: string;
+    sourceSnippet: string;
+  }>;
+}
+
 export function validateReportHighlightsModule(value: unknown): ReportHighlightsModule {
   if (!isRecord(value)) throw new Error('ReportHighlightsModule must be an object');
   const highlights = assertArray(value.highlights, 'highlights', validateHighlight);
@@ -489,6 +500,33 @@ export function validateReportActionPlanModule(value: unknown): ReportActionPlan
     resumeText: assertArray(value.resumeText, 'resumeText', (item) => assertString(item, 'resumeText item')),
     platformFields: assertArray(value.platformFields, 'platformFields', (item) => assertString(item, 'platformFields item')),
     previewLines: assertArray(value.previewLines, 'previewLines', (item) => assertString(item, 'previewLines item'))
+  };
+}
+
+const forbiddenKimiKeys = ['judgment', 'recommendation', 'rewrite', 'deliveryDecision', 'matchLevel', 'resumeWriting'] as const;
+
+export function validateKimiExtract(value: unknown): KimiExtract {
+  if (!isRecord(value)) {
+    throw new Error('KimiExtract must be an object');
+  }
+  const forbidden = forbiddenKimiKeys.find((key) => Object.prototype.hasOwnProperty.call(value, key));
+  if (forbidden) {
+    throw new Error('Kimi extract must not contain judgment, recommendation, or rewrite fields');
+  }
+  return {
+    source: assertRealSource(value.source || 'real', 'source'),
+    sourceSnippets: assertArray(value.sourceSnippets, 'sourceSnippets', (item) => assertString(item, 'sourceSnippet')),
+    verificationNotes: assertArray(value.verificationNotes, 'verificationNotes', (item) => assertString(item, 'verificationNote')),
+    structuredFields: assertArray(value.structuredFields, 'structuredFields', (item, index) => {
+      if (!isRecord(item)) {
+        throw new Error(`structuredFields.${index} must be an object`);
+      }
+      return {
+        field: assertString(item.field, `structuredFields.${index}.field`),
+        value: assertString(item.value, `structuredFields.${index}.value`),
+        sourceSnippet: assertString(item.sourceSnippet, `structuredFields.${index}.sourceSnippet`)
+      };
+    })
   };
 }
 
@@ -862,6 +900,31 @@ export const reportActionPlanJsonSchema = {
     previewLines: { type: 'array', items: stringSchema }
   }
 };
+
+export const kimiExtractJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['source', 'sourceSnippets', 'verificationNotes', 'structuredFields'],
+  properties: {
+    source: { enum: ['real'] },
+    sourceSnippets: { type: 'array', minItems: 1, items: stringSchema },
+    verificationNotes: { type: 'array', items: stringSchema },
+    structuredFields: {
+      type: 'array',
+      minItems: 1,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['field', 'value', 'sourceSnippet'],
+        properties: {
+          field: stringSchema,
+          value: stringSchema,
+          sourceSnippet: stringSchema
+        }
+      }
+    }
+  }
+} as const;
 
 const nullableSchema = (schema: Record<string, unknown>) => ({
   anyOf: [schema, { type: 'null' }]
