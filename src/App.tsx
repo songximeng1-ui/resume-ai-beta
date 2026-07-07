@@ -1891,36 +1891,6 @@ function CopyButton({ text, children }: { text: string; children: ReactNode }) {
   );
 }
 
-function formatTokenCount(value: number) {
-  return new Intl.NumberFormat('en-US').format(value);
-}
-
-function formatUsd(value: number) {
-  return `$${value.toFixed(6)}`;
-}
-
-function AiUsageSection({ usage }: { usage?: DiagnosisReport['usage'] }) {
-  return (
-    <section className="result-block" aria-labelledby="ai-usage-title">
-      <h2 id="ai-usage-title">本次 AI 用量与估算成本</h2>
-      {!usage ? (
-        <p className="context-note">本次未返回用量信息</p>
-      ) : (
-        <div className="card-list">
-          <article className="insight-card">
-            <p>模型：{usage.model}</p>
-            <p>任务：{usage.task}</p>
-            <p>输入 tokens：{formatTokenCount(usage.inputTokens)}</p>
-            <p>输出 tokens：{formatTokenCount(usage.outputTokens)}</p>
-            <p>总 tokens：{formatTokenCount(usage.totalTokens)}</p>
-            <p>估算成本：{usage.estimatedCostUsd === null ? '未知' : formatUsd(usage.estimatedCostUsd)}</p>
-          </article>
-        </div>
-      )}
-    </section>
-  );
-}
-
 function getInventoryEvidenceItems(report: DiagnosisReport) {
   const highlightItems = report.highlights.map((item) => ({
     title: item.sourceExperience,
@@ -2152,8 +2122,6 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
 
         <FeedbackSection mode={mode} />
 
-        <AiUsageSection usage={report.usage} />
-
         <div className="action-row">
           <button className="secondary-button" type="button" onClick={onBack}>
             返回上一步
@@ -2305,8 +2273,6 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
 
         <FeedbackSection mode={mode} />
 
-        <AiUsageSection usage={report.usage} />
-
         <div className="action-row">
           <button className="secondary-button" type="button" onClick={onBack}>
             返回上一步
@@ -2445,8 +2411,6 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
       <QualityCheckSection report={report} />
 
       <FeedbackSection mode={mode} />
-
-      <AiUsageSection usage={report.usage} />
 
       <div className="action-row">
         <button className="secondary-button" type="button" onClick={onBack}>

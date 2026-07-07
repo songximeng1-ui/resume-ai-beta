@@ -95,7 +95,7 @@ export function getAiConfigMessage(status?: AiStatus | null, error?: string) {
     return '真实 AI 调用失败：请检查 API Key、模型名或网络连接。';
   }
   if (status?.configured) {
-    return `已连接真实 AI：小任务模型 ${status.smallModel}，报告模型 ${status.reportModel}`;
+    return '已连接真实 AI。';
   }
   if (status && !status.configured) {
     return '当前为演示模式：请配置 OPENAI_API_KEY。请配置 AI API Key 后使用真实诊断。当前仅展示明确标注的演示结果。';
