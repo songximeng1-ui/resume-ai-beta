@@ -416,7 +416,7 @@ function demoDirectionOptions(profile: Profile): DirectionOption[] {
     options.push(
       direction(
         '用户运营 / 社群运营',
-        '主投',
+        '优先探索',
         '当前经历里已经有社群维护、内容整理或用户触达线索，适合作为优先探索方向。',
         evidence('已有社群维护或内容整理相关材料。'),
         '还需要补清楚用户规模、触达频率、活动反馈和复盘结论。',
@@ -430,7 +430,7 @@ function demoDirectionOptions(profile: Profile): DirectionOption[] {
     options.push(
       direction(
         '新媒体运营助理',
-        options.length ? '可冲' : '主投',
+        options.length ? '可以尝试' : '优先探索',
         '公众号、推文、剪映或排版材料可以转成内容执行和素材整理证据。',
         profile.skills || profile.internship || '已有内容工具或素材整理相关材料。',
         '需要补清楚选题来源、制作流程、发布反馈和本人承担边界。',
@@ -444,7 +444,7 @@ function demoDirectionOptions(profile: Profile): DirectionOption[] {
     options.push(
       direction(
         '数据运营助理 / 运营分析助理',
-        options.length ? '可冲' : '主投',
+        options.length ? '可以尝试' : '优先探索',
         '问卷、调研和 Excel 整理经历可以作为数据整理与基础分析的入门证据。',
         profile.project || profile.skills || '已有问卷、调研或 Excel 整理相关材料。',
         '需要补清楚数据来源、处理方法、结论和使用场景。',
@@ -458,7 +458,7 @@ function demoDirectionOptions(profile: Profile): DirectionOption[] {
     options.push(
       direction(
         '运营助理',
-        '过渡',
+        '过渡方向',
         '如果方向暂时不清晰，可以先探索执行、整理和沟通要求更明确的入门岗位。',
         evidence('当前材料较少，建议继续补充真实经历证据。'),
         '岗位相关场景和结果反馈还需要继续补充。',
@@ -467,7 +467,7 @@ function demoDirectionOptions(profile: Profile): DirectionOption[] {
       ),
       direction(
         '项目助理 / 行政助理',
-        '过渡',
+        '过渡方向',
         '作为过渡方向，可以先把信息整理、流程跟进和协作支持经历转成可投递表达。',
         evidence('当前材料较少，建议继续补充真实经历证据。'),
         '需要证明能稳定推进任务，而不仅是参与过。',

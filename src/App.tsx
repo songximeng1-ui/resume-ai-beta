@@ -1307,7 +1307,7 @@ function DigPage({
 
 type DirectionSuggestion = {
   name: string;
-  level: '优先探索' | '可以尝试' | '过渡方向' | '暂不建议主投';
+  level: '优先探索' | '可以尝试' | '过渡方向' | '先补证据';
   why: string;
   evidence: string;
   gap: string;

@@ -109,6 +109,7 @@ export function reportPrompt(payload: unknown) {
 - 至少 3 条简历改写建议 rewrites，只优化表达，不新增事实。
 - 2-3 个可探索岗位方向 directionOptions；不是替用户决定职业方向，而是给出可用真实 JD 验证的岗位探索入口。
 - 每个方向必须包含 directionName/name、searchableJobNames 3-5 个现实可搜索岗位名、whyExplore/why、evidence、gap、priority/level、sevenDayValidation/next、keywords 3-5 个。
+- priority/level 只能使用：优先探索、可以尝试、过渡方向、先补证据。
 - 每个方向必须绑定至少一段用户已确认经历；不允许证据错位；不输出抽象或现实中难以搜索的岗位；不用“最适合、不适合、强烈推荐”等绝对词。
 - actionPlan 固定 7 天内、14 天内、30 天内，每个阶段至少 2 条。
 - confidenceMessage/actionPlan.confidenceSummary 必须是事实型总结，不承诺结果。
@@ -272,6 +273,7 @@ ${common}`;
       return `任务：生成 inventory 的 directionOptions。
 - 2-3 个“可探索岗位方向”，用于帮助用户拿真实 JD 验证方向，不替用户决定职业方向。
 - 每项必须含 directionName/name、searchableJobNames 3-5 个现实可搜索岗位名、whyExplore/why、evidence、gap、priority/level、sevenDayValidation/next、keywords 3-5 个。
+- priority/level 只能使用：优先探索、可以尝试、过渡方向、先补证据；不要使用主投、可冲、暂不建议主投等投递判断词。
 - evidence 必须绑定至少一段用户已确认经历；证据不足就写“当前证据不足/需补充依据”，不要错配经历。
 - sevenDayValidation 必须是 7 天内可以执行的验证动作，例如搜索真实 JD、整理经历证据、补作品或复盘材料。
 - 不输出抽象岗位，不使用“最适合、不适合、强烈推荐”等绝对词，不承诺 offer。

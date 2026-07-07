@@ -121,8 +121,8 @@ function validInventoryReport() {
       {
         directionName: '用户运营 / 社群运营',
         name: '用户运营 / 社群运营',
-        level: '主投' as const,
-        priority: '主投' as const,
+        level: '优先探索' as const,
+        priority: '优先探索' as const,
         searchableJobNames: ['用户运营', '社群运营', '活动运营'],
         whyExplore: '基于当前经历，更值得优先探索的是需要社群维护、活动通知和反馈整理的岗位。',
         why: '基于当前经历，更值得优先探索的是需要社群维护、活动通知和反馈整理的岗位。',
@@ -135,8 +135,8 @@ function validInventoryReport() {
       {
         directionName: '新媒体运营助理',
         name: '新媒体运营助理',
-        level: '可冲' as const,
-        priority: '可冲' as const,
+        level: '可以尝试' as const,
+        priority: '可以尝试' as const,
         searchableJobNames: ['新媒体运营', '内容运营助理', '公众号运营'],
         whyExplore: '公众号推文素材整理和剪映技能可以支持基础内容岗位尝试。',
         why: '公众号推文素材整理和剪映技能可以支持基础内容岗位尝试。',
@@ -1379,7 +1379,8 @@ test('action plan schema requires V0.4 actionable fields and period coverage', (
 test('direction schema requires V0.4 exploration fields', () => {
   const legacyDirection = {
     name: '用户运营 / 社群运营',
-    level: '主投',
+    level: '优先探索',
+    priority: '优先探索',
     why: '基于当前经历，可以探索社群维护类岗位。',
     evidence: '教育机构实习中有学生社群维护和内容整理。',
     gap: '还需要补充复盘材料。',
@@ -1390,9 +1391,9 @@ test('direction schema requires V0.4 exploration fields', () => {
   expect(() =>
     validateReportDirectionsModule({
       source: 'real',
-      directionOptions: [legacyDirection, { ...legacyDirection, name: '新媒体运营助理', level: '可冲' }]
+      directionOptions: [legacyDirection, { ...legacyDirection, name: '新媒体运营助理', level: '主投' }]
     })
-  ).toThrow(/directionName|searchableJobNames|whyExplore|sevenDayValidation|priority/);
+  ).toThrow(/directionName|searchableJobNames|whyExplore|sevenDayValidation|priority|level/);
 });
 
 test('career prompts include V0.4 role, safety red lines, and mode-specific instructions', () => {

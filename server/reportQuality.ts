@@ -46,7 +46,7 @@ const prohibitionMarkers = [
   '需核实'
 ];
 const genericPatterns = [/提升综合素质/, /增强岗位认知/, /加强学习/, /努力提升/, /认真准备/, /全面提高/];
-const directionPriorities = ['主投', '可冲', '过渡', '暂不建议主投'];
+const directionPriorities = ['优先探索', '可以尝试', '过渡方向', '先补证据'];
 const riskyClaimPatterns = [
   /没有也可以写/,
   /可以包装成/,

@@ -19,6 +19,7 @@ const fieldStatuses = ['AI 已识别', '待用户确认', '用户已修改'] as 
 const verdicts = ['主投', '可冲', '过渡', '暂不建议主投'] as const;
 const matchLevels = ['匹配较强', '有一定匹配', '需要补充证据', '当前证据不足'] as const;
 const deliveryDecisions = ['建议优先投递', '可以投递，建议先优化简历', '可以作为尝试方向', '建议先补强后再重点投递'] as const;
+const directionPriorities = ['优先探索', '可以尝试', '过渡方向', '先补证据'] as const;
 const questionMethods = ['hr', 'tar', 'part', 'prep', 'custom'] as const;
 const factDimensions = ['task', 'action', 'result', 'reflection', 'scale', 'tool', 'risk'] as const;
 const reportModes = ['inventory', 'jd'] as const;
@@ -348,12 +349,12 @@ function validateV04ActionPlanCoverage(actionPlan: ActionPlanReport): void {
 function validateDirectionOption(value: unknown, index: number): DirectionOption {
   if (!isRecord(value)) throw new Error(`directionOptions.${index} must be an object`);
   const level = assertString(value.level, `directionOptions.${index}.level`) as DirectionOption['level'];
-  if (!verdicts.includes(level)) {
-    throw new Error(`directionOptions.${index}.level must be 主投, 可冲, 过渡, or 暂不建议主投`);
+  if (!directionPriorities.includes(level)) {
+    throw new Error(`directionOptions.${index}.level must be one of the V0.4 exploration priorities`);
   }
   const priority = assertString(value.priority, `directionOptions.${index}.priority`) as DirectionOption['priority'];
-  if (!verdicts.includes(priority)) {
-    throw new Error(`directionOptions.${index}.priority must be 主投, 可冲, 过渡, or 暂不建议主投`);
+  if (!directionPriorities.includes(priority)) {
+    throw new Error(`directionOptions.${index}.priority must be one of the V0.4 exploration priorities`);
   }
   const searchableJobNames = assertArray(
     value.searchableJobNames,
@@ -774,8 +775,8 @@ const directionOptionSchema = {
   properties: {
     directionName: stringSchema,
     name: stringSchema,
-    level: { enum: [...verdicts] },
-    priority: { enum: [...verdicts] },
+    level: { enum: [...directionPriorities] },
+    priority: { enum: [...directionPriorities] },
     searchableJobNames: { type: 'array', minItems: 3, maxItems: 5, items: stringSchema },
     whyExplore: stringSchema,
     why: stringSchema,

@@ -102,8 +102,8 @@ function buildDirections(assets: ConfirmedAsset[]): DirectionOption[] {
     {
       directionName: '用户运营支持',
       name: '用户运营支持',
-      level: '过渡',
-      priority: '过渡',
+      level: '过渡方向',
+      priority: '过渡方向',
       searchableJobNames: ['用户运营实习生', '社群运营助理', '用户反馈专员', '运营助理'],
       whyExplore: '该方向可用真实 JD 验证，且能承接已确认经历中的社群、反馈、内容或资料整理任务。',
       why: '先用真实岗位要求验证经历是否能对应日常运营任务。',
@@ -116,8 +116,8 @@ function buildDirections(assets: ConfirmedAsset[]): DirectionOption[] {
     {
       directionName: '内容运营与资料整理',
       name: '内容运营与资料整理',
-      level: '过渡',
-      priority: '过渡',
+      level: '过渡方向',
+      priority: '过渡方向',
       searchableJobNames: ['内容运营实习生', '新媒体运营助理', '内容编辑助理', '资料运营助理'],
       whyExplore: '该方向能用内容整理、材料归类、基础编辑和复盘材料来验证，不需要把经历包装成更高职责。',
       why: '用内容类岗位检验当前材料是否能证明信息整理和表达能力。',

@@ -152,8 +152,8 @@ function inventoryReport(overrides: Partial<DiagnosisReport> = {}): DiagnosisRep
       {
         directionName: '用户运营 / 社群运营',
         name: '用户运营 / 社群运营',
-        level: '主投',
-        priority: '主投',
+        level: '优先探索',
+        priority: '优先探索',
         searchableJobNames: ['用户运营', '社群运营', '活动运营'],
         whyExplore: '基于当前经历，更值得优先探索的是需要社群维护、活动通知和反馈整理的岗位。',
         why: '基于当前经历，更值得优先探索的是需要社群维护、活动通知和反馈整理的岗位。',
@@ -166,8 +166,8 @@ function inventoryReport(overrides: Partial<DiagnosisReport> = {}): DiagnosisRep
       {
         directionName: '新媒体运营助理',
         name: '新媒体运营助理',
-        level: '可冲',
-        priority: '可冲',
+        level: '可以尝试',
+        priority: '可以尝试',
         searchableJobNames: ['新媒体运营', '内容运营助理', '公众号运营'],
         whyExplore: '公众号推文素材整理和剪映技能可以支持基础内容岗位尝试。',
         why: '公众号推文素材整理和剪映技能可以支持基础内容岗位尝试。',
