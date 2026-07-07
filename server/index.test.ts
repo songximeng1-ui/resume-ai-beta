@@ -788,6 +788,7 @@ test('configured JD report uses small/report/rule tiers and returns tiered usage
 
     expect(response.status).toBe(200);
     expect(body.quality.passed).toBe(true);
+    expect(reportCalls[0]).toBe('report-jd-fit-summary:gpt-5.4');
     expect(smallCalls).toEqual(['report-highlights:gpt-5.4-mini']);
     expect(reportCalls).toEqual([
       'report-jd-fit-summary:gpt-5.4',
@@ -901,7 +902,7 @@ test('configured JD report sanitizes risky rewrite and interview wording before 
   }
 });
 
-test('configured JD report retries and falls back only the failed report module to small model', async () => {
+test('configured JD report falls back only the failed report module to small model', async () => {
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
   process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
@@ -996,8 +997,6 @@ test('configured JD report retries and falls back only the failed report module 
     expect(calls).toContain('small:report-highlights:gpt-5.4-mini');
     expect(calls).toContain('small:report-rewrites:gpt-5.4-mini');
     expect(calls.filter((item) => item.includes('report-rewrites'))).toEqual([
-      'strong:report-rewrites:gpt-5.4',
-      'strong:report-rewrites:gpt-5.4',
       'strong:report-rewrites:gpt-5.4',
       'small:report-rewrites:gpt-5.4-mini'
     ]);
@@ -1150,9 +1149,54 @@ test('JD report generates interviews as smaller question tasks and falls back fa
     expect(body.interviews).toHaveLength(5);
     expect(body.quality.passed).toBe(true);
     expect(reportCalls.filter((item) => item.startsWith('report-interviews:'))).toEqual([]);
-    expect(reportCalls.filter((item) => item.startsWith('report-interview-question:')).length).toBe(7);
+    expect(reportCalls.filter((item) => item.startsWith('report-interview-question:')).length).toBe(5);
     expect(smallCalls).toEqual(expect.arrayContaining(['report-highlights:gpt-5.4-mini', 'report-interview-question:gpt-5.4-mini']));
     expect(body.usage.modules).toEqual(expect.arrayContaining([expect.objectContaining({ task: 'report-interview-question', modelTier: 'small' })]));
+  } finally {
+    await server.close();
+  }
+});
+
+test('report module backup regenerates current module from the same complete prompt', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'qwen-test';
+  process.env.OPENAI_MODEL_REPORT = 'deepseek-test';
+
+  const prompts: string[] = [];
+  const valid = validInventoryReport();
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    prompts.push(`primary:${options.task}:${options.prompt}`);
+    throw new AiServiceError({
+      code: 'schema_validation',
+      message: 'OpenAI 返回结构不符合报告格式，请重试。',
+      detail: 'schema invalid',
+      retryable: true,
+      attempts: 1
+    });
+  });
+  const callSmallModelJson = vi.fn(async (options: JsonCallOptions) => {
+    prompts.push(`backup:${options.task}:${options.prompt}`);
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
+    if (options.task === 'report-directions') {
+      return { data: { source: 'real', directionOptions: valid.directionOptions }, usage: null };
+    }
+    throw new Error(`unexpected backup task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson, callSmallModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: { targetRole: '用户运营' }, assets: [], jdText: '' })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.isBasic).toBe(true);
+    expect(prompts[0].startsWith('primary:report-highlights:')).toBe(true);
+    expect(prompts[1]).toContain('修复：上次 JSON 不符合 schema');
+    expect(prompts[2]).toBe(prompts[1].replace('primary:', 'backup:'));
   } finally {
     await server.close();
   }
@@ -1224,10 +1268,6 @@ test('report task returns mixed basic report on partial module failure without l
       'report-highlights',
       'report-directions',
       'report-rewrites',
-      'report-rewrites',
-      'report-rewrites',
-      'small:report-rewrites',
-      'small:report-rewrites',
       'small:report-rewrites'
     ]);
   } finally {

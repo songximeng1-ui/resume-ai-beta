@@ -13,15 +13,8 @@ import {
   type AiRuntimeResult,
   type JsonCallOptions
 } from './openaiClient.ts';
-import {
-  digQuestionsPrompt,
-  jdSummaryPrompt,
-  jdFitPrompt,
-  type ReportModuleTask,
-  reportModulePrompt,
-  reportPrompt,
-  structureResumePrompt
-} from './prompts.ts';
+import { digQuestionsPrompt, jdSummaryPrompt, jdFitPrompt, type ReportModuleTask, reportModulePrompt, reportPrompt, structureResumePrompt } from './prompts.ts';
+import { callJsonWithPrimaryBackup } from './modelOrchestrator.ts';
 import {
   sanitizeRiskyInterview,
   sanitizeRiskyJdFit,
@@ -780,6 +773,8 @@ async function callReportModule<T>(
 ): Promise<ReportModuleResult<T>> {
   let useRepairPrompt = false;
   let lastError: unknown = null;
+  const promptBody = options.promptBody ?? body;
+  const promptFor = (repair: boolean) => reportModulePrompt(promptBody, options.task, repair);
   const callTier = async (modelTier: Exclude<ReportModelTier, 'rule'>, repair: boolean) => {
     const model = modelTier === 'small' ? config.smallModel : config.reportModel;
     const call = modelTier === 'small' ? aiRuntime.callSmallModelJson : aiRuntime.callReportModelJson;
@@ -789,52 +784,85 @@ async function callReportModule<T>(
         task: options.task,
         schemaName: options.schemaName,
         jsonSchema: options.jsonSchema,
-        prompt: reportModulePrompt(options.promptBody ?? body, options.task, repair),
+        prompt: promptFor(repair),
         validate: options.validate,
         maxAttempts: 1
       })
     );
   };
 
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    try {
-      const result = await callTier(options.modelTier, useRepairPrompt);
-      return { data: validateReportModule(options.task, options.validate, result.data), usage: result.usage, module: usageModule(options.task, options.modelTier, result.usage) };
-    } catch (error) {
-      lastError = error;
-      const classified = classifyAiError(error);
-      if (classified.code === 'schema_validation' && !useRepairPrompt && attempt < 3) {
-        useRepairPrompt = true;
-        continue;
-      }
-      if (!classified.retryable || attempt >= 3) {
-        break;
-      }
-    }
-  }
-
-  const classified = classifyAiError(lastError);
-  if (options.modelTier === 'report' && ['network_error', 'timeout', 'server_error'].includes(classified.code)) {
-    useRepairPrompt = true;
+  if (options.modelTier === 'small') {
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         const result = await callTier('small', useRepairPrompt);
-        return { data: validateReportModule(options.task, options.validate, result.data), usage: result.usage, module: usageModule(options.task, 'small', result.usage) };
+        return {
+          data: validateReportModule(options.task, options.validate, result.data),
+          usage: result.usage,
+          module: usageModule(options.task, 'small', result.usage)
+        };
       } catch (error) {
         lastError = error;
-        const smallClassified = classifyAiError(error);
-        if (smallClassified.code === 'schema_validation' && attempt < 3) {
+        const classified = classifyAiError(error);
+        if (classified.code === 'schema_validation' && !useRepairPrompt && attempt < 3) {
           useRepairPrompt = true;
           continue;
         }
-        if (!smallClassified.retryable || attempt >= 3) {
+        if (!classified.retryable || attempt >= 3) {
           break;
         }
       }
     }
+
+    throw lastError;
   }
 
-  throw lastError;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const result = await callTier('report', useRepairPrompt);
+      return {
+        data: validateReportModule(options.task, options.validate, result.data),
+        usage: result.usage,
+        module: usageModule(options.task, 'report', result.usage)
+      };
+    } catch (error) {
+      lastError = error;
+      const classified = classifyAiError(error);
+      if (classified.code === 'schema_validation' && !useRepairPrompt && attempt < 2) {
+        useRepairPrompt = true;
+        continue;
+      }
+      break;
+    }
+  }
+
+  const prompt = promptFor(useRepairPrompt);
+  const fallbackRuntime: AiRuntime = {
+    ...aiRuntime,
+    callReportModelJson: async () => {
+      throw lastError;
+    }
+  };
+  let result;
+  try {
+    result = await callJsonWithPrimaryBackup(fallbackRuntime, {
+      primaryModel: config.reportModel,
+      backupModel: config.smallModel,
+      task: options.task,
+      schemaName: options.schemaName,
+      jsonSchema: options.jsonSchema,
+      prompt,
+      validate: options.validate,
+      maxAttempts: 1
+    });
+  } catch (error) {
+    throw lastError ?? error;
+  }
+  const modelTier = result.role === 'primary' ? 'report' : 'small';
+  return {
+    data: validateReportModule(options.task, options.validate, result.data),
+    usage: result.usage,
+    module: usageModule(options.task, modelTier, result.usage)
+  };
 }
 
 function firstUsefulText(...items: unknown[]) {
