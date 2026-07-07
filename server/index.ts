@@ -632,8 +632,13 @@ function unwrapAiResult<T>(value: AiRuntimeResult<T>): { data: T; usage: AiUsage
   return { data: value, usage: null };
 }
 
-function attachUsage<T extends object>(value: T, usage: AiUsage | null): T & { usage: AiUsage | null } {
-  return { ...value, usage };
+function attachUsage<T extends object>(value: T, _usage: AiUsage | null): T {
+  return { ...value };
+}
+
+function sanitizeReportTaskForClient(task: ReportGenerationTask): Omit<ReportGenerationTask, 'usage' | 'moduleUsages'> {
+  const { usage: _usage, moduleUsages: _moduleUsages, ...rest } = task;
+  return rest;
 }
 
 function moduleSchemaValidationError(task: string, error: unknown) {
@@ -1519,9 +1524,7 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
     }
     res.json({
       configured: true,
-      mode: 'real',
-      smallModel: config.smallModel,
-      reportModel: config.reportModel
+      mode: 'real'
     });
   });
 
@@ -1602,10 +1605,13 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
     try {
       const result = await generateResumableReport(req.body, aiRuntime, config, qualityMode);
       if (result.kind === 'task') {
-        res.json({ reportTask: result.task });
+        res.json({ reportTask: sanitizeReportTaskForClient(result.task) });
         return;
       }
-      res.json({ ...attachUsage(attachReportQuality(result.data, qualityMode), result.usage), reportTask: result.task });
+      res.json({
+        ...attachUsage(attachReportQuality(result.data, qualityMode), result.usage),
+        reportTask: sanitizeReportTaskForClient(result.task)
+      });
   } catch (error) {
       sendAiError(res, error);
     }

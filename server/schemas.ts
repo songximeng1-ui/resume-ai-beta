@@ -535,7 +535,7 @@ export function validateKimiExtract(value: unknown): KimiExtract {
   return {
     source: assertRealSource(value.source, 'source'),
     sourceSnippets: assertNonEmptyArray(value.sourceSnippets, 'sourceSnippets', (item) => assertString(item, 'sourceSnippet')),
-    verificationNotes: assertArray(value.verificationNotes, 'verificationNotes', (item) => assertString(item, 'verificationNote')),
+    verificationNotes: assertNonEmptyArray(value.verificationNotes, 'verificationNotes', (item) => assertString(item, 'verificationNote')),
     structuredFields: assertNonEmptyArray(value.structuredFields, 'structuredFields', (item, index) => {
       if (!isRecord(item)) {
         throw new Error(`structuredFields.${index} must be an object`);
@@ -928,7 +928,7 @@ export const kimiExtractJsonSchema = {
   properties: {
     source: { enum: ['real'] },
     sourceSnippets: { type: 'array', minItems: 1, items: stringSchema },
-    verificationNotes: { type: 'array', items: stringSchema },
+    verificationNotes: { type: 'array', minItems: 1, items: stringSchema },
     structuredFields: {
       type: 'array',
       minItems: 1,

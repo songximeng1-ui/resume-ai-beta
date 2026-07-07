@@ -439,6 +439,27 @@ test('demo dig-question endpoint returns natural questions without exposing inte
   }
 });
 
+test('status hides configured model details from browser clients', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'qwen-test';
+  process.env.OPENAI_MODEL_REPORT = 'deepseek-test';
+
+  const server = await withServer();
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/status`);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      configured: true,
+      mode: 'real'
+    });
+    expect(JSON.stringify(body)).not.toMatch(/model|deepseek|qwen|kimi|gpt/i);
+  } finally {
+    await server.close();
+  }
+});
+
 test('report endpoint returns a conservative basic report instead of demo on real failures', async () => {
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
@@ -462,11 +483,7 @@ test('report endpoint returns a conservative basic report instead of demo on rea
     expect(body.source).toBe('real');
     expect(body.summary).toContain('当前已为你生成基础版报告');
     expect(body.directionOptions.length).toBeGreaterThanOrEqual(2);
-    expect(body.usage).toMatchObject({
-      model: 'rule',
-      task: 'report',
-      totalTokens: 0
-    });
+    expect(body.usage).toBeUndefined();
     expect(body.reportTask).toMatchObject({
       status: 'completed',
       completedModules: ['assembledReport'],
@@ -596,7 +613,7 @@ test('configured report endpoint attaches quality result after model validation'
   }
 });
 
-test('configured report endpoint returns AI usage when runtime provides it', async () => {
+test('configured report endpoint hides AI usage and model diagnostics from browser clients', async () => {
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
   process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
@@ -627,28 +644,15 @@ test('configured report endpoint returns AI usage when runtime provides it', asy
 
     expect(response.status).toBe(200);
     expect(body.source).toBe('real');
-    expect(body.usage).toMatchObject({
-      model: 'gpt-5.4',
-      task: 'report',
-      inputTokens: 6000,
-      outputTokens: 3000,
-      totalTokens: 9000,
-      estimatedCostUsd: 0.06,
-      modelTier: 'mixed',
-      byModelTier: {
-        report: { inputTokens: 6000, outputTokens: 3000, totalTokens: 9000, estimatedCostUsd: 0.06 },
-        small: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 }
-      }
-    });
-    expect(body.usage.modules).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ task: 'report-action-plan', modelTier: 'rule', calledAi: false, totalTokens: 0 })
-      ])
-    );
     expect(body.quality).toMatchObject({
       passed: true,
       score: expect.any(Number)
     });
+    expect(body.usage).toBeUndefined();
+    expect(body.reportTask).toBeDefined();
+    expect(body.reportTask.usage).toBeUndefined();
+    expect(body.reportTask.moduleUsages).toBeUndefined();
+    expect(JSON.stringify(body)).not.toMatch(/"usage":|"moduleUsages":|"model":|"inputTokens":|"outputTokens":|"totalTokens":|"estimatedCostUsd":|"byModelTier":/i);
   } finally {
     await server.close();
   }
@@ -702,19 +706,10 @@ test('configured inventory report endpoint generates smaller modules and assembl
     expect(body.jdFit).toBeUndefined();
     expect(body.interviews).toBeUndefined();
     expect(body.quality.passed).toBe(true);
-    expect(body.usage).toMatchObject({
-      model: 'gpt-5.4',
-      task: 'report',
-      inputTokens: 300,
-      outputTokens: 300,
-      totalTokens: 600,
-      estimatedCostUsd: 0.003
-    });
-    expect(body.usage.modules).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ task: 'report-action-plan', modelTier: 'rule', calledAi: false, totalTokens: 0 })
-      ])
-    );
+    expect(body.usage).toBeUndefined();
+    expect(body.reportTask?.usage).toBeUndefined();
+    expect(body.reportTask?.moduleUsages).toBeUndefined();
+    expect(JSON.stringify(body)).not.toMatch(/"usage":|"moduleUsages":|"model":|"inputTokens":|"outputTokens":|"totalTokens":|"estimatedCostUsd":|"byModelTier":/i);
     expect(calls).toEqual([
       'report-highlights:gpt-5.4',
       'report-directions:gpt-5.4',
@@ -725,7 +720,7 @@ test('configured inventory report endpoint generates smaller modules and assembl
   }
 });
 
-test('configured JD report uses small/report/rule tiers and returns tiered usage without demo fallback', async () => {
+test('configured JD report uses small/report/rule tiers without exposing usage diagnostics', async () => {
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
   process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
@@ -799,18 +794,10 @@ test('configured JD report uses small/report/rule tiers and returns tiered usage
       'report-interview-question:gpt-5.4',
       'report-interview-question:gpt-5.4'
     ]);
-    expect(body.usage.byModelTier).toEqual({
-      small: { inputTokens: 50, outputTokens: 50, totalTokens: 100, estimatedCostUsd: 0.0002 },
-      report: { inputTokens: 700, outputTokens: 700, totalTokens: 1400, estimatedCostUsd: 0.007 }
-    });
-    expect(body.usage.modules).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ task: 'report-highlights', modelTier: 'small', calledAi: true, model: 'gpt-5.4-mini' }),
-        expect.objectContaining({ task: 'report-jd-fit-summary', modelTier: 'report', calledAi: true, model: 'gpt-5.4' }),
-        expect.objectContaining({ task: 'report-interview-question', modelTier: 'report', calledAi: true, model: 'gpt-5.4' }),
-        expect.objectContaining({ task: 'report-action-plan', modelTier: 'rule', calledAi: false, totalTokens: 0 })
-      ])
-    );
+    expect(body.usage).toBeUndefined();
+    expect(body.reportTask?.usage).toBeUndefined();
+    expect(body.reportTask?.moduleUsages).toBeUndefined();
+    expect(JSON.stringify(body)).not.toMatch(/"usage":|"moduleUsages":|"model":|"inputTokens":|"outputTokens":|"totalTokens":|"estimatedCostUsd":|"byModelTier":/i);
     expect(JSON.stringify(body)).not.toContain('演示结果');
   } finally {
     await server.close();
@@ -1073,7 +1060,8 @@ test('jd-fit first summarizes long JD then matches with compact input and retrie
     expect(calls.map((item) => item.task)).toEqual(['jd-summary', 'jd-fit', 'jd-fit']);
     expect(calls[1].prompt).not.toContain(longJd);
     expect(calls[1].prompt).toContain('jdSummary');
-    expect(body.usage.totalTokens).toBe(240);
+    expect(body.usage).toBeUndefined();
+    expect(JSON.stringify(body)).not.toMatch(/"usage":|"model":|"inputTokens":|"outputTokens":|"totalTokens":|"estimatedCostUsd":/i);
   } finally {
     await server.close();
   }
@@ -1151,7 +1139,10 @@ test('JD report generates interviews as smaller question tasks and falls back fa
     expect(reportCalls.filter((item) => item.startsWith('report-interviews:'))).toEqual([]);
     expect(reportCalls.filter((item) => item.startsWith('report-interview-question:')).length).toBe(5);
     expect(smallCalls).toEqual(expect.arrayContaining(['report-highlights:gpt-5.4-mini', 'report-interview-question:gpt-5.4-mini']));
-    expect(body.usage.modules).toEqual(expect.arrayContaining([expect.objectContaining({ task: 'report-interview-question', modelTier: 'small' })]));
+    expect(body.usage).toBeUndefined();
+    expect(body.reportTask?.usage).toBeUndefined();
+    expect(body.reportTask?.moduleUsages).toBeUndefined();
+    expect(JSON.stringify(body)).not.toMatch(/"usage":|"moduleUsages":|"model":|"inputTokens":|"outputTokens":|"totalTokens":|"estimatedCostUsd":|"byModelTier":/i);
   } finally {
     await server.close();
   }

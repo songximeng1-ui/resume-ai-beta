@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { defaultModelRoles, shouldUseExtractor, callJsonWithPrimaryBackup } from './modelOrchestrator.ts';
 import { AiServiceError, type AiRuntime, type JsonCallOptions } from './openaiClient.ts';
-import { validateKimiExtract } from './schemas.ts';
+import { kimiExtractJsonSchema, validateKimiExtract } from './schemas.ts';
 
 function runtimeWithCalls(
   calls: string[],
@@ -99,7 +99,7 @@ describe('callJsonWithPrimaryBackup runtime result handling', () => {
 
 describe('shouldUseExtractor', () => {
   test('does not trigger Kimi extraction by default', () => {
-    expect(shouldUseExtractor({ jdText: '短 JD', profile: { internship: '短经历' }, assets: [] })).toBe(false);
+    expect(shouldUseExtractor({ jdText: 'short JD', profile: { internship: 'short experience' }, assets: [] })).toBe(false);
   });
 
   test('does not trigger Kimi extraction for JD text at or below the threshold', () => {
@@ -166,11 +166,11 @@ describe('validateKimiExtract', () => {
     expect(() =>
       validateKimiExtract({
         source: 'real',
-        sourceSnippets: ['JD 原文片段'],
-        verificationNotes: ['岗位要求需核实'],
-        structuredFields: [{ field: '岗位要求', value: '社群维护', sourceSnippet: '社群维护' }],
-        recommendation: '建议优先投递',
-        rewrite: '可写成负责社群运营'
+        sourceSnippets: ['JD source snippet'],
+        verificationNotes: ['needs verification'],
+        structuredFields: [{ field: 'requirement', value: 'community ops', sourceSnippet: 'community ops' }],
+        recommendation: 'apply first',
+        rewrite: 'rewrite text'
       })
     ).toThrow(/Kimi extract must not contain judgment, recommendation, or rewrite fields/);
   });
@@ -179,12 +179,12 @@ describe('validateKimiExtract', () => {
     expect(() =>
       validateKimiExtract({
         source: 'real',
-        sourceSnippets: ['负责社群维护和用户反馈整理'],
-        verificationNotes: ['用户规模未出现，需要待核实'],
-        structuredFields: [{ field: '岗位要求', value: '社群维护', sourceSnippet: '负责社群维护和用户反馈整理' }],
+        sourceSnippets: ['community maintenance and feedback handling'],
+        verificationNotes: ['user scale needs verification'],
+        structuredFields: [{ field: 'requirement', value: 'community ops', sourceSnippet: 'community maintenance and feedback handling' }],
         deliveryDecision: 'apply',
         matchLevel: 'high',
-        resumeWriting: '负责社群维护'
+        resumeWriting: 'owned community ops'
       })
     ).toThrow(/Kimi extract must not contain judgment, recommendation, or rewrite fields/);
   });
@@ -194,7 +194,7 @@ describe('validateKimiExtract', () => {
       validateKimiExtract({
         source: 'real',
         sourceSnippets: [],
-        verificationNotes: ['用户规模未出现，需要待核实'],
+        verificationNotes: ['user scale needs verification'],
         structuredFields: [],
         model: 'kimi',
         token: 'abc',
@@ -207,13 +207,13 @@ describe('validateKimiExtract', () => {
     expect(() =>
       validateKimiExtract({
         source: 'real',
-        sourceSnippets: ['负责社群维护和用户反馈整理'],
-        verificationNotes: ['用户规模未出现，需要待核实'],
+        sourceSnippets: ['community maintenance and feedback handling'],
+        verificationNotes: ['user scale needs verification'],
         structuredFields: [
           {
-            field: '岗位要求',
-            value: '社群维护',
-            sourceSnippet: '负责社群维护和用户反馈整理',
+            field: 'requirement',
+            value: 'community ops',
+            sourceSnippet: 'community maintenance and feedback handling',
             extra: 'not allowed'
           }
         ]
@@ -221,19 +221,37 @@ describe('validateKimiExtract', () => {
     ).toThrow();
   });
 
+  test('Kimi extract rejects empty verification notes', () => {
+    expect(() =>
+      validateKimiExtract({
+        source: 'real',
+        sourceSnippets: ['source snippet'],
+        verificationNotes: [],
+        structuredFields: [{ field: 'field', value: 'value', sourceSnippet: 'source snippet' }]
+      })
+    ).toThrow(/verificationNotes must contain at least 1 item/);
+  });
+
+  test('Kimi extract schema requires non-empty verification notes', () => {
+    expect(kimiExtractJsonSchema.properties.verificationNotes).toMatchObject({
+      type: 'array',
+      minItems: 1
+    });
+  });
+
   test('Kimi extract accepts source snippets verification notes and structured fields', () => {
     expect(
       validateKimiExtract({
         source: 'real',
-        sourceSnippets: ['负责社群维护和用户反馈整理'],
-        verificationNotes: ['用户规模未出现，需要待核实'],
-        structuredFields: [{ field: '岗位要求', value: '社群维护', sourceSnippet: '负责社群维护和用户反馈整理' }]
+        sourceSnippets: ['community maintenance and feedback handling'],
+        verificationNotes: ['user scale needs verification'],
+        structuredFields: [{ field: 'requirement', value: 'community ops', sourceSnippet: 'community maintenance and feedback handling' }]
       })
     ).toEqual({
       source: 'real',
-      sourceSnippets: ['负责社群维护和用户反馈整理'],
-      verificationNotes: ['用户规模未出现，需要待核实'],
-      structuredFields: [{ field: '岗位要求', value: '社群维护', sourceSnippet: '负责社群维护和用户反馈整理' }]
+      sourceSnippets: ['community maintenance and feedback handling'],
+      verificationNotes: ['user scale needs verification'],
+      structuredFields: [{ field: 'requirement', value: 'community ops', sourceSnippet: 'community maintenance and feedback handling' }]
     });
   });
 });
