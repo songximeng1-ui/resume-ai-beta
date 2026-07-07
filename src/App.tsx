@@ -1654,7 +1654,7 @@ const helpfulPartOptions = [
   '发现了我没意识到的亮点',
   '简历改写更清楚',
   '岗位/JD 匹配判断有帮助',
-  '面试问题和回答示例有帮助',
+  '面试问题和准备边界有帮助',
   '补强计划具体可执行',
   '语气让我没那么焦虑'
 ];
@@ -2032,8 +2032,8 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
     return (
       <section className="flow-section result-section">
         <div className="section-heading">
-          <p className="eyebrow">V0.3 有 JD 定制诊断</p>
-          <h1>JD 定制诊断报告</h1>
+          <p className="eyebrow">V0.4 有 JD 岗位诊断</p>
+          <h1>岗位要求匹配分析</h1>
           <p>这份报告基于你确认的真实经历和目标岗位描述生成。判断只是投递建议，不是录取预测。</p>
           <SourceBadge source={report.source} />
         </div>
@@ -2050,7 +2050,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         </section>
 
         <section className="result-block">
-          <h2>你可能没意识到的亮点</h2>
+          <h2>真实经历亮点</h2>
           <div className="card-list">
             {report.highlights.map((item) => (
               <article className="insight-card" data-testid="highlight-card" key={item.professionalExpression}>
@@ -2068,16 +2068,16 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         <EvidenceMatrix report={jdFit} showVerdict={false} />
 
         <section className="result-block">
-          <h2>简历改写前后对比</h2>
+          <h2>简历改写建议</h2>
           <div className="card-list">
             {report.rewrites.map((item) => (
               <article className="rewrite-card" data-testid="rewrite-card" key={item.optimized}>
                 <p><strong>原始表达：</strong>{item.original}</p>
-                <p><strong>优化表达：</strong>{item.optimized}</p>
+                <p><strong>可直接使用版：</strong>{item.optimized}</p>
                 <p><strong>匹配的 JD 要求：</strong>{item.jdRequirement}</p>
                 <p><strong>为什么这样改：</strong>{item.reason}</p>
                 <p><strong>面试可能追问：</strong>{item.interviewProbe}</p>
-                <p><strong>不要夸大的地方：</strong>{item.risk}</p>
+                <p><strong>使用提醒：</strong>{item.risk}</p>
                 <CopyButton text={item.optimized}>复制优化表达</CopyButton>
               </article>
             ))}
@@ -2085,17 +2085,16 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         </section>
 
         <section className="result-block">
-          <h2>面试追问与回答指导</h2>
+          <h2>面试追问与回答准备</h2>
           <div className="card-list">
             {interviews.map((item) => (
               <article className="interview-card" data-testid="interview-card" key={item.question}>
-                <p><strong>问题：</strong>{item.question}</p>
-                <p><strong>为什么问：</strong>{item.whyAsk}</p>
-                <p><strong>回答角度：</strong>{item.answerAngle}</p>
+                <p><strong>面试问题：</strong>{item.question}</p>
+                <p><strong>HR 为什么可能会问：</strong>{item.whyAsk}</p>
+                <p><strong>回答思路：</strong>{item.answerAngle}</p>
                 <p><strong>关注点：</strong>{item.concern}</p>
-                <p><strong>回答示例：</strong>{item.sampleAnswer}</p>
-                <p><strong>不能乱说的地方：</strong>{item.doNotExaggerate}</p>
-                <CopyButton text={item.sampleAnswer}>复制回答示例</CopyButton>
+                <p><strong>占位式表达：</strong>{item.sampleAnswer}</p>
+                <p><strong>注意边界：</strong>{item.doNotExaggerate}</p>
               </article>
             ))}
           </div>
@@ -2107,7 +2106,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         </section>
 
         <section className="result-block">
-          <h2>具体补强计划</h2>
+          <h2>下一步行动计划</h2>
           <div className="card-list">
             {report.actionPlan.plans.map((item) => (
               <article className="plan-card" data-testid="action-plan-card" key={`${item.period}-${item.action}`}>
@@ -2176,7 +2175,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
     return (
       <section className="flow-section result-section">
         <div className="section-heading">
-          <p className="eyebrow">V0.3 无 JD 经历盘点</p>
+          <p className="eyebrow">V0.4 无 JD 方向探索</p>
           <h1>经历诊断报告</h1>
           <p>这份报告基于你确认的真实经历生成。它不是替你决定人生方向，而是帮你看清当前筹码、可探索方向和下一步补强路径。</p>
           <SourceBadge source={report.source} />
@@ -2207,7 +2206,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         </section>
 
         <section className="result-block">
-          <h2>你可能没意识到的亮点</h2>
+          <h2>真实经历亮点</h2>
           <div className="card-list">
             {report.highlights.map((item) => (
               <article className="insight-card" data-testid="inventory-highlight-card" key={item.professionalExpression}>
@@ -2223,7 +2222,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         </section>
 
         <section className="result-block">
-          <h2>推荐探索岗位方向</h2>
+          <h2>可探索岗位方向</h2>
           <div className="card-list">
             {directions.map((item) => (
               <article className="plan-card" data-testid="report-direction-card" key={item.name}>
@@ -2231,26 +2230,26 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
                   <h3>{item.name}</h3>
                   <span className="status-pill">{item.level}</span>
                 </div>
-                <p><strong>推荐等级：</strong>{item.level}</p>
-                <p><strong>匹配理由：</strong>{item.why}</p>
-                <p><strong>当前证据：</strong>{item.evidence}</p>
-                <p><strong>主要缺口：</strong>{item.gap}</p>
-                <p><strong>下一步补强：</strong>{item.next}</p>
-                <p><strong>搜索关键词：</strong>{item.keywords.join('、')}</p>
+                <p><strong>探索优先级：</strong>{item.level}</p>
+                <p><strong>为什么可以探索：</strong>{item.why}</p>
+                <p><strong>对应经历证据：</strong>{item.evidence}</p>
+                <p><strong>当前缺口：</strong>{item.gap}</p>
+                <p><strong>7 天验证动作：</strong>{item.next}</p>
+                <p><strong>可搜索岗位名称：</strong>{item.keywords.join('、')}</p>
               </article>
             ))}
           </div>
         </section>
 
         <section className="result-block">
-          <h2>可复制简历表达</h2>
+          <h2>简历改写建议</h2>
           <div className="card-list">
             {report.rewrites.map((item) => (
               <article className="rewrite-card" data-testid="inventory-rewrite-card" key={item.optimized}>
                 <p><strong>原始表达：</strong>{item.original}</p>
-                <p><strong>优化表达：</strong>{item.optimized}</p>
+                <p><strong>可直接使用版：</strong>{item.optimized}</p>
                 <p><strong>为什么这样改：</strong>{item.reason}</p>
-                <p><strong>使用前确认：</strong>{item.risk}</p>
+                <p><strong>使用提醒：</strong>{item.risk}</p>
                 <CopyButton text={item.optimized}>复制优化表达</CopyButton>
               </article>
             ))}
@@ -2258,7 +2257,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         </section>
 
         <section className="result-block">
-          <h2>7-14 天补强计划</h2>
+          <h2>下一步行动计划</h2>
           <div className="card-list">
             {report.actionPlan.plans.map((item) => (
               <article className="plan-card" data-testid="inventory-action-plan-card" key={`${item.period}-${item.action}`}>
@@ -2326,7 +2325,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
       </div>
 
       <section className="result-block">
-        <h2>未意识到的亮点</h2>
+        <h2>真实经历亮点</h2>
         <div className="card-list">
           {report.highlights.map((item) => (
             <article className="insight-card" data-testid="highlight-card" key={item.professionalExpression}>
@@ -2342,12 +2341,12 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
       </section>
 
       <section className="result-block">
-        <h2>简历改写前后对比</h2>
+        <h2>简历改写建议</h2>
         <div className="card-list">
           {report.rewrites.map((item) => (
             <article className="rewrite-card" data-testid="rewrite-card" key={item.optimized}>
               <p><strong>原始表达：</strong>{item.original}</p>
-              <p><strong>优化表达：</strong>{item.optimized}</p>
+              <p><strong>可直接使用版：</strong>{item.optimized}</p>
               <p><strong>优化理由：</strong>{item.reason}</p>
               <p><strong>对应岗位要求：</strong>{item.jdRequirement}</p>
               <p><strong>风险提醒：</strong>{item.risk}</p>
@@ -2361,16 +2360,16 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
       {report.jdFit ? <EvidenceMatrix report={report.jdFit} /> : null}
 
       <section className="result-block">
-        <h2>面试追问及回答指导</h2>
+        <h2>面试追问与回答准备</h2>
         <div className="card-list">
           {(report.interviews || []).map((item) => (
             <article className="interview-card" data-testid="interview-card" key={item.question}>
               <p><strong>面试问题：</strong>{item.question}</p>
-              <p><strong>为什么会问：</strong>{item.whyAsk}</p>
-              <p><strong>回答角度：</strong>{item.answerAngle}</p>
-              <p><strong>面试官关注点：</strong>{item.concern}</p>
-              <p><strong>结合你情况的回答示例：</strong>{item.sampleAnswer}</p>
-              <p><strong>不能乱说或夸大的地方：</strong>{item.doNotExaggerate}</p>
+              <p><strong>HR 为什么可能会问：</strong>{item.whyAsk}</p>
+              <p><strong>回答思路：</strong>{item.answerAngle}</p>
+              <p><strong>关注点：</strong>{item.concern}</p>
+              <p><strong>占位式表达：</strong>{item.sampleAnswer}</p>
+              <p><strong>注意边界：</strong>{item.doNotExaggerate}</p>
             </article>
           ))}
         </div>
@@ -2390,7 +2389,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
       </section>
 
       <section className="result-block">
-        <h2>具体补强计划</h2>
+        <h2>下一步行动计划</h2>
         <div className="card-list">
           {report.actionPlan.plans.map((item) => (
             <article className="plan-card" data-testid="action-plan-card" key={`${item.period}-${item.action}`}>

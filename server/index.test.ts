@@ -1403,10 +1403,15 @@ test('career prompts include V0.4 role, safety red lines, and mode-specific inst
   }
   expect(jdPrompt).toContain('有 JD 模式');
   expect(jdPrompt).toContain('JD 证据匹配');
+  expect(jdPrompt).toContain('面试追问与回答准备');
+  expect(jdPrompt).toContain('占位式表达');
+  expect(jdPrompt).toContain('注意边界');
   expect(jdPrompt).toContain('至少 3 条简历改写建议');
   expect(jdPrompt).toContain('7 天内、14 天内、30 天内');
+  expect(jdPrompt).not.toContain('回答示例');
   expect(inventoryPrompt).toContain('无 JD 模式');
   expect(inventoryPrompt).toContain('不要输出 JD 证据矩阵');
+  expect(inventoryPrompt).toContain('可探索岗位方向');
   expect(inventoryPrompt).toContain('至少 3 条简历改写建议');
 });
 

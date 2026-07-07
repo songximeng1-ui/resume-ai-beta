@@ -124,8 +124,9 @@ ${JSON.stringify(payload)}`;
 - 必须输出 JD 证据匹配 jdFit：JD 要求、用户已有证据、证据强度、缺口、如何补强。
 - 至少 2 个用户自己可能没意识到的亮点 hiddenHighlights/highlights。
 - 至少 3 条简历改写建议 rewrites，只优化表达，不新增事实。
+- 模块名使用“面试追问与回答准备”，仅服务有 JD 模式。
 - 5 个目标岗位 HR 可能追问的问题 interviewQuestions/interviews。
-- 每个面试问题必须包含：HR 为什么问、回答角度、需要注意的风险、用户可参考的回答示例。
+- 每个面试问题必须包含：HR 为什么可能会问、回答思路、占位式表达、注意边界；不输出可直接照抄的虚构完整答案。
 - 1 条明确投递判断：建议投递、可以投但需要调整简历、暂不建议主投、不建议投递；如使用主投/可冲/过渡/暂不建议主投，也必须解释原因。
 - actionPlan 固定 7 天内、14 天内、30 天内，每个阶段至少 2 条。
 - 有 JD 简历改写每条包含 relatedExperience/originalIssue/capability/directVersion/versionAfterSupplement/usageReminder，并兼容填充 original/optimized/reason/jdRequirement/risk/interviewProbe；如果缺证据，标注“需补充依据”或“待核实”。
@@ -289,9 +290,11 @@ ${common}`;
 ${common}`;
     case 'report-interviews':
       return `任务：生成 interviews。
+- 模块名：面试追问与回答准备。
 - 5 个 JD 面试追问。
 - 每项含 question/whyAsk/answerAngle/concern/sampleAnswer/doNotExaggerate。
-- 示例回答必须保守，强调本人真实分工和待核实边界。
+- sampleAnswer 字段只写占位式表达，不写可直接照抄的完整答案。
+- 每项必须提醒注意边界，强调本人真实分工和待核实信息。
 
 ${common}`;
     case 'report-interview-question':
@@ -299,7 +302,8 @@ ${common}`;
 - 只输出一个 interview 对象。
 - 包含 question/whyAsk/answerAngle/concern/sampleAnswer/doNotExaggerate。
 - 问题要和 JD 要求、用户真实经历、简历改写风险相关。
-- 示例回答必须短一些，保守，使用“我主要参与的是……”或“我协助完成的是……”。
+- sampleAnswer 字段只写占位式表达，使用“我主要参与的是……”“我能确认的是……”等占位结构。
+- 不输出可直接照抄的虚构完整答案，必须提醒注意边界。
 - 必须写真实边界：“这部分数据需要按真实记录补充”或“如果没有明确数据，不建议写成结果提升”。
 
 ${common}`;
