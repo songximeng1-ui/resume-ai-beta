@@ -1,5 +1,40 @@
 import { describe, expect, test } from 'vitest';
-import { defaultModelRoles, shouldUseExtractor } from './modelOrchestrator.ts';
+import { defaultModelRoles, shouldUseExtractor, callJsonWithPrimaryBackup } from './modelOrchestrator.ts';
+import { AiServiceError, type AiRuntime, type JsonCallOptions } from './openaiClient.ts';
+
+function runtimeWithCalls(
+  calls: string[],
+  behavior: { primaryFails?: boolean; backupFails?: boolean } = {}
+): AiRuntime {
+  return {
+    callReportModelJson: async <T>(options: JsonCallOptions<T>) => {
+      calls.push(`primary:${options.task}:${options.model}:${options.prompt}`);
+      if (behavior.primaryFails) {
+        throw new AiServiceError({
+          code: 'schema_validation',
+          message: 'schema invalid',
+          detail: 'schema invalid',
+          retryable: true,
+          attempts: 1
+        });
+      }
+      return { data: options.validate({ source: 'real', value: 'primary' }), usage: null };
+    },
+    callSmallModelJson: async <T>(options: JsonCallOptions<T>) => {
+      calls.push(`backup:${options.task}:${options.model}:${options.prompt}`);
+      if (behavior.backupFails) {
+        throw new AiServiceError({
+          code: 'schema_validation',
+          message: 'schema invalid',
+          detail: 'schema invalid',
+          retryable: true,
+          attempts: 1
+        });
+      }
+      return { data: options.validate({ source: 'real', value: 'backup' }), usage: null };
+    }
+  };
+}
 
 describe('model role metadata', () => {
   test('declares V0.4 product model roles without exposing provider credentials', () => {
@@ -36,5 +71,42 @@ describe('shouldUseExtractor', () => {
   test('triggers Kimi extraction for oversized task package or context length failure', () => {
     expect(shouldUseExtractor({ estimatedTaskPackageChars: 18000 })).toBe(true);
     expect(shouldUseExtractor({ failureCode: 'context_length_exceeded' })).toBe(true);
+  });
+});
+
+describe('callJsonWithPrimaryBackup', () => {
+  test('primary success does not call backup', async () => {
+    const calls: string[] = [];
+    const result = await callJsonWithPrimaryBackup(runtimeWithCalls(calls), {
+      primaryModel: 'deepseek-test',
+      backupModel: 'qwen-test',
+      task: 'module-test',
+      schemaName: 'module_test',
+      jsonSchema: {},
+      prompt: 'same complete task package',
+      validate: (value) => value as { source: string; value: string }
+    });
+
+    expect(result).toMatchObject({ role: 'primary', data: { value: 'primary' } });
+    expect(calls).toEqual(['primary:module-test:deepseek-test:same complete task package']);
+  });
+
+  test('schema failure calls backup with the same complete prompt', async () => {
+    const calls: string[] = [];
+    const result = await callJsonWithPrimaryBackup(runtimeWithCalls(calls, { primaryFails: true }), {
+      primaryModel: 'deepseek-test',
+      backupModel: 'qwen-test',
+      task: 'module-test',
+      schemaName: 'module_test',
+      jsonSchema: {},
+      prompt: 'same complete task package',
+      validate: (value) => value as { source: string; value: string }
+    });
+
+    expect(result).toMatchObject({ role: 'backup', data: { value: 'backup' } });
+    expect(calls).toEqual([
+      'primary:module-test:deepseek-test:same complete task package',
+      'backup:module-test:qwen-test:same complete task package'
+    ]);
   });
 });

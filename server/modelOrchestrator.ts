@@ -1,3 +1,6 @@
+import { classifyAiError, type AiRuntime, type AiRuntimeResult, type JsonCallOptions } from './openaiClient.ts';
+import type { AiUsage } from '../src/types.ts';
+
 export type ModelRole = 'primary' | 'backup' | 'extractor' | 'rule';
 
 export interface ModelRoleConfig {
@@ -12,6 +15,17 @@ export interface ExtractorTriggerInput {
   assets?: unknown[];
   estimatedTaskPackageChars?: number;
   failureCode?: string;
+}
+
+export interface RoleJsonCallOptions<T> extends Omit<JsonCallOptions<T>, 'model'> {
+  primaryModel: string;
+  backupModel: string;
+}
+
+export interface RoleJsonCallResult<T> {
+  data: T;
+  usage: AiUsage | null;
+  role: 'primary' | 'backup';
 }
 
 const LONG_JD_CHARS = 5000;
@@ -45,6 +59,19 @@ function collectText(value: unknown): string {
   return '';
 }
 
+function unwrapRuntimeResult<T>(result: AiRuntimeResult<T>): { data: T; usage: AiUsage | null } {
+  if (result && typeof result === 'object' && 'data' in result) {
+    return result as { data: T; usage: AiUsage | null };
+  }
+
+  return { data: result as T, usage: null };
+}
+
+function shouldUseBackup(error: unknown): boolean {
+  const classified = classifyAiError(error);
+  return ['timeout', 'network_error', 'server_error', 'schema_validation', 'invalid_json', 'empty_response'].includes(classified.code);
+}
+
 export function shouldUseExtractor(input: ExtractorTriggerInput): boolean {
   const jdLength = input.jdText?.length ?? 0;
   const userMaterialLength = collectText(input.profile).length + collectText(input.assets).length;
@@ -55,4 +82,40 @@ export function shouldUseExtractor(input: ExtractorTriggerInput): boolean {
     (input.estimatedTaskPackageChars ?? 0) > TASK_PACKAGE_SAFE_CHARS ||
     input.failureCode === 'context_length_exceeded'
   );
+}
+
+export async function callJsonWithPrimaryBackup<T>(
+  runtime: AiRuntime,
+  options: RoleJsonCallOptions<T>
+): Promise<RoleJsonCallResult<T>> {
+  const baseOptions = {
+    task: options.task,
+    schemaName: options.schemaName,
+    jsonSchema: options.jsonSchema,
+    prompt: options.prompt,
+    validate: options.validate,
+    maxAttempts: options.maxAttempts
+  };
+
+  try {
+    const primary = unwrapRuntimeResult(
+      await runtime.callReportModelJson({
+        ...baseOptions,
+        model: options.primaryModel
+      })
+    );
+    return { ...primary, role: 'primary' };
+  } catch (error) {
+    if (!shouldUseBackup(error)) {
+      throw error;
+    }
+  }
+
+  const backup = unwrapRuntimeResult(
+    await runtime.callSmallModelJson({
+      ...baseOptions,
+      model: options.backupModel
+    })
+  );
+  return { ...backup, role: 'backup' };
 }
