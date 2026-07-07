@@ -48,6 +48,10 @@ function defaultProvider(role: ProviderRole) {
   return 'kimi';
 }
 
+function retryModelLabel(role: ProviderRole) {
+  return `${role}-role`;
+}
+
 function rolePrefix(role: ProviderRole) {
   if (role === 'primary') return 'AI_PRIMARY';
   if (role === 'backup') return 'AI_BACKUP';
@@ -58,10 +62,15 @@ export function getProviderRoleConfig(role: ProviderRole): ProviderRoleConfig {
   const prefix = rolePrefix(role);
   const roleApiKey = readEnv(`${prefix}_API_KEY`);
   const fallbackApiKey = role === 'extractor' ? '' : readEnv('OPENAI_API_KEY');
+  const usesRoleProvider = Boolean(roleApiKey);
   const apiKey = roleApiKey || fallbackApiKey;
   const provider =
-    readEnv(`${prefix}_PROVIDER`) || (roleApiKey ? defaultProvider(role) : fallbackApiKey ? 'openai' : defaultProvider(role));
-  const model = readEnv(`${prefix}_MODEL`) || (roleApiKey || fallbackApiKey ? fallbackModel(role) : '');
+    readEnv(`${prefix}_PROVIDER`) || (usesRoleProvider ? defaultProvider(role) : fallbackApiKey ? 'openai' : defaultProvider(role));
+  const model = usesRoleProvider
+    ? readEnv(`${prefix}_MODEL`)
+    : fallbackApiKey
+      ? fallbackModel(role)
+      : '';
 
   return {
     role,
@@ -172,6 +181,6 @@ export async function callProviderRoleJson<T>(
         });
       }
     },
-    { task: options.task, model: config.model, maxAttempts: options.maxAttempts || 2 }
+    { task: options.task, model: retryModelLabel(role), maxAttempts: options.maxAttempts || 2 }
   );
 }
