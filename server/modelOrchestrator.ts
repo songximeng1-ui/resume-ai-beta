@@ -14,8 +14,8 @@ export interface ExtractorTriggerInput {
   failureCode?: string;
 }
 
-const LONG_JD_CHARS = 3000;
-const LONG_USER_MATERIAL_CHARS = 5000;
+const LONG_JD_CHARS = 5000;
+const LONG_USER_MATERIAL_CHARS = 8000;
 const TASK_PACKAGE_SAFE_CHARS = 16000;
 
 export function defaultModelRoles(): Record<ModelRole, ModelRoleConfig> {

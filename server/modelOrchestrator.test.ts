@@ -17,12 +17,20 @@ describe('shouldUseExtractor', () => {
     expect(shouldUseExtractor({ jdText: '短 JD', profile: { internship: '短经历' }, assets: [] })).toBe(false);
   });
 
-  test('triggers Kimi extraction for long JD text', () => {
-    expect(shouldUseExtractor({ jdText: '岗位要求'.repeat(900) })).toBe(true);
+  test('does not trigger Kimi extraction for JD text at or below the threshold', () => {
+    expect(shouldUseExtractor({ jdText: 'a'.repeat(5000) })).toBe(false);
   });
 
-  test('triggers Kimi extraction for long user material', () => {
-    expect(shouldUseExtractor({ profile: { internship: '用户材料'.repeat(1400) } })).toBe(true);
+  test('triggers Kimi extraction for JD text just over the threshold', () => {
+    expect(shouldUseExtractor({ jdText: 'a'.repeat(5001) })).toBe(true);
+  });
+
+  test('does not trigger Kimi extraction for user material at or below the threshold', () => {
+    expect(shouldUseExtractor({ profile: { internship: 'a'.repeat(8000) } })).toBe(false);
+  });
+
+  test('triggers Kimi extraction for user material just over the threshold', () => {
+    expect(shouldUseExtractor({ profile: { internship: 'a'.repeat(8001) } })).toBe(true);
   });
 
   test('triggers Kimi extraction for oversized task package or context length failure', () => {
