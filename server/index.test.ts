@@ -1153,7 +1153,7 @@ test('JD report generates interviews as smaller question tasks and falls back fa
   }
 });
 
-test('report task returns partial modules on failure and resumes without repeating completed modules', async () => {
+test('report task returns mixed basic report on partial module failure without losing completed modules', async () => {
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
   process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
@@ -1201,29 +1201,20 @@ test('report task returns partial modules on failure and resumes without repeati
     const partial = await firstResponse.json();
 
     expect(firstResponse.status).toBe(200);
+    expect(partial.isBasic).toBe(true);
+    expect(partial.summary).toContain('当前已为你生成基础版报告');
+    expect(partial.highlights).toEqual(valid.highlights);
+    expect(partial.directionOptions).toEqual(valid.directionOptions);
+    expect(partial.rewrites.length).toBeGreaterThanOrEqual(3);
     expect(partial.reportTask).toMatchObject({
-      status: 'partial',
-      failedModule: 'rewrites',
-      completedModules: ['highlights', 'directions'],
-      completedCount: 2,
+      status: 'completed',
+      completedModules: ['highlights', 'directions', 'assembledReport'],
+      completedCount: 3,
       totalModules: 5,
       retryable: true
     });
-    expect(JSON.stringify(partial)).toContain('已完成内容不会丢失');
+    expect(JSON.stringify(partial)).toContain('基础版报告');
     expect(JSON.stringify(partial)).not.toContain('sk-test-secret');
-
-    calls.push('resume-started');
-    const resumeResponse = await fetch(`${server.baseUrl}/api/ai/report`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '', reportTask: partial.reportTask })
-    });
-    const resumed = await resumeResponse.json();
-
-    expect(resumeResponse.status).toBe(200);
-    expect(resumed.source).toBe('real');
-    expect(resumed.quality.passed).toBe(true);
-    expect(resumed.usage.totalTokens).toBe(450);
     expect(calls).toEqual([
       'report-highlights',
       'report-directions',
@@ -1232,9 +1223,7 @@ test('report task returns partial modules on failure and resumes without repeati
       'report-rewrites',
       'small:report-rewrites',
       'small:report-rewrites',
-      'small:report-rewrites',
-      'resume-started',
-      'report-rewrites'
+      'small:report-rewrites'
     ]);
   } finally {
     await server.close();

@@ -1104,6 +1104,48 @@ function assembleReportFromModules(mode: Mode, task: ReportGenerationTask): Diag
   }));
 }
 
+function assembleMixedBasicReport(mode: Mode, task: ReportGenerationTask, body: unknown): DiagnosisReport {
+  const report = buildBasicReport({ ...(isRecord(body) ? body : {}), mode });
+
+  if (task.completedModules.includes('highlights')) {
+    const highlights = validateReportModule('report-highlights', validateReportHighlightsModule, task.modules.highlights);
+    report.highlights = highlights.highlights;
+  }
+
+  if (task.completedModules.includes('rewrites')) {
+    const rewrites = validateReportModule('report-rewrites', validateReportRewritesModule, task.modules.rewrites);
+    report.rewrites = rewrites.rewrites;
+  }
+
+  if (task.completedModules.includes('actionPlan')) {
+    const actionPlan = validateReportModule('report-action-plan', validateReportActionPlanModule, task.modules.actionPlan);
+    report.summary = actionPlan.summary;
+    report.actionPlan = actionPlan.actionPlan;
+    report.safetyNotes = actionPlan.safetyNotes;
+    report.resumeText = actionPlan.resumeText;
+    report.platformFields = actionPlan.platformFields;
+    report.previewLines = actionPlan.previewLines;
+  }
+
+  if (mode === 'inventory') {
+    if (task.completedModules.includes('directions')) {
+      const directions = validateReportModule('report-directions', validateReportDirectionsModule, task.modules.directions);
+      report.directionOptions = directions.directionOptions;
+    }
+    return validateDiagnosisReport(report);
+  }
+
+  if (task.completedModules.includes('jdFit')) {
+    const jdFit = validateReportModule('report-jd-fit-summary', validateReportJdFitSummaryModule, task.modules.jdFit);
+    report.jdFit = jdFit.jdFit;
+  }
+  if (task.completedModules.includes('interviews')) {
+    const interviews = validateReportModule('report-interviews', validateReportInterviewsModule, task.modules.interviews);
+    report.interviews = interviews.interviews;
+  }
+  return sanitizeRiskyResumeLanguage(validateDiagnosisReport(report));
+}
+
 async function generateSplitReport(
   body: unknown,
   aiRuntime: AiRuntime,
@@ -1331,13 +1373,12 @@ async function generateResumableReport(
     return { kind: 'completed', data: report, usage: task.usage, task };
   } catch (error) {
     markReportTaskFailed(task, task.currentModule || 'assembledReport', error);
-    if (task.completedModules.length === 0) {
-      const report = buildBasicReport({ ...(isRecord(body) ? body : {}), mode });
-      markAssembledReportDone(task, report);
-      task.message = '已生成基础版报告。深度内容可在后续继续尝试补全。';
-      return { kind: 'completed', data: report, usage: task.usage, task };
-    }
-    return { kind: 'task', task };
+    const report = assembleMixedBasicReport(mode, task, body);
+    markAssembledReportDone(task, report);
+    task.message = task.completedModules.length > 1
+      ? '已生成基础版报告，并保留已完成的深度分析内容。深度内容可在后续继续尝试补全。'
+      : '已生成基础版报告。深度内容可在后续继续尝试补全。';
+    return { kind: 'completed', data: report, usage: task.usage, task };
   }
 }
 
