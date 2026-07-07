@@ -475,6 +475,7 @@ export function validateDiagnosisReport(value: unknown): DiagnosisReport {
   const report: DiagnosisReport = {
     mode,
     source: assertSource(value.source || 'real', 'source'),
+    isBasic: value.isBasic === true,
     summary: assertString(value.summary || '', 'summary'),
     highlights,
     rewrites,
@@ -842,6 +843,7 @@ export const diagnosisReportJsonSchema = {
   required: [
     'mode',
     'source',
+    'isBasic',
     'summary',
     'highlights',
     'rewrites',
@@ -857,6 +859,7 @@ export const diagnosisReportJsonSchema = {
   properties: {
     mode: { enum: [...reportModes] },
     source: { enum: ['real'] },
+    isBasic: booleanSchema,
     summary: stringSchema,
     highlights: { type: 'array', minItems: 2, items: highlightSchema },
     rewrites: { type: 'array', minItems: 3, items: rewriteSchema },

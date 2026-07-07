@@ -2038,6 +2038,8 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
           <SourceBadge source={report.source} />
         </div>
 
+        <BasicReportNotice show={report.isBasic} />
+
         <section className="result-block">
           <h2>投递判断摘要</h2>
           <article className="verdict-panel">
@@ -2180,6 +2182,8 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
           <p>这份报告基于你确认的真实经历生成。它不是替你决定人生方向，而是帮你看清当前筹码、可探索方向和下一步补强路径。</p>
           <SourceBadge source={report.source} />
         </div>
+
+        <BasicReportNotice show={report.isBasic} />
 
         <section className="result-block">
           <h2>报告摘要</h2>
@@ -2324,6 +2328,8 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         <SourceBadge source={report.source} />
       </div>
 
+      <BasicReportNotice show={report.isBasic} />
+
       <section className="result-block">
         <h2>真实经历亮点</h2>
         <div className="card-list">
@@ -2450,6 +2456,16 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
           清除本次分析数据
         </button>
       </div>
+    </section>
+  );
+}
+
+function BasicReportNotice({ show }: { show?: boolean }) {
+  if (!show) return null;
+  return (
+    <section className="result-block basic-report-notice">
+      <h2>基础版报告</h2>
+      <p>当前已为你生成基础版报告。内容基于你确认过的信息和稳定规则整理，会偏保守，但不会替你编造经历。你可以先参考，系统也会继续尝试补全深度内容。</p>
     </section>
   );
 }

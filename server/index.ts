@@ -29,6 +29,7 @@ import {
   sanitizeRiskyRewrite,
   validateReportQuality
 } from './reportQuality.ts';
+import { buildBasicReport } from './basicReport.ts';
 import {
   digQuestionsJsonSchema,
   jdFitJsonSchema,
@@ -1330,6 +1331,12 @@ async function generateResumableReport(
     return { kind: 'completed', data: report, usage: task.usage, task };
   } catch (error) {
     markReportTaskFailed(task, task.currentModule || 'assembledReport', error);
+    if (task.completedModules.length === 0) {
+      const report = buildBasicReport({ ...(isRecord(body) ? body : {}), mode });
+      markAssembledReportDone(task, report);
+      task.message = '已生成基础版报告。深度内容可在后续继续尝试补全。';
+      return { kind: 'completed', data: report, usage: task.usage, task };
+    }
     return { kind: 'task', task };
   }
 }

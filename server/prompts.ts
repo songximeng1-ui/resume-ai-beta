@@ -100,6 +100,7 @@ export function reportPrompt(payload: unknown) {
 
 无 JD 模式要求：
 - mode 必须为 "inventory"。
+- isBasic 必须为 false；只有规则模板兜底生成的基础版报告才可以为 true。
 - 不要假装已经有 JD，不要输出 JD 证据矩阵，不要强制输出 5 个 JD 面试题。
 - 至少 2 个经历亮点 hiddenHighlights/highlights。
 - 至少 3 条简历改写建议 rewrites，只优化表达，不新增事实。
@@ -121,6 +122,7 @@ ${JSON.stringify(payload)}`;
 
 有 JD 模式要求：
 - mode 必须为 "jd"。
+- isBasic 必须为 false；只有规则模板兜底生成的基础版报告才可以为 true。
 - 必须输出 JD 证据匹配 jdFit：JD 要求、用户已有证据、证据强度、缺口、如何补强。
 - 至少 2 个用户自己可能没意识到的亮点 hiddenHighlights/highlights。
 - 至少 3 条简历改写建议 rewrites，只优化表达，不新增事实。

@@ -807,6 +807,15 @@ li {
   padding: 20px;
 }
 
+.basic-report-notice {
+  border-color: #d6e3d9;
+  background: #f7fbf7;
+}
+
+.basic-report-notice p {
+  color: #445047;
+}
+
 .result-block h2 {
   margin-bottom: 0;
 }

@@ -990,6 +990,32 @@ test('报告未返回 usage 时展示未返回用量信息', () => {
   expect(screen.getByText('本次未返回用量信息')).toBeInTheDocument();
 });
 
+test('基础版报告在结果页展示保守交付说明', () => {
+  window.localStorage.setItem(BETA_STORAGE_KEY, JSON.stringify({ authorized: true, betaAccessCode: 'private-beta' }));
+  window.localStorage.setItem(
+    'job-map-v2-confirmed-session',
+    JSON.stringify({
+      step: 'result',
+      stage: 'senior',
+      mode: 'inventory',
+      profile: baseProfile,
+      fieldStatuses: {},
+      assets: [],
+      truthConfirmed: true,
+      resumeText: '',
+      jdText: '',
+      jdFit: null,
+      report: { ...mockReport(), mode: 'inventory', isBasic: true, jdFit: undefined, interviews: undefined, usage: null }
+    })
+  );
+
+  render(<App />);
+
+  expect(screen.getByRole('heading', { name: '基础版报告' })).toBeInTheDocument();
+  expect(screen.getByText(/内容基于你确认过的信息和稳定规则整理/)).toBeInTheDocument();
+  expect(screen.getByText(/不会替你编造经历/)).toBeInTheDocument();
+});
+
 test('生成 V2 诊断报告失败时在 JD 页面显示错误原因', async () => {
   vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);

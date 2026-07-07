@@ -249,6 +249,7 @@ export interface ReportQualityResult {
 export interface DiagnosisReport {
   mode?: Mode;
   source: AiSource;
+  isBasic?: boolean;
   summary?: string;
   highlights: HiddenHighlight[];
   rewrites: ResumeRewrite[];

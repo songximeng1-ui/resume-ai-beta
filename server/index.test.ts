@@ -439,7 +439,7 @@ test('demo dig-question endpoint returns natural questions without exposing inte
   }
 });
 
-test('report endpoint uses the report model runtime and never falls back to demo on real failures', async () => {
+test('report endpoint returns a conservative basic report instead of demo on real failures', async () => {
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
   process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
@@ -458,13 +458,20 @@ test('report endpoint uses the report model runtime and never falls back to demo
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(body.isBasic).toBe(true);
+    expect(body.source).toBe('real');
+    expect(body.summary).toContain('当前已为你生成基础版报告');
+    expect(body.directionOptions.length).toBeGreaterThanOrEqual(2);
+    expect(body.usage).toMatchObject({
+      model: 'rule',
+      task: 'report',
+      totalTokens: 0
+    });
     expect(body.reportTask).toMatchObject({
-      status: 'failed',
-      failedModule: 'highlights',
-      completedModules: [],
+      status: 'completed',
+      completedModules: ['assembledReport'],
       retryable: false
     });
-    expect(body.reportTask.technicalDetail).toMatch(/model not found/);
     expect(JSON.stringify(body)).not.toContain('演示结果');
     expect(callReportModelJson).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1267,7 +1274,7 @@ test('report module schema repair succeeds once and repair failure returns clear
   }
 });
 
-test('report module schema repair failure returns clear failed task without leaking API key', async () => {
+test('report module schema repair failure returns basic report without leaking API key', async () => {
   process.env.OPENAI_API_KEY = 'sk-test-secret';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
   process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
@@ -1284,12 +1291,13 @@ test('report module schema repair failure returns clear failed task without leak
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(body.isBasic).toBe(true);
+    expect(body.summary).toContain('当前已为你生成基础版报告');
     expect(body.reportTask).toMatchObject({
-      status: 'failed',
-      failedModule: 'highlights',
+      status: 'completed',
+      completedModules: ['assembledReport'],
       retryable: true
     });
-    expect(body.reportTask.technicalDetail).toMatch(/highlights must contain at least 2 items|schema/i);
     expect(JSON.stringify(body)).not.toContain('sk-test-secret');
     expect(JSON.stringify(body)).not.toContain('演示结果');
   } finally {
