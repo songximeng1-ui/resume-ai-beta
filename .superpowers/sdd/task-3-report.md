@@ -23,3 +23,29 @@ Summary:
 
 Concerns:
 - None.
+
+---
+
+Fix review follow-up (2026-07-07)
+
+Status: DONE
+
+Findings fixed:
+- `callReportModule` now propagates the final backup failure from `callJsonWithPrimaryBackup` instead of rethrowing the earlier primary failure.
+- Added regression coverage for report basic fallback metadata when primary fails retryably and backup fails non-retryably.
+
+Files changed:
+- server/index.ts
+- server/index.test.ts
+- .superpowers/sdd/task-3-report.md
+
+Commands run with results:
+- `npm.cmd test -- server/index.test.ts`
+  - RED: failed on `report task basic fallback reflects final backup failure metadata` because `reportTask.retryable` was still `true`, showing the primary failure leaked through.
+- `npm.cmd test -- server/index.test.ts server/modelOrchestrator.test.ts`
+  - FAIL: existing `report module schema repair failure returns basic report without leaking API key` test still expected the old leaked-primary behavior.
+- `npm.cmd test -- server/index.test.ts server/modelOrchestrator.test.ts`
+  - GREEN: 43 tests passed.
+
+Commit:
+- 36efeef

@@ -855,7 +855,7 @@ async function callReportModule<T>(
       maxAttempts: 1
     });
   } catch (error) {
-    throw lastError ?? error;
+    throw error;
   }
   const modelTier = result.role === 'primary' ? 'report' : 'small';
   return {

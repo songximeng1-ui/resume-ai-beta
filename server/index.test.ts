@@ -1275,6 +1275,73 @@ test('report task returns mixed basic report on partial module failure without l
   }
 });
 
+test('report task basic fallback reflects final backup failure metadata', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const valid = validInventoryReport();
+  const calls: string[] = [];
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    calls.push(`report:${options.task}`);
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
+    if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: valid.directionOptions }, usage: null };
+    if (options.task === 'report-rewrites') {
+      throw new AiServiceError({
+        code: 'server_error',
+        message: 'OpenAI 服务暂时异常，请稍后重试。',
+        detail: 'primary report service unavailable',
+        retryable: true,
+        attempts: 1
+      });
+    }
+    throw new Error(`unexpected report task ${options.task}`);
+  });
+  const callSmallModelJson = vi.fn(async (options: JsonCallOptions) => {
+    calls.push(`small:${options.task}`);
+    if (options.task === 'report-rewrites') {
+      throw new AiServiceError({
+        code: 'auth_error',
+        message: 'OpenAI API Key 无效或无权限，请检查服务端 .env 配置。',
+        detail: 'backup invalid api key',
+        retryable: false,
+        attempts: 1
+      });
+    }
+    throw new Error(`unexpected small task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson, callSmallModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '' })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.isBasic).toBe(true);
+    expect(body.reportTask).toMatchObject({
+      status: 'completed',
+      completedModules: ['highlights', 'directions', 'assembledReport'],
+      completedCount: 3,
+      totalModules: 5,
+      retryable: false
+    });
+    expect(body.reportTask.technicalDetail).toBe('');
+    expect(JSON.stringify(body)).toContain('基础版报告');
+    expect(calls).toEqual([
+      'report:report-highlights',
+      'report:report-directions',
+      'report:report-rewrites',
+      'small:report-rewrites'
+    ]);
+  } finally {
+    await server.close();
+  }
+});
+
 test('report module schema repair succeeds once and repair failure returns clear task error', async () => {
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
@@ -1314,8 +1381,17 @@ test('report module schema repair failure returns basic report without leaking A
   process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
 
   const callReportModelJson = vi.fn(async () => ({ data: { source: 'real', highlights: [] }, usage: null }));
+  const callSmallModelJson = vi.fn(async () => {
+    throw new AiServiceError({
+      code: 'auth_error',
+      message: 'OpenAI API Key 无效或无权限，请检查服务端 .env 配置。',
+      detail: 'backup rejected sk-test-secret',
+      retryable: false,
+      attempts: 1
+    });
+  });
 
-  const server = await withServer({ callReportModelJson });
+  const server = await withServer({ callReportModelJson, callSmallModelJson });
   try {
     const response = await fetch(`${server.baseUrl}/api/ai/report`, {
       method: 'POST',
@@ -1330,7 +1406,7 @@ test('report module schema repair failure returns basic report without leaking A
     expect(body.reportTask).toMatchObject({
       status: 'completed',
       completedModules: ['assembledReport'],
-      retryable: true
+      retryable: false
     });
     expect(JSON.stringify(body)).not.toContain('sk-test-secret');
     expect(JSON.stringify(body)).not.toContain('演示结果');
