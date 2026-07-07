@@ -50,6 +50,22 @@ function assertArray<T>(value: unknown, path: string, mapper: (item: unknown, in
   return value.map(mapper);
 }
 
+function assertNonEmptyArray<T>(value: unknown, path: string, mapper: (item: unknown, index: number) => T): T[] {
+  const items = assertArray(value, path, mapper);
+  if (items.length === 0) {
+    throw new Error(`${path} must contain at least 1 item`);
+  }
+  return items;
+}
+
+function assertExactKeys(value: Record<string, unknown>, allowedKeys: readonly string[], path: string): void {
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key)) {
+      throw new Error(`${path} must not contain unknown field ${key}`);
+    }
+  }
+}
+
 function assertSource(value: unknown, path: string): 'real' | 'demo' {
   if (value !== 'real' && value !== 'demo') {
     throw new Error(`${path} must be real or demo`);
@@ -504,6 +520,8 @@ export function validateReportActionPlanModule(value: unknown): ReportActionPlan
 }
 
 const forbiddenKimiKeys = ['judgment', 'recommendation', 'rewrite', 'deliveryDecision', 'matchLevel', 'resumeWriting'] as const;
+const kimiExtractKeys = ['source', 'sourceSnippets', 'verificationNotes', 'structuredFields'] as const;
+const kimiStructuredFieldKeys = ['field', 'value', 'sourceSnippet'] as const;
 
 export function validateKimiExtract(value: unknown): KimiExtract {
   if (!isRecord(value)) {
@@ -513,14 +531,16 @@ export function validateKimiExtract(value: unknown): KimiExtract {
   if (forbidden) {
     throw new Error('Kimi extract must not contain judgment, recommendation, or rewrite fields');
   }
+  assertExactKeys(value, kimiExtractKeys, 'KimiExtract');
   return {
-    source: assertRealSource(value.source || 'real', 'source'),
-    sourceSnippets: assertArray(value.sourceSnippets, 'sourceSnippets', (item) => assertString(item, 'sourceSnippet')),
+    source: assertRealSource(value.source, 'source'),
+    sourceSnippets: assertNonEmptyArray(value.sourceSnippets, 'sourceSnippets', (item) => assertString(item, 'sourceSnippet')),
     verificationNotes: assertArray(value.verificationNotes, 'verificationNotes', (item) => assertString(item, 'verificationNote')),
-    structuredFields: assertArray(value.structuredFields, 'structuredFields', (item, index) => {
+    structuredFields: assertNonEmptyArray(value.structuredFields, 'structuredFields', (item, index) => {
       if (!isRecord(item)) {
         throw new Error(`structuredFields.${index} must be an object`);
       }
+      assertExactKeys(item, kimiStructuredFieldKeys, `structuredFields.${index}`);
       return {
         field: assertString(item.field, `structuredFields.${index}.field`),
         value: assertString(item.value, `structuredFields.${index}.value`),

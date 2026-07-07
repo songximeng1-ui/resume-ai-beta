@@ -175,6 +175,52 @@ describe('validateKimiExtract', () => {
     ).toThrow(/Kimi extract must not contain judgment, recommendation, or rewrite fields/);
   });
 
+  test('Kimi extract rejects deliveryDecision matchLevel and resumeWriting fields', () => {
+    expect(() =>
+      validateKimiExtract({
+        source: 'real',
+        sourceSnippets: ['负责社群维护和用户反馈整理'],
+        verificationNotes: ['用户规模未出现，需要待核实'],
+        structuredFields: [{ field: '岗位要求', value: '社群维护', sourceSnippet: '负责社群维护和用户反馈整理' }],
+        deliveryDecision: 'apply',
+        matchLevel: 'high',
+        resumeWriting: '负责社群维护'
+      })
+    ).toThrow(/Kimi extract must not contain judgment, recommendation, or rewrite fields/);
+  });
+
+  test('Kimi extract rejects unknown top-level fields and empty arrays', () => {
+    expect(() =>
+      validateKimiExtract({
+        source: 'real',
+        sourceSnippets: [],
+        verificationNotes: ['用户规模未出现，需要待核实'],
+        structuredFields: [],
+        model: 'kimi',
+        token: 'abc',
+        cost: 1.23
+      })
+    ).toThrow();
+  });
+
+  test('Kimi extract rejects extra nested keys in structured fields', () => {
+    expect(() =>
+      validateKimiExtract({
+        source: 'real',
+        sourceSnippets: ['负责社群维护和用户反馈整理'],
+        verificationNotes: ['用户规模未出现，需要待核实'],
+        structuredFields: [
+          {
+            field: '岗位要求',
+            value: '社群维护',
+            sourceSnippet: '负责社群维护和用户反馈整理',
+            extra: 'not allowed'
+          }
+        ]
+      })
+    ).toThrow();
+  });
+
   test('Kimi extract accepts source snippets verification notes and structured fields', () => {
     expect(
       validateKimiExtract({
