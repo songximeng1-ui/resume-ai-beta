@@ -4,14 +4,14 @@ import { AiServiceError, type AiRuntime, type JsonCallOptions } from './openaiCl
 
 function runtimeWithCalls(
   calls: string[],
-  behavior: { primaryFails?: boolean; backupFails?: boolean } = {}
+  behavior: { primaryFails?: boolean; backupFails?: boolean; primaryErrorCode?: 'schema_validation' | 'auth_error' } = {}
 ): AiRuntime {
   return {
     callReportModelJson: async <T>(options: JsonCallOptions<T>) => {
       calls.push(`primary:${options.task}:${options.model}:${options.prompt}`);
       if (behavior.primaryFails) {
         throw new AiServiceError({
-          code: 'schema_validation',
+          code: behavior.primaryErrorCode || 'schema_validation',
           message: 'schema invalid',
           detail: 'schema invalid',
           retryable: true,
@@ -44,6 +44,55 @@ describe('model role metadata', () => {
       extractor: { role: 'extractor', productName: 'Kimi', runtimeTier: 'small' },
       rule: { role: 'rule', productName: 'RuleTemplate', runtimeTier: 'none' }
     });
+  });
+});
+
+describe('callJsonWithPrimaryBackup runtime result handling', () => {
+  test('preserves raw object results that contain a data field', async () => {
+    const calls: string[] = [];
+    const rawResult = { data: 'raw-payload', marker: 'keep-me' };
+    const runtime: AiRuntime = {
+      callReportModelJson: async () => rawResult,
+      callSmallModelJson: async () => {
+        throw new Error('backup should not run');
+      }
+    };
+
+    const result = await callJsonWithPrimaryBackup(runtime, {
+      primaryModel: 'deepseek-test',
+      backupModel: 'qwen-test',
+      task: 'module-test',
+      schemaName: 'module_test',
+      jsonSchema: {},
+      prompt: 'same complete task package',
+      validate: (value) => value as { data: string; marker: string }
+    });
+
+    expect(result).toEqual({
+      data: rawResult,
+      usage: null,
+      role: 'primary'
+    });
+    expect(calls).toEqual([]);
+  });
+
+  test('auth failure does not call backup', async () => {
+    const calls: string[] = [];
+    const runtime = runtimeWithCalls(calls, { primaryFails: true, primaryErrorCode: 'auth_error' });
+
+    await expect(
+      callJsonWithPrimaryBackup(runtime, {
+        primaryModel: 'deepseek-test',
+        backupModel: 'qwen-test',
+        task: 'module-test',
+        schemaName: 'module_test',
+        jsonSchema: {},
+        prompt: 'same complete task package',
+        validate: (value) => value as { source: string; value: string }
+      })
+    ).rejects.toThrowError();
+
+    expect(calls).toEqual(['primary:module-test:deepseek-test:same complete task package']);
   });
 });
 

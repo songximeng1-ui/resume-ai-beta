@@ -1,4 +1,4 @@
-import { classifyAiError, type AiRuntime, type AiRuntimeResult, type JsonCallOptions } from './openaiClient.ts';
+import { classifyAiError, type AiRuntime, type AiRuntimeResult, type AiTaskResult, type JsonCallOptions } from './openaiClient.ts';
 import type { AiUsage } from '../src/types.ts';
 
 export type ModelRole = 'primary' | 'backup' | 'extractor' | 'rule';
@@ -60,8 +60,8 @@ function collectText(value: unknown): string {
 }
 
 function unwrapRuntimeResult<T>(result: AiRuntimeResult<T>): { data: T; usage: AiUsage | null } {
-  if (result && typeof result === 'object' && 'data' in result) {
-    return result as { data: T; usage: AiUsage | null };
+  if (result && typeof result === 'object' && 'data' in result && 'usage' in result) {
+    return result as AiTaskResult<T>;
   }
 
   return { data: result as T, usage: null };
