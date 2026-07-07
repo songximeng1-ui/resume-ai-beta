@@ -733,14 +733,15 @@ test('configured JD report uses small/report/rule tiers and returns tiered usage
   const valid = validInventoryReport();
   const jdFit = {
     source: 'real' as const,
-    verdict: '可冲' as const,
-    basis: '岗位要求与已有社群维护、用户反馈整理经历部分匹配。',
-    maxAdvantage: '已有真实用户触达和信息整理经历。',
-    maxGap: '缺少更完整的数据复盘和业务结果。',
-    ifInsist: '建议投递时突出协助边界和可核实产出。',
+    deliveryDecision: '可以投递，建议先优化简历' as const,
+    deliveryReason: '岗位要求与已有社群维护、用户反馈整理经历部分匹配。',
+    strongestEvidence: '已有真实用户触达和信息整理经历。',
+    mainGap: '缺少更完整的数据复盘和业务结果。',
+    nextStepAdvice: '建议投递时突出协助边界和可核实产出。',
     matrix: [
       {
         requirement: '用户运营实习生需要社群维护和反馈整理。',
+        matchLevel: '有一定匹配' as const,
         evidence: '教育机构实习中维护学生社群并整理活动通知。',
         gap: '缺少用户规模和反馈结果。',
         resumeWriting: '协助维护学生社群，整理活动通知和用户反馈。',
@@ -823,14 +824,15 @@ test('configured JD report sanitizes risky rewrite and interview wording before 
   const valid = validInventoryReport();
   const jdFit = {
     source: 'real' as const,
-    verdict: '可冲' as const,
-    basis: '岗位要求与已有社群维护经历部分匹配。',
-    maxAdvantage: '已有真实用户触达经历。',
-    maxGap: '缺少数据复盘。',
-    ifInsist: '突出协助边界。',
+    deliveryDecision: '可以投递，建议先优化简历' as const,
+    deliveryReason: '岗位要求与已有社群维护经历部分匹配。',
+    strongestEvidence: '已有真实用户触达经历。',
+    mainGap: '缺少数据复盘。',
+    nextStepAdvice: '突出协助边界。',
     matrix: [
       {
         requirement: '用户运营实习生需要社群维护。',
+        matchLevel: '有一定匹配' as const,
         evidence: '教育机构实习中维护学生社群。',
         gap: '缺少用户规模和反馈结果。',
         resumeWriting: '建议写成主导社群全流程并显著提升转化率。',
@@ -908,14 +910,15 @@ test('configured JD report retries and falls back only the failed report module 
   const calls: string[] = [];
   const jdFit = {
     source: 'real' as const,
-    verdict: '可冲' as const,
-    basis: '岗位要求与已有社群维护、用户反馈整理经历部分匹配。',
-    maxAdvantage: '已有真实用户触达和信息整理经历。',
-    maxGap: '缺少更完整的数据复盘和业务结果。',
-    ifInsist: '建议投递时突出协助边界和可核实产出。',
+    deliveryDecision: '可以投递，建议先优化简历' as const,
+    deliveryReason: '岗位要求与已有社群维护、用户反馈整理经历部分匹配。',
+    strongestEvidence: '已有真实用户触达和信息整理经历。',
+    mainGap: '缺少更完整的数据复盘和业务结果。',
+    nextStepAdvice: '建议投递时突出协助边界和可核实产出。',
     matrix: [
       {
         requirement: '用户运营实习生需要社群维护和反馈整理。',
+        matchLevel: '有一定匹配' as const,
         evidence: '教育机构实习中维护学生社群并整理活动通知。',
         gap: '缺少用户规模和反馈结果。',
         resumeWriting: '协助维护学生社群，整理活动通知和用户反馈。',
@@ -951,7 +954,7 @@ test('configured JD report retries and falls back only the failed report module 
     if (options.task === 'report-action-plan') {
       return {
         source: 'real',
-        summary: '本报告基于真实经历和 JD，判断可冲但需要补足数据复盘。',
+        summary: '本报告基于真实经历和 JD，可以投递但建议先补足数据复盘。',
         actionPlan: valid.actionPlan,
         safetyNotes: valid.safetyNotes,
         resumeText: valid.resumeText,
@@ -1014,14 +1017,15 @@ test('jd-fit first summarizes long JD then matches with compact input and retrie
   let jdFitAttempts = 0;
   const jdFit = {
     source: 'real' as const,
-    verdict: '可冲' as const,
-    basis: '岗位要求与已有社群维护经历部分匹配。',
-    maxAdvantage: '已有真实用户触达和信息整理经历。',
-    maxGap: '缺少更完整的数据复盘和业务结果。',
-    ifInsist: '建议先投执行型运营实习，并补充真实数据复盘。',
+    deliveryDecision: '可以投递，建议先优化简历' as const,
+    deliveryReason: '岗位要求与已有社群维护经历部分匹配。',
+    strongestEvidence: '已有真实用户触达和信息整理经历。',
+    mainGap: '缺少更完整的数据复盘和业务结果。',
+    nextStepAdvice: '建议先投执行型运营实习，并补充真实数据复盘。',
     matrix: [
       {
         requirement: '社群维护与用户反馈整理',
+        matchLevel: '有一定匹配' as const,
         evidence: '用户材料中有社群维护和内容整理经历。',
         gap: '缺少规模、频次和复盘结果。',
         resumeWriting: '协助维护学生社群，整理用户反馈和活动提醒。',
@@ -1066,7 +1070,7 @@ test('jd-fit first summarizes long JD then matches with compact input and retrie
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body.verdict).toBe('可冲');
+    expect(body.deliveryDecision).toBe('可以投递，建议先优化简历');
     expect(calls.map((item) => item.task)).toEqual(['jd-summary', 'jd-fit', 'jd-fit']);
     expect(calls[1].prompt).not.toContain(longJd);
     expect(calls[1].prompt).toContain('jdSummary');
@@ -1084,14 +1088,15 @@ test('JD report generates interviews as smaller question tasks and falls back fa
   const valid = validInventoryReport();
   const jdFit = {
     source: 'real' as const,
-    verdict: '可冲' as const,
-    basis: '岗位要求与已有社群维护、用户反馈整理经历部分匹配。',
-    maxAdvantage: '已有真实用户触达和信息整理经历。',
-    maxGap: '缺少更完整的数据复盘和业务结果。',
-    ifInsist: '建议先投执行型运营实习，并补充真实数据复盘。',
+    deliveryDecision: '可以投递，建议先优化简历' as const,
+    deliveryReason: '岗位要求与已有社群维护、用户反馈整理经历部分匹配。',
+    strongestEvidence: '已有真实用户触达和信息整理经历。',
+    mainGap: '缺少更完整的数据复盘和业务结果。',
+    nextStepAdvice: '建议先投执行型运营实习，并补充真实数据复盘。',
     matrix: [
       {
         requirement: '社群维护与用户反馈整理',
+        matchLevel: '有一定匹配' as const,
         evidence: '用户材料中有社群维护和内容整理经历。',
         gap: '缺少规模、频次和复盘结果。',
         resumeWriting: '协助维护学生社群，整理用户反馈和活动提醒。',
@@ -1448,14 +1453,15 @@ test('compact report context summarizes inputs for split report modules without 
       }
     ],
     jdFit: {
-      verdict: '可冲',
-      basis: longJd,
-      maxAdvantage: '有社群维护经历。',
-      maxGap: '缺少数据复盘。',
-      ifInsist: '突出协助边界。',
+      deliveryDecision: '可以投递，建议先优化简历',
+      deliveryReason: longJd,
+      strongestEvidence: '有社群维护经历。',
+      mainGap: '缺少数据复盘。',
+      nextStepAdvice: '突出协助边界。',
       matrix: [
         {
           requirement: longJd,
+          matchLevel: '有一定匹配',
           evidence: '教育机构社群维护。',
           gap: '缺少规模。',
           resumeWriting: '协助维护社群。',
@@ -1485,14 +1491,15 @@ test('JD prompts explicitly constrain risky resume and interview language', () =
     assets: [{ id: 'internship', title: '实习', content: '协助维护学生社群。', notes: [] }],
     jdSummary: { role: '用户运营', requirements: ['社群运营'], keywords: ['用户'], riskNotes: ['需要数据依据'] },
     jdFit: {
-      verdict: '可冲',
-      basis: '部分匹配。',
-      maxAdvantage: '有社群维护经历。',
-      maxGap: '缺少数据依据。',
-      ifInsist: '突出协助边界。',
+      deliveryDecision: '可以投递，建议先优化简历',
+      deliveryReason: '部分匹配。',
+      strongestEvidence: '有社群维护经历。',
+      mainGap: '缺少数据依据。',
+      nextStepAdvice: '突出协助边界。',
       matrix: [
         {
           requirement: '社群运营',
+          matchLevel: '有一定匹配',
           evidence: '协助维护社群',
           gap: '缺少规模',
           resumeWriting: '协助维护社群',

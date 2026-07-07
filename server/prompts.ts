@@ -61,11 +61,14 @@ export function jdFitPrompt(payload: unknown) {
   return `任务：生成 JD 证据矩阵和投递判断。
 
 矩阵格式：
-岗位要求 → 用户证据 → 缺口 → 简历写法 → 面试风险
+岗位要求 → 匹配程度 → 用户证据 → 缺口 → 简历写法 → 面试风险
 
-判断类型只能是：主投、可冲、过渡、暂不建议主投。
+匹配程度只能是：匹配较强、有一定匹配、需要补充证据、当前证据不足。
+投递判断只能是：建议优先投递、可以投递，建议先优化简历、可以作为尝试方向、建议先补强后再重点投递。
 source 必须为 "real"。
-只基于 jdSummary、profile 和 assets，不要编造经历；缺证据必须写清缺口。
+输出字段必须使用 deliveryDecision、deliveryReason、strongestEvidence、mainGap、nextStepAdvice、matrix。
+每条 matrix 必须包含 requirement、matchLevel、evidence、gap、resumeWriting、interviewRisk。
+只基于 jdSummary、profile 和 assets，不要编造经历；缺证据必须写清缺口。匹配程度不是对用户能力的评价，只判断现有材料是否能证明岗位要求。
 JD 安全收口：简历写法优先用“协助、参与、支持、整理、跟进、配合、记录、复盘、尝试、约”；无明确证据时禁止使用“负责、主导、独立完成、显著提升、大幅增长、全流程、闭环、从 0 到 1、保证、必过、确保”。不确定处写“待核实/需补充依据”。
 
 输入：
@@ -123,13 +126,13 @@ ${JSON.stringify(payload)}`;
 有 JD 模式要求：
 - mode 必须为 "jd"。
 - isBasic 必须为 false；只有规则模板兜底生成的基础版报告才可以为 true。
-- 必须输出 JD 证据匹配 jdFit：JD 要求、用户已有证据、证据强度、缺口、如何补强。
+- 必须输出 JD 证据匹配 jdFit：JD 要求、匹配程度、用户已有证据、缺口、如何补强。
 - 至少 2 个用户自己可能没意识到的亮点 hiddenHighlights/highlights。
 - 至少 3 条简历改写建议 rewrites，只优化表达，不新增事实。
 - 模块名使用“面试追问与回答准备”，仅服务有 JD 模式。
 - 5 个目标岗位 HR 可能追问的问题 interviewQuestions/interviews。
 - 每个面试问题必须包含：HR 为什么可能会问、回答思路、占位式表达、注意边界；不输出可直接照抄的虚构完整答案。
-- 1 条明确投递判断：建议投递、可以投但需要调整简历、暂不建议主投、不建议投递；如使用主投/可冲/过渡/暂不建议主投，也必须解释原因。
+- 1 条明确投递判断，只能使用：建议优先投递、可以投递，建议先优化简历、可以作为尝试方向、建议先补强后再重点投递。
 - actionPlan 固定 7 天内、14 天内、30 天内，每个阶段至少 2 条。
 - 有 JD 简历改写每条包含 relatedExperience/originalIssue/capability/directVersion/versionAfterSupplement/usageReminder，并兼容填充 original/optimized/reason/jdRequirement/risk/interviewProbe；如果缺证据，标注“需补充依据”或“待核实”。
 - safetyNotes 必须提醒：不伪造、不编造、不承诺 offer、只基于真实经历。
@@ -199,13 +202,14 @@ function compactJdFit(value: unknown) {
   if (!isRecord(value)) return null;
   const matrix = Array.isArray(value.matrix) ? value.matrix.filter(isRecord).slice(0, 3) : [];
   return {
-    verdict: compactText(value.verdict, 20),
-    basis: compactText(value.basis, 140),
-    maxAdvantage: compactText(value.maxAdvantage, 120),
-    maxGap: compactText(value.maxGap, 120),
-    ifInsist: compactText(value.ifInsist, 120),
+    deliveryDecision: compactText(value.deliveryDecision || value.verdict, 40),
+    deliveryReason: compactText(value.deliveryReason || value.basis, 140),
+    strongestEvidence: compactText(value.strongestEvidence || value.maxAdvantage, 120),
+    mainGap: compactText(value.mainGap || value.maxGap, 120),
+    nextStepAdvice: compactText(value.nextStepAdvice || value.ifInsist, 120),
     matrix: matrix.map((row) => ({
       requirement: compactText(row.requirement, 120),
+      matchLevel: compactText(row.matchLevel, 40),
       evidence: compactText(row.evidence, 140),
       gap: compactText(row.gap, 100),
       resumeWriting: compactText(row.resumeWriting, 100),
@@ -285,8 +289,11 @@ ${common}`;
     case 'report-jd-fit-summary':
       return `任务：生成 jdFit。
 - 仅 JD 模式。
-- 输出 verdict/basis/maxAdvantage/maxGap/ifInsist。
-- matrix 至少 1 行：requirement/evidence/gap/resumeWriting/interviewRisk。
+- 输出 deliveryDecision/deliveryReason/strongestEvidence/mainGap/nextStepAdvice。
+- deliveryDecision 只能是：建议优先投递、可以投递，建议先优化简历、可以作为尝试方向、建议先补强后再重点投递。
+- matrix 至少 1 行：requirement/matchLevel/evidence/gap/resumeWriting/interviewRisk。
+- matchLevel 只能是：匹配较强、有一定匹配、需要补充证据、当前证据不足。
+- 匹配程度不是对用户能力评价，只看现有材料是否能证明岗位要求。
 - resumeWriting 保持协助/参与边界，无依据数据写待核实；禁止夸大成负责、主导、独立完成或承诺结果。
 
 ${common}`;

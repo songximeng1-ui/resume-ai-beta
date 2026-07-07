@@ -17,6 +17,8 @@ import type {
 
 const fieldStatuses = ['AI 已识别', '待用户确认', '用户已修改'] as const;
 const verdicts = ['主投', '可冲', '过渡', '暂不建议主投'] as const;
+const matchLevels = ['匹配较强', '有一定匹配', '需要补充证据', '当前证据不足'] as const;
+const deliveryDecisions = ['建议优先投递', '可以投递，建议先优化简历', '可以作为尝试方向', '建议先补强后再重点投递'] as const;
 const questionMethods = ['hr', 'tar', 'part', 'prep', 'custom'] as const;
 const factDimensions = ['task', 'action', 'result', 'reflection', 'scale', 'tool', 'risk'] as const;
 const reportModes = ['inventory', 'jd'] as const;
@@ -182,8 +184,16 @@ function validateMatrixRow(value: unknown, index: number): EvidenceMatrixRow {
   if (!isRecord(value)) {
     throw new Error(`matrix.${index} must be an object`);
   }
+  const fallbackMatchLevel = String(value.evidence || '').includes('当前证据不足') || String(value.gap || '').includes('缺少')
+    ? '需要补充证据'
+    : '有一定匹配';
+  const matchLevel = String(value.matchLevel || fallbackMatchLevel) as EvidenceMatrixRow['matchLevel'];
+  if (!matchLevels.includes(matchLevel)) {
+    throw new Error(`matrix.${index}.matchLevel must be one of the V0.4 match levels`);
+  }
   return {
     requirement: assertString(value.requirement, `matrix.${index}.requirement`),
+    matchLevel,
     evidence: assertString(value.evidence, `matrix.${index}.evidence`),
     gap: assertString(value.gap, `matrix.${index}.gap`),
     resumeWriting: assertString(value.resumeWriting, `matrix.${index}.resumeWriting`),
@@ -191,22 +201,40 @@ function validateMatrixRow(value: unknown, index: number): EvidenceMatrixRow {
   };
 }
 
+function mapLegacyVerdict(value: unknown): JdFitReport['deliveryDecision'] | null {
+  if (value === '主投') return '建议优先投递';
+  if (value === '可冲') return '可以投递，建议先优化简历';
+  if (value === '过渡') return '可以作为尝试方向';
+  if (value === '暂不建议主投') return '建议先补强后再重点投递';
+  return null;
+}
+
 export function validateJdFitReport(value: unknown): JdFitReport {
   if (!isRecord(value)) {
     throw new Error('JdFitReport must be an object');
   }
-  const verdict = assertString(value.verdict, 'verdict') as JdFitReport['verdict'];
-  if (!verdicts.includes(verdict)) {
-    throw new Error('verdict must be 主投, 可冲, 过渡, or 暂不建议主投');
+  const verdictCandidate = value.verdict;
+  const legacyVerdict =
+    typeof verdictCandidate === 'string' && verdicts.includes(verdictCandidate as (typeof verdicts)[number])
+      ? (verdictCandidate as (typeof verdicts)[number])
+      : undefined;
+  const deliveryDecision = String(value.deliveryDecision || mapLegacyVerdict(value.verdict) || '') as JdFitReport['deliveryDecision'];
+  if (!deliveryDecisions.includes(deliveryDecision)) {
+    throw new Error('deliveryDecision must be one of the V0.4 delivery decisions');
   }
   return {
     source: assertSource(value.source || 'real', 'source'),
-    verdict,
-    basis: assertString(value.basis, 'basis'),
-    maxAdvantage: assertString(value.maxAdvantage, 'maxAdvantage'),
-    maxGap: assertString(value.maxGap, 'maxGap'),
-    ifInsist: assertString(value.ifInsist, 'ifInsist'),
-    matrix: assertArray(value.matrix, 'matrix', validateMatrixRow)
+    deliveryDecision,
+    deliveryReason: String(value.deliveryReason || value.basis || ''),
+    strongestEvidence: String(value.strongestEvidence || value.maxAdvantage || ''),
+    mainGap: String(value.mainGap || value.maxGap || ''),
+    nextStepAdvice: String(value.nextStepAdvice || value.ifInsist || ''),
+    matrix: assertArray(value.matrix, 'matrix', validateMatrixRow),
+    verdict: legacyVerdict,
+    basis: value.basis ? String(value.basis) : undefined,
+    maxAdvantage: value.maxAdvantage ? String(value.maxAdvantage) : undefined,
+    maxGap: value.maxGap ? String(value.maxGap) : undefined,
+    ifInsist: value.ifInsist ? String(value.ifInsist) : undefined
   };
 }
 
@@ -550,9 +578,10 @@ const assetSchema = {
 const matrixRowSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['requirement', 'evidence', 'gap', 'resumeWriting', 'interviewRisk'],
+  required: ['requirement', 'matchLevel', 'evidence', 'gap', 'resumeWriting', 'interviewRisk'],
   properties: {
     requirement: stringSchema,
+    matchLevel: { enum: [...matchLevels] },
     evidence: stringSchema,
     gap: stringSchema,
     resumeWriting: stringSchema,
@@ -605,14 +634,14 @@ export const digQuestionsJsonSchema = {
 export const jdFitJsonSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['source', 'verdict', 'basis', 'maxAdvantage', 'maxGap', 'ifInsist', 'matrix'],
+  required: ['source', 'deliveryDecision', 'deliveryReason', 'strongestEvidence', 'mainGap', 'nextStepAdvice', 'matrix'],
   properties: {
     source: { enum: ['real'] },
-    verdict: { enum: [...verdicts] },
-    basis: stringSchema,
-    maxAdvantage: stringSchema,
-    maxGap: stringSchema,
-    ifInsist: stringSchema,
+    deliveryDecision: { enum: [...deliveryDecisions] },
+    deliveryReason: stringSchema,
+    strongestEvidence: stringSchema,
+    mainGap: stringSchema,
+    nextStepAdvice: stringSchema,
     matrix: { type: 'array', items: matrixRowSchema }
   }
 };

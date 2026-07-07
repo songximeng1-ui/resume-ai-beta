@@ -731,7 +731,7 @@ li {
 
 .matrix-row {
   display: grid;
-  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  grid-template-columns: repeat(6, minmax(130px, 1fr));
   gap: 1px;
   min-width: 780px;
   border: 1px solid #dfe5df;

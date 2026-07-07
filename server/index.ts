@@ -277,19 +277,25 @@ function demoJdFit(body: unknown): JdFitReport {
   const evidence = `${profile.internship} ${profile.project} ${profile.campus} ${profile.skills}`;
   const hasPractice = Boolean(profile.internship || profile.project || profile.campus);
   const hasData = /Excel|数据|问卷|复盘/i.test(evidence);
-  const verdict: JdFitReport['verdict'] = hasPractice && hasData ? '可冲' : hasPractice ? '过渡' : '暂不建议主投';
+  const deliveryDecision: JdFitReport['deliveryDecision'] =
+    hasPractice && hasData
+      ? '可以投递，建议先优化简历'
+      : hasPractice
+        ? '可以作为尝试方向'
+        : '建议先补强后再重点投递';
   const requirement = /社群|用户/.test(jdText) ? '用户运营、社群维护、用户反馈整理' : '目标岗位核心任务理解与稳定执行';
 
   return {
     source: 'demo',
-    verdict,
-    basis: `${verdict}：已有经历能对上部分岗位要求，但结果数据和岗位深度仍需要补强。`,
-    maxAdvantage: hasPractice ? '最大优势是已有真实实践材料，可以转译成基础岗位证据。' : '最大优势是仍有时间用小项目补足第一段可解释材料。',
-    maxGap: hasData ? '最大短板是缺少可核验的结果指标。' : '最大短板是缺少数据整理、复盘或真实业务反馈。',
-    ifInsist: '如果坚持投递，建议先投要求偏执行、助理、实习的岗位，并在简历里突出真实任务边界。',
+    deliveryDecision,
+    deliveryReason: '已有经历能对上部分岗位要求，但结果数据和岗位深度仍需要补强。',
+    strongestEvidence: hasPractice ? '已有真实实践材料，可以转译成基础岗位证据。' : '仍有时间用小项目补足第一段可解释材料。',
+    mainGap: hasData ? '缺少可核验的结果指标。' : '缺少数据整理、复盘或真实业务反馈。',
+    nextStepAdvice: '建议先投要求偏执行、助理、实习的岗位，并在简历里突出真实任务边界。',
     matrix: [
       {
         requirement,
+        matchLevel: hasPractice ? '有一定匹配' : '当前证据不足',
         evidence: hasPractice ? '用户提供的实习、项目或校园经历中已有可转译的执行任务。' : '当前材料中目标岗位证据不足。',
         gap: '任务存在，但规模、周期、结果或复盘结论仍需用户确认。',
         resumeWriting: '可写为“协助完成信息整理、用户触达和任务推进支持”，避免把参与写成负责。',

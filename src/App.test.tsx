@@ -176,14 +176,15 @@ function mockDigQuestions(asset?: AssetCard): DigQuestionSet {
 function mockJdFit(): JdFitReport {
   return {
     source: 'demo',
-    verdict: '可冲',
-    basis: '可冲：已有经历能对上部分岗位要求，但结果数据和岗位深度仍需要补强。',
-    maxAdvantage: '最大优势是已有社群/内容相关实践，可以转译成基础运营证据。',
-    maxGap: '最大短板是缺少可核验的结果指标。',
-    ifInsist: '如果坚持投递，建议先投要求偏执行、助理、实习的岗位。',
+    deliveryDecision: '可以投递，建议先优化简历',
+    deliveryReason: '已有经历能对上部分岗位要求，但结果数据和岗位深度仍需要补强。',
+    strongestEvidence: '已有社群/内容相关实践，可以转译成基础运营证据。',
+    mainGap: '缺少可核验的结果指标。',
+    nextStepAdvice: '建议先投要求偏执行、助理、实习的岗位，并补齐真实数据。',
     matrix: [
       {
         requirement: '用户运营、社群维护、用户反馈整理',
+        matchLevel: '有一定匹配',
         evidence: '教育机构新媒体运营实习中维护学生社群、配合活动提醒。',
         gap: '结果数据和用户规模需要确认。',
         resumeWriting: '可写为“协助维护学生社群，整理活动提醒和内容素材”。',
@@ -875,15 +876,16 @@ test('有 JD 模式输出证据矩阵和 V2 完整诊断报告', async () => {
 
   expect(screen.getByText('已生成 JD 证据矩阵，请先查看投递判断和主要缺口。')).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: '投递判断' })).toBeInTheDocument();
-  for (const label of ['理由', '最大优势', '最大缺口', '如果坚持投']) {
+  for (const label of ['判断依据', '最强证据', '主要缺口', '下一步建议']) {
     expect(screen.getByText(label)).toBeInTheDocument();
   }
   expect(screen.getByRole('heading', { name: 'JD 证据矩阵' })).toBeInTheDocument();
-  for (const header of ['岗位要求', '用户证据', '当前缺口', '简历写法', '面试风险']) {
+  for (const header of ['岗位要求', '匹配程度', '用户证据', '当前缺口', '简历写法', '面试风险']) {
     expect(screen.getByText(header)).toBeInTheDocument();
   }
   expect(screen.getAllByText(/不能把协助写成负责/).length).toBeGreaterThan(0);
-  expect(screen.getAllByText(/可冲|主投|过渡|暂不建议主投/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/可以投递，建议先优化简历|有一定匹配/).length).toBeGreaterThan(0);
+  expect(screen.getByTestId('app-root')).not.toHaveTextContent(/主投|可冲|暂不建议主投|如果坚持投/);
   expect(screen.getByTestId('app-root')).not.toHaveTextContent(/匹配度|%|保证 offer|保证进面|提高通过率/);
 
   await user.click(screen.getByRole('button', { name: /生成 V2 定制诊断报告/ }));
@@ -908,11 +910,11 @@ test('有 JD 模式输出证据矩阵和 V2 完整诊断报告', async () => {
     expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument();
   }
 
-  expect(screen.getByText(mockJdFit().verdict)).toBeInTheDocument();
-  expect(screen.getByText(mockJdFit().basis)).toBeInTheDocument();
-  expect(screen.getByText(mockJdFit().maxAdvantage)).toBeInTheDocument();
-  expect(screen.getByText(mockJdFit().maxGap)).toBeInTheDocument();
-  expect(screen.getByText(mockJdFit().ifInsist)).toBeInTheDocument();
+  expect(screen.getByText(mockJdFit().deliveryDecision)).toBeInTheDocument();
+  expect(screen.getByText(mockJdFit().deliveryReason)).toBeInTheDocument();
+  expect(screen.getByText(mockJdFit().strongestEvidence)).toBeInTheDocument();
+  expect(screen.getByText(mockJdFit().mainGap)).toBeInTheDocument();
+  expect(screen.getByText(mockJdFit().nextStepAdvice)).toBeInTheDocument();
   expect(screen.getAllByTestId('highlight-card').length).toBeGreaterThanOrEqual(2);
   expect(screen.getAllByTestId('rewrite-card').length).toBeGreaterThanOrEqual(2);
   expect(screen.getAllByRole('button', { name: '复制优化表达' }).length).toBeGreaterThanOrEqual(2);

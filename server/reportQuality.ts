@@ -266,10 +266,14 @@ export function sanitizeRiskyRewrite(rewrite: ResumeRewrite): ResumeRewrite {
 export function sanitizeRiskyJdFit(jdFit: JdFitReport): JdFitReport {
   return {
     ...jdFit,
-    basis: sanitizeClaimText(jdFit.basis),
-    maxAdvantage: sanitizeClaimText(jdFit.maxAdvantage),
-    maxGap: sanitizeClaimText(jdFit.maxGap),
-    ifInsist: sanitizeClaimText(jdFit.ifInsist),
+    deliveryReason: sanitizeClaimText(jdFit.deliveryReason),
+    strongestEvidence: sanitizeClaimText(jdFit.strongestEvidence),
+    mainGap: sanitizeClaimText(jdFit.mainGap),
+    nextStepAdvice: sanitizeClaimText(jdFit.nextStepAdvice),
+    basis: jdFit.basis ? sanitizeClaimText(jdFit.basis) : undefined,
+    maxAdvantage: jdFit.maxAdvantage ? sanitizeClaimText(jdFit.maxAdvantage) : undefined,
+    maxGap: jdFit.maxGap ? sanitizeClaimText(jdFit.maxGap) : undefined,
+    ifInsist: jdFit.ifInsist ? sanitizeClaimText(jdFit.ifInsist) : undefined,
     matrix: jdFit.matrix.map((row) => ({
       ...row,
       evidence: sanitizeClaimText(row.evidence),
@@ -386,7 +390,7 @@ function checkJdReport(report: DiagnosisReport, blockers: string[], warnings: st
     return;
   }
 
-  if (!isNonEmptyText(report.jdFit.verdict) || !isNonEmptyText(report.jdFit.basis)) {
+  if (!isNonEmptyText(report.jdFit.deliveryDecision) || !isNonEmptyText(report.jdFit.deliveryReason)) {
     blockers.push('有 JD 报告必须包含明确投递判断和理由。');
   }
 
@@ -397,13 +401,14 @@ function checkJdReport(report: DiagnosisReport, blockers: string[], warnings: st
   const matrixIsConcrete = report.jdFit.matrix.some(
     (row) =>
       hasUsefulText(row.requirement) &&
+      isNonEmptyText(row.matchLevel) &&
       hasUsefulText(row.evidence) &&
       hasUsefulText(row.gap) &&
       hasUsefulText(row.resumeWriting) &&
       hasUsefulText(row.interviewRisk)
   );
   if (!matrixIsConcrete) {
-    blockers.push('JD 证据矩阵必须同时包含岗位要求、用户证据、缺口、简历写法和面试风险。');
+    blockers.push('JD 证据矩阵必须同时包含岗位要求、匹配程度、用户证据、缺口、简历写法和面试风险。');
   }
 
   if (!report.interviews || report.interviews.length < 5) {

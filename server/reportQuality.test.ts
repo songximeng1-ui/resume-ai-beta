@@ -108,14 +108,15 @@ function jdReport(overrides: Partial<DiagnosisReport> = {}): DiagnosisReport {
     ],
     jdFit: {
       source: 'demo',
-      verdict: '可冲',
-      basis: '用户经历能覆盖社群维护、内容整理和反馈汇总，但缺少独立活动策划案例。',
-      maxAdvantage: '有教育机构用户触达和社群维护经历。',
-      maxGap: '缺少活动转化、复盘指标或独立负责案例。',
-      ifInsist: '简历先突出协助维护、反馈整理和内容支持，并准备好边界说明。',
+      deliveryDecision: '可以投递，建议先优化简历',
+      deliveryReason: '用户经历能覆盖社群维护、内容整理和反馈汇总，但缺少独立活动策划案例。',
+      strongestEvidence: '有教育机构用户触达和社群维护经历。',
+      mainGap: '缺少活动转化、复盘指标或独立负责案例。',
+      nextStepAdvice: '简历先突出协助维护、反馈整理和内容支持，并准备好边界说明。',
       matrix: [
         {
           requirement: '社群维护与用户沟通',
+          matchLevel: '有一定匹配',
           evidence: '教育机构实习中协助维护 3 个学生社群并发布活动通知。',
           gap: '社群规模、频率和反馈结果仍需补充依据。',
           resumeWriting: '可写为协助维护学生社群并整理活动反馈。',
@@ -412,10 +413,10 @@ describe('report quality checks', () => {
       ],
       jdFit: {
         ...jdReport().jdFit!,
-        basis: '保证匹配岗位。',
-        maxAdvantage: '主导社群全流程。',
-        maxGap: '缺少依据也可以写。',
-        ifInsist: '建议写成主导。',
+        deliveryReason: '保证匹配岗位。',
+        strongestEvidence: '主导社群全流程。',
+        mainGap: '缺少依据也可以写。',
+        nextStepAdvice: '建议写成主导。',
         matrix: [
           {
             ...jdReport().jdFit!.matrix[0],

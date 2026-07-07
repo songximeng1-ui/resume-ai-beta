@@ -1619,16 +1619,17 @@ function EvidenceMatrix({ report, children, showVerdict = true }: { report: JdFi
       {showVerdict ? (
         <article className="verdict-panel">
           <h2>投递判断</h2>
-          <strong>{report.verdict}</strong>
-          <p><span>理由</span>{report.basis}</p>
-          <p><span>最大优势</span>{report.maxAdvantage}</p>
-          <p><span>最大缺口</span>{report.maxGap}</p>
-          <p><span>如果坚持投</span>{report.ifInsist}</p>
+          <strong>{report.deliveryDecision}</strong>
+          <p><span>判断依据</span>{report.deliveryReason}</p>
+          <p><span>最强证据</span>{report.strongestEvidence}</p>
+          <p><span>主要缺口</span>{report.mainGap}</p>
+          <p><span>下一步建议</span>{report.nextStepAdvice}</p>
         </article>
       ) : null}
       <div className="matrix-table">
         <div className="matrix-row matrix-header">
           <strong>岗位要求</strong>
+          <strong>匹配程度</strong>
           <strong>用户证据</strong>
           <strong>当前缺口</strong>
           <strong>简历写法</strong>
@@ -1637,6 +1638,7 @@ function EvidenceMatrix({ report, children, showVerdict = true }: { report: JdFi
         {report.matrix.map((row) => (
           <div className="matrix-row" key={`${row.requirement}-${row.evidence}`}>
             <p>{row.requirement}</p>
+            <p>{row.matchLevel}</p>
             <p>{row.evidence}</p>
             <p>{row.gap}</p>
             <p>{row.resumeWriting}</p>
@@ -2013,11 +2015,11 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         <section className="result-block">
           <h2>投递判断摘要</h2>
           <article className="verdict-panel">
-            <strong>{jdFit.verdict}</strong>
-            <p><span>理由</span>{jdFit.basis}</p>
-            <p><span>最大优势</span>{jdFit.maxAdvantage}</p>
-            <p><span>最大缺口</span>{jdFit.maxGap}</p>
-            <p><span>如果坚持投</span>{jdFit.ifInsist}</p>
+            <strong>{jdFit.deliveryDecision}</strong>
+            <p><span>判断依据</span>{jdFit.deliveryReason}</p>
+            <p><span>最强证据</span>{jdFit.strongestEvidence}</p>
+            <p><span>主要缺口</span>{jdFit.mainGap}</p>
+            <p><span>下一步建议</span>{jdFit.nextStepAdvice}</p>
           </article>
         </section>
 
@@ -2352,11 +2354,11 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         <h2>明确投递判断</h2>
         <article className="verdict-panel">
           <span>建议</span>
-          <strong>{report.jdFit?.verdict || '待判断'}</strong>
-          <p>{report.jdFit?.basis || '当前报告未生成 JD 投递判断。'}</p>
-          <p>{report.jdFit?.maxAdvantage || ''}</p>
-          <p>{report.jdFit?.maxGap || ''}</p>
-          <p>{report.jdFit?.ifInsist || ''}</p>
+          <strong>{report.jdFit?.deliveryDecision || '待判断'}</strong>
+          <p>{report.jdFit?.deliveryReason || '当前报告未生成 JD 投递判断。'}</p>
+          <p>{report.jdFit?.strongestEvidence || ''}</p>
+          <p>{report.jdFit?.mainGap || ''}</p>
+          <p>{report.jdFit?.nextStepAdvice || ''}</p>
         </article>
       </section>
 

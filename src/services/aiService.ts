@@ -243,6 +243,12 @@ function buildEvidenceMatrix(profile: Profile, assets: AssetCard[], jdText: stri
 
     return {
       requirement,
+      matchLevel:
+        (isUser && includesAny(evidence, ['社群', '用户', '维护'])) ||
+        (isData && includesAny(evidence, ['Excel', 'excel', '问卷', '数据', '整理'])) ||
+        (isContent && includesAny(evidence, ['公众号', '推文', '内容', '剪映']))
+          ? '有一定匹配'
+          : '需要补充证据',
       evidence: matchedAsset,
       gap: isData
         ? '目前缺少可核验的指标变化或复盘结论，需要补数据来源和分析过程。'
@@ -464,7 +470,7 @@ function buildActionPlan(stage: Stage, profile: Profile, jdFit?: JdFitReport): A
       ),
       actionPlanItem(
         '30 天内',
-        jdFit?.verdict === '主投'
+        jdFit?.deliveryDecision === '建议优先投递'
           ? '小批量投递 15-20 个岗位，记录 JD 要求、投递版本、反馈和面试问题。'
           : '优先补一段与岗位相关的校内项目、短期实践或作品集，再小批量试投要求较贴近的岗位。',
         '用真实反馈验证当前简历版本和岗位方向。',
@@ -584,15 +590,20 @@ class DemoCareerService implements AiCareerService {
     const hasInternship = Boolean(clean(input.profile.internship));
     const hasProject = Boolean(clean(input.profile.project));
     const hasData = includesAny(source, ['Excel', 'excel', '数据', '问卷']);
-    const verdict: JdFitReport['verdict'] = hasInternship && hasProject && hasData ? '可冲' : hasProject ? '过渡' : '暂不建议主投';
+    const deliveryDecision: JdFitReport['deliveryDecision'] =
+      hasInternship && hasProject && hasData
+        ? '可以投递，建议先优化简历'
+        : hasProject
+          ? '可以作为尝试方向'
+          : '建议先补强后再重点投递';
 
     return {
       source: 'demo',
-      verdict,
-      basis: `${verdict}：已有经历能对上部分岗位要求，但结果数据和岗位深度仍需要补强。`,
-      maxAdvantage: hasInternship ? '最大优势是已有社群/内容相关实践，可以转译成基础运营证据。' : '最大优势是已有课程项目和学习材料，可作为第一段可解释经历。',
-      maxGap: hasData ? '最大短板是缺少可核验的结果指标。' : '最大短板是缺少数据整理、复盘或真实业务反馈。',
-      ifInsist: '如果坚持投递，建议先投要求偏执行、助理、实习的岗位，并在简历里突出真实任务边界，不写无法解释的数据。',
+      deliveryDecision,
+      deliveryReason: '已有经历能对上部分岗位要求，但结果数据和岗位深度仍需要补强。',
+      strongestEvidence: hasInternship ? '已有社群/内容相关实践，可以转译成基础运营证据。' : '已有课程项目和学习材料，可作为第一段可解释经历。',
+      mainGap: hasData ? '缺少可核验的结果指标。' : '缺少数据整理、复盘或真实业务反馈。',
+      nextStepAdvice: '建议先投要求偏执行、助理、实习的岗位，并在简历里突出真实任务边界，不写无法解释的数据。',
       matrix
     };
   }

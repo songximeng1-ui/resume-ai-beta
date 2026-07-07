@@ -156,15 +156,16 @@ function buildJdFit(assets: ConfirmedAsset[], jdText: string): JdFitReport {
   const requirements = extractRequirements(jdText);
   return {
     source: 'real',
-    verdict: '过渡',
-    basis: '基础版只做保守判断：当前材料能覆盖部分执行、整理或协作要求，但关键细节仍需要用户补充核实。',
-    maxAdvantage: `已有可引用证据：${assetAt(assets, 0).title}。`,
-    maxGap: '岗位要求中的结果、规模、工具熟练度或行业经验，如未在已确认材料中出现，应标注为当前证据不足。',
-    ifInsist: '可以作为尝试方向，但建议先优化简历表达，并补充能被追问的事实细节。',
+    deliveryDecision: '可以作为尝试方向',
+    deliveryReason: '基础版只做保守判断：当前材料能覆盖部分执行、整理或协作要求，但关键细节仍需要用户补充核实。',
+    strongestEvidence: `已有可引用证据：${assetAt(assets, 0).title}。`,
+    mainGap: '岗位要求中的结果、规模、工具熟练度或行业经验，如未在已确认材料中出现，应标注为当前证据不足。',
+    nextStepAdvice: '可以作为尝试方向，但建议先优化简历表达，并补充能被追问的事实细节。',
     matrix: requirements.map((requirement, index) => {
       const asset = assetAt(assets, index);
       return {
         requirement,
+        matchLevel: asset.content ? '需要补充证据' : '当前证据不足',
         evidence: `${asset.title}：${asset.content}`,
         gap: '需要核实本人分工、对象、周期、工具和可展示交付物。',
         resumeWriting: `可保守写为：参与${asset.title}，围绕该要求完成相关支持工作。`,
