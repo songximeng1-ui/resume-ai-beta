@@ -211,7 +211,7 @@ function buildActionPlan(mode: Mode, assets: ConfirmedAsset[]): ActionPlanItem[]
   const main = assetAt(assets, 0);
   const modeTarget = mode === 'jd' ? '目标岗位 JD' : '可探索岗位方向';
   return [
-    action('7 天内', `整理${main.title}的事实清单。`, '先确保后续分析只使用真实经历。', '按任务、对象、工具、周期、本人动作、交付物六列填写。', '完成 1 份事实清单。', '为简历改写和面试回答提供证据。'),
+    action('7 天内', `整理${main.title}的事实清单。`, '先让后续分析尽量只使用真实经历。', '按任务、对象、工具、周期、本人动作、交付物六列填写。', '完成 1 份事实清单。', '为简历改写和面试回答提供证据。'),
     action('7 天内', mode === 'jd' ? '逐条标注目标岗位要求。' : '搜索 3 个真实岗位 JD。', '用真实岗位要求校验方向，不凭感觉判断。', `把每条要求和${modeTarget}中的关键词写成对照表。`, '完成 1 份岗位要求对照表。', '判断当前材料能证明什么、还缺什么。'),
     action('14 天内', '补充 2 段已确认经历的细节。', '让经历经得起 HR 追问。', '每段补齐对象、本人动作、工具和可展示材料。', '完成 2 段经历复盘。', '提升简历表达的可信度。'),
     action('14 天内', mode === 'jd' ? '针对证据不足要求补一个小材料。' : '为优先方向准备 1 个作品或过程材料。', '补足当前最影响判断的证据。', '选择表格、截图、链接或复盘说明，并标明本人边界。', '形成 1 个可展示材料。', '投递前减少空泛表达。'),
@@ -245,7 +245,7 @@ export function buildBasicReport(input: BasicReportInput): DiagnosisReport {
     mode,
     source: 'real',
     isBasic: true,
-    summary: `${BASIC_REPORT_NOTICE}\n\n本版本只做保守整理，优先保证不空、不乱、不假、可参考、能行动。`,
+    summary: `${BASIC_REPORT_NOTICE}\n\n本版本只做保守整理，优先减少空泛、混乱和无依据内容，让报告可参考、能行动。`,
     highlights: buildHighlights(assets, mode),
     rewrites: buildRewrites(assets, mode),
     directionOptions: mode === 'inventory' ? buildDirections(assets) : undefined,
