@@ -1,5 +1,25 @@
 # V0.4 版本记录
 
+## 2026-07-08：无 JD 完整报告真实 smoke 复测
+
+改动类型：真实 AI 验证、文档。
+
+本次按单次无 JD 完整链路复测，不跑有 JD 流程，不做 2+2 大范围重试：
+
+- `/api/ai/structure-resume`：成功，用时 25.98 秒。
+- `/api/ai/dig-questions`：成功，用时 14.69 秒，生成 2 个动态追问。
+- `/api/ai/report`：成功返回，用时 108.31 秒。
+- 总用时 148.98 秒。
+- 返回报告为无 JD 模式，包含 2 个方向建议、3 条改写建议、6 条行动计划，未输出 JD 矩阵或 JD 面试题。
+- 上一轮的质量误判已消失：`quality.passed=true`、`score=100`、`safetyFindings=[]`。
+
+仍未完成：
+
+- 返回结果仍为 `isBasic=true` 基础版，说明完整深度模块虽然完成到 `assembledReport`，但组装或最终校验阶段仍触发了混合基础版兜底。
+- 当前 `reportTask` 在兜底后会被标记为 `completed`，且 `technicalDetail` 被清空，导致真实失败点不够可见；下一步应优先定位 assembled report 失败原因，并保留可诊断的失败模块信息。
+
+本次未改代码；README、`.env.example` 和提示词文档暂无必要更新。
+
 ## 2026-07-08：无 JD 报告证据引用质量误判修复
 
 改动类型：后端接口、测试、文档。
