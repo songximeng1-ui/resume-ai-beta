@@ -241,6 +241,27 @@ describe('report quality checks', () => {
     expect(result.safetyFindings).toEqual([]);
   });
 
+  test('简历改写问题说明引用风险词时不误判为夸大建议', () => {
+    const result = validateReportQuality(
+      jdReport({
+        rewrites: [
+          jdReport().rewrites[0],
+          jdReport().rewrites[1],
+          {
+            ...jdReport().rewrites[2],
+            originalIssue: '原文使用独立完成和显著提升，表达过强。',
+            optimized: '参与内容素材整理和基础排版，按真实材料补充作品截图、周期和本人边界。'
+          }
+        ]
+      }),
+      'jd'
+    );
+
+    expect(result.passed).toBe(true);
+    expect(result.blockers).toEqual([]);
+    expect(result.safetyFindings).toEqual([]);
+  });
+
   test('缺少关键 JD 输出时失败', () => {
     const result = validateReportQuality(jdReport({ interviews: [] }), 'jd');
 

@@ -1,5 +1,33 @@
 # V0.4 版本记录
 
+## 2026-07-08：有 JD 完整报告 smoke 诊断与问题说明误判修复
+
+改动类型：后端质量规则、测试、真实 AI 验证、文档。
+
+本次跑 1 次有 JD 完整链路 smoke：
+
+- `/api/ai/structure-resume`：成功，用时 15.47 秒。
+- `/api/ai/jd-fit`：成功，用时 22.78 秒，投递判断为“建议优先投递”，生成 6 条 JD 证据矩阵。
+- `/api/ai/dig-questions`：成功，用时 5.80 秒，生成 3 个动态追问。
+- `/api/ai/report`：成功返回，用时 109.84 秒。
+- 总用时 153.89 秒。
+- JD 已被读取并绑定到匹配判断、证据矩阵和动态追问中；没有复现“未提供可读 JD 原文”的问题。
+- 报告返回基础版：`isBasic=true`，诊断显示 `failedModule=assembledReport`，原因是 `rewrites[2].originalIssue: exaggeration`。
+
+修复：
+
+- `originalIssue` 是“改写问题说明”字段，可能引用原文中的“独立完成、显著提升”等风险词来说明问题，不应等同于 AI 建议正文。
+- 质量规则已将 `originalIssue` 纳入证据/问题说明类路径：非指导性的夸大词引用不触发 blocker；`optimized`、`directVersion` 等真正改写正文仍保持严格拦截。
+
+验证结果：
+
+- `npm.cmd test -- server/reportQuality.test.ts -t "问题说明"`：通过，1 个目标测试通过。
+- `npm.cmd test -- server/reportQuality.test.ts`：通过，1 个测试文件、16 个测试通过。
+- `npm.cmd test`：通过，10 个测试文件、126 个测试通过。
+- `npm.cmd run build`：通过。
+
+README、`.env.example` 和提示词文档暂无必要更新。
+
 ## 2026-07-08：无 JD 完整报告真实 smoke 通过
 
 改动类型：真实 AI 验证、文档。

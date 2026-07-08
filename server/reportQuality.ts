@@ -116,7 +116,7 @@ function isBoundaryRiskSentence(sentence: string): boolean {
 }
 
 function isEvidenceQuotePath(path: string): boolean {
-  return /(?:^|\.)(sourceExperience|relatedExperience|original|evidence)$/.test(path);
+  return /(?:^|\.)(sourceExperience|relatedExperience|original|originalIssue|evidence)$/.test(path);
 }
 
 function isUnsafeInstructionSentence(sentence: string): boolean {
