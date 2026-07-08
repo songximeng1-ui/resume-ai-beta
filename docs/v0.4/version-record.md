@@ -1,5 +1,24 @@
 # V0.4 版本记录
 
+## 2026-07-08：Provider Adapter 与 Kimi 摘录链路
+
+改动类型：智能体工作流、后端接口、数据结构、提示词、测试、文档。
+
+本次完成 V0.4 真实模型接入前后的工程边界：
+
+- 新增 role-based provider adapter，DeepSeek/Qwen/Kimi 可通过独立环境变量配置。
+- primary/backup 继续保持同一份完整任务输入，不续写半成品。
+- Kimi 仅在长文本触发条件下做结构化摘录，并进入 AI Task Package 作为证据整理。
+- Kimi 失败不阻断报告生成。
+- 用户端继续隐藏 provider、模型名、token、成本、schema 和原始错误细节。
+
+验证结果：
+
+- `npm test`：通过，9 个测试文件、113 个测试通过。
+- `npm run build`：通过。
+
+本次新增 provider 环境变量，已更新 `.env.example`；README 启动方式未变化，暂不需要更新。
+
 ## 2026-07-07：多模型角色编排抽象层
 
 改动类型：智能体工作流、后端接口、数据结构、测试、文档。
