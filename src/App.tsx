@@ -207,7 +207,7 @@ function BetaAccessPage({ onAuthorized }: { onAuthorized: (betaAccessCode: strin
   return (
     <section className="flow-section beta-access-section">
       <div className="intro">
-        <p className="eyebrow">求职地图 V0.3 私密内测</p>
+        <p className="eyebrow">求职地图 V0.4 私密内测</p>
         <h1>Web 私密内测访问</h1>
         <p className="lead">这是小范围体验入口，请使用邀请获得的访问码进入。</p>
       </div>
@@ -671,7 +671,7 @@ function App() {
     <main className="app-shell" data-testid="app-root">
       <header className="topbar">
         <div>
-          <p className="eyebrow">求职地图 V0.3</p>
+          <p className="eyebrow">求职地图 V0.4</p>
           <span>{progressLabel}</span>
         </div>
         {step !== 'start' ? (
@@ -1596,7 +1596,7 @@ function MatchPage({
       {jdFit ? (
         <EvidenceMatrix report={jdFit}>
           <button className="primary-button wide-action" type="button" onClick={onReport} disabled={isBusy}>
-            {isBusy ? 'AI 正在生成报告...' : '生成 V2 定制诊断报告'}
+            {isBusy ? 'AI 正在生成报告...' : '生成 V0.4 定制诊断报告'}
           </button>
           <AiTaskNotice estimate={getAiWaitEstimate('report')} loadingMessage={reportLoadingMessage} />
           <ReportTaskProgress task={reportTask} isBusy={isBusy} onContinue={onReport} />
@@ -2290,7 +2290,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
   return (
     <section className="flow-section result-section">
       <div className="section-heading">
-        <p className="eyebrow">V2 AI 求职诊断</p>
+        <p className="eyebrow">V0.4 AI 求职诊断</p>
         <h1>诊断报告</h1>
         <p>报告只基于已确认真实经历生成。复制到第三方平台后，隐私保护由第三方平台规则决定。</p>
         <SourceBadge source={report.source} />
