@@ -399,6 +399,8 @@ test('dig questions use V0.4 hidden internal metadata and natural user questions
 
   expect(validateDigQuestionSet(payload)).toMatchObject(payload);
   expect(digQuestionsJsonSchema.required).toEqual(expect.arrayContaining(Object.keys(digQuestionsJsonSchema.properties)));
+  const metadataSchema = digQuestionsJsonSchema.properties.internalMetadata.items;
+  expect(metadataSchema.required).toEqual(expect.arrayContaining(Object.keys(metadataSchema.properties)));
   expect(() =>
     validateDigQuestionSet({
       source: 'real',

@@ -25,7 +25,7 @@ export interface ProviderRoleConfig {
   proxyUrl: string;
 }
 
-const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 function readEnv(name: string) {
   return process.env[name]?.trim() || '';

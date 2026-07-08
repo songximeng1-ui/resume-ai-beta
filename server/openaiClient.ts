@@ -7,6 +7,7 @@ import type { AiUsage } from '../src/types.ts';
 
 const DEFAULT_SMALL_MODEL = 'gpt-5.4-mini';
 const DEFAULT_REPORT_MODEL = 'gpt-5.4';
+const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60_000;
 
 export interface OpenAiConfig {
   apiKey: string;
@@ -14,6 +15,7 @@ export interface OpenAiConfig {
   smallModel: string;
   reportModel: string;
   proxyUrl: string;
+  timeoutMs: number;
 }
 
 export interface JsonCallOptions<T = unknown> {
@@ -80,12 +82,14 @@ export class AiServiceError extends Error implements ClassifiedAiError {
 
 export function getOpenAiConfig(): OpenAiConfig {
   const apiKey = process.env.OPENAI_API_KEY?.trim() || '';
+  const timeoutMs = Number(process.env.AI_REQUEST_TIMEOUT_MS);
   return {
     apiKey,
     configured: Boolean(apiKey),
     smallModel: process.env.OPENAI_MODEL_SMALL?.trim() || DEFAULT_SMALL_MODEL,
     reportModel: process.env.OPENAI_MODEL_REPORT?.trim() || DEFAULT_REPORT_MODEL,
-    proxyUrl: process.env.OPENAI_PROXY_URL?.trim() || process.env.HTTPS_PROXY?.trim() || process.env.HTTP_PROXY?.trim() || ''
+    proxyUrl: process.env.OPENAI_PROXY_URL?.trim() || process.env.HTTPS_PROXY?.trim() || process.env.HTTP_PROXY?.trim() || '',
+    timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_AI_REQUEST_TIMEOUT_MS
   };
 }
 
@@ -294,7 +298,7 @@ function extractOutputText(response: OpenAIResponse) {
 }
 
 async function callModelJson<T>(options: JsonCallOptions<T>): Promise<AiTaskResult<T>> {
-  const { apiKey, proxyUrl } = getOpenAiConfig();
+  const { apiKey, proxyUrl, timeoutMs } = getOpenAiConfig();
   if (!apiKey) {
     throw new AiServiceError({
       code: 'config_missing',
@@ -309,7 +313,7 @@ async function callModelJson<T>(options: JsonCallOptions<T>): Promise<AiTaskResu
       const proxyAgent = proxyUrl ? new ProxyAgent(proxyUrl) : null;
       const client = new OpenAI({
         apiKey,
-        timeout: 120_000,
+        timeout: timeoutMs,
         fetch: proxyAgent
           ? ((input, init) => undiciFetch(input as never, { ...(init as object), dispatcher: proxyAgent } as never) as unknown as Promise<Response>)
           : undefined

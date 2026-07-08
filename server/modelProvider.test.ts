@@ -66,6 +66,18 @@ test('resolves role-specific provider config without exposing secrets', async ()
   });
 });
 
+test('provider role config defaults request timeout to 60 seconds', async () => {
+  const { getProviderRoleConfig } = await import('./modelProvider.ts');
+  process.env.AI_PRIMARY_PROVIDER = 'deepseek';
+  process.env.AI_PRIMARY_API_KEY = 'sk-deepseek-secret';
+  process.env.AI_PRIMARY_BASE_URL = 'https://api.deepseek.example/v1';
+  process.env.AI_PRIMARY_MODEL = 'deepseek-chat';
+
+  expect(getProviderRoleConfig('primary')).toMatchObject({
+    timeoutMs: 60_000
+  });
+});
+
 test('falls back to current OpenAI-compatible development config', async () => {
   const { getProviderRoleConfig } = await import('./modelProvider.ts');
   process.env.OPENAI_API_KEY = 'sk-openai-dev';

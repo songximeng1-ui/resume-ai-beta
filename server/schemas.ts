@@ -685,7 +685,7 @@ export const digQuestionsJsonSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['questionId', 'relatedAssetId', 'method', 'factDimensions', 'internalWhy'],
+        required: ['questionId', 'relatedAssetId', 'relatedJdRequirementId', 'method', 'factDimensions', 'internalWhy'],
         properties: {
           questionId: stringSchema,
           relatedAssetId: stringSchema,

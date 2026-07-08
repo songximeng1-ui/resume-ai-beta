@@ -1,11 +1,20 @@
-import { expect, test, vi } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 import {
   buildAiUsage,
   classifyAiError,
+  getOpenAiConfig,
   redactSensitiveText,
   runWithRetry,
   toClientAiError
 } from './openaiClient.ts';
+
+const envKeys = ['AI_REQUEST_TIMEOUT_MS', 'OPENAI_API_KEY', 'OPENAI_MODEL_SMALL', 'OPENAI_MODEL_REPORT', 'OPENAI_PROXY_URL'];
+
+afterEach(() => {
+  for (const key of envKeys) {
+    delete process.env[key];
+  }
+});
 
 test('redactSensitiveText removes API keys and limits long user content', () => {
   const raw = `Bad key sk-test_1234567890abcdef and resume ${'A'.repeat(1200)}`;
@@ -43,6 +52,29 @@ test('runWithRetry retries retryable AI errors once and preserves the final clas
 
   await expect(runWithRetry(operation, { task: 'report', model: 'gpt-5.4', maxAttempts: 2, delayMs: 0 })).resolves.toBe('ok');
   expect(operation).toHaveBeenCalledTimes(2);
+});
+
+test('runWithRetry defaults to one retry for retryable AI errors', async () => {
+  const operation = vi.fn().mockRejectedValue(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }));
+
+  await expect(runWithRetry(operation, { task: 'report', model: 'gpt-5.4', delayMs: 0 })).rejects.toMatchObject({
+    code: 'timeout',
+    retryable: true,
+    attempts: 2
+  });
+  expect(operation).toHaveBeenCalledTimes(2);
+});
+
+test('getOpenAiConfig defaults request timeout to 60 seconds and allows env override', () => {
+  expect(getOpenAiConfig()).toMatchObject({
+    timeoutMs: 60_000
+  });
+
+  process.env.AI_REQUEST_TIMEOUT_MS = '45000';
+
+  expect(getOpenAiConfig()).toMatchObject({
+    timeoutMs: 45_000
+  });
 });
 
 test('runWithRetry does not retry non-retryable AI errors', async () => {

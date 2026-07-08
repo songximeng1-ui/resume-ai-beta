@@ -861,7 +861,7 @@ async function callReportModule<T>(
   };
 
   if (options.modelTier === 'small') {
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
         const result = await callTier('small', useRepairPrompt);
         return {
@@ -872,11 +872,11 @@ async function callReportModule<T>(
       } catch (error) {
         lastError = error;
         const classified = classifyAiError(error);
-        if (classified.code === 'schema_validation' && !useRepairPrompt && attempt < 3) {
+        if (classified.code === 'schema_validation' && !useRepairPrompt && attempt < 2) {
           useRepairPrompt = true;
           continue;
         }
-        if (!classified.retryable || attempt >= 3) {
+        if (!classified.retryable || attempt >= 2) {
           break;
         }
       }
@@ -1551,7 +1551,7 @@ async function runJsonTaskWithRetry<T>(
   reqBody: unknown,
   call: (options: JsonCallOptions<T>) => Promise<AiRuntimeResult<T>>,
   options: Omit<JsonCallOptions<T>, 'prompt'>,
-  maxAttempts = 3
+  maxAttempts = 2
 ) {
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {

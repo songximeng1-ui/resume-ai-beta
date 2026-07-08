@@ -1,5 +1,27 @@
 # V0.4 版本记录
 
+## 2026-07-08：真实 AI smoke 排查模式收口
+
+改动类型：后端接口、测试、环境变量示例、文档。
+
+本次从完整 2+2 smoke test 切换为排查模式，只验证无 JD 流程到“动态追问生成成功”为止：
+
+- OpenAI SDK 请求超时改为默认 60 秒，并继续支持 `AI_REQUEST_TIMEOUT_MS` 覆盖。
+- 多 provider 的真实 AI 请求默认超时同步为 60 秒。
+- 默认 AI retry 收敛为最多 2 次请求，即原始请求 + 1 次 retry。
+- 分模块报告调用中的额外小模型重试循环同步收敛为最多 2 次请求。
+- 修复 `dig_questions` strict response schema：`internalMetadata.items.required` 现在覆盖全部 properties，避免 OpenAI strict schema 400。
+- `.env.example` 已将 `AI_REQUEST_TIMEOUT_MS` 示例值同步为 `60000`。
+
+验证结果：
+
+- `npm.cmd test -- server/openaiClient.test.ts server/modelProvider.test.ts server/index.test.ts`：通过，3 个测试文件、56 个测试通过。
+- `npm.cmd test`：通过，10 个测试文件、124 个测试通过。
+- `npm.cmd run build`：通过。
+- 真实 smoke 仅跑 1 次无 JD 到动态追问：`/api/ai/structure-resume` 用时 13.82 秒，`/api/ai/dig-questions` 用时 16.46 秒，总用时 30.28 秒；动态追问生成成功，未调用完整报告接口，未调用有 JD 流程。
+
+README 暂无必要更新；提示词文档无需更新。
+
 ## 2026-07-08：V0.4 验收清单状态同步
 
 改动类型：文档、测试交接。
