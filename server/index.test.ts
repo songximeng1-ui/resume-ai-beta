@@ -476,6 +476,29 @@ test('status hides configured model details from browser clients', async () => {
   }
 });
 
+test('status accepts dedicated primary and backup provider configuration without exposing details', async () => {
+  delete process.env.OPENAI_API_KEY;
+  process.env.AI_PRIMARY_API_KEY = 'deepseek-key';
+  process.env.AI_PRIMARY_MODEL = 'deepseek-chat';
+  process.env.AI_BACKUP_API_KEY = 'qwen-key';
+  process.env.AI_BACKUP_MODEL = 'qwen-plus';
+
+  const server = await withServer();
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/status`);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      configured: true,
+      mode: 'real'
+    });
+    expect(JSON.stringify(body)).not.toMatch(/model|deepseek|qwen|kimi|provider|token|cost/i);
+  } finally {
+    await server.close();
+  }
+});
+
 test('report endpoint returns a conservative basic report instead of demo on real failures', async () => {
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
@@ -512,6 +535,40 @@ test('report endpoint returns a conservative basic report instead of demo on rea
         task: 'report-highlights'
       })
     );
+  } finally {
+    await server.close();
+  }
+});
+
+test('report endpoint can use dedicated primary provider config without OPENAI_API_KEY', async () => {
+  delete process.env.OPENAI_API_KEY;
+  process.env.AI_PRIMARY_API_KEY = 'deepseek-key';
+  process.env.AI_PRIMARY_MODEL = 'deepseek-chat';
+  process.env.AI_BACKUP_API_KEY = 'qwen-key';
+  process.env.AI_BACKUP_MODEL = 'qwen-plus';
+
+  const providerCalls: string[] = [];
+  const valid = validInventoryReport();
+  vi.spyOn(modelProvider, 'callProviderRoleJson').mockImplementation(async (role, options) => {
+    providerCalls.push(`${role}:${options.task}`);
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
+    if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: valid.directionOptions }, usage: null };
+    if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: valid.rewrites }, usage: null };
+    throw new Error(`unexpected provider task ${role}:${options.task}`);
+  });
+
+  const server = await withServer();
+  try {
+    const { response, body } = await requestReport(server, { mode: 'inventory', jdText: 'short jd' });
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('real');
+    expect(providerCalls).toEqual([
+      'primary:report-highlights',
+      'primary:report-directions',
+      'primary:report-rewrites'
+    ]);
+    expect(JSON.stringify(body)).not.toMatch(/deepseek|qwen|provider|inputTokens|estimatedCostUsd/i);
   } finally {
     await server.close();
   }

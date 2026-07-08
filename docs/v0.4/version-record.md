@@ -14,7 +14,7 @@
 
 验证结果：
 
-- `npm test`：通过，9 个测试文件、113 个测试通过。
+- `npm test`：通过，9 个测试文件、115 个测试通过。
 - `npm run build`：通过。
 
 本次新增 provider 环境变量，已更新 `.env.example`；README 启动方式未变化，暂不需要更新。

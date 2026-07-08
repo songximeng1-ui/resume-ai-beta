@@ -1463,10 +1463,33 @@ function sendAiError(res: express.Response, error: unknown) {
   res.status(502).json(toClientAiError(error));
 }
 
+function hasDedicatedGenerationProviders() {
+  return Boolean(
+    process.env.AI_PRIMARY_API_KEY?.trim() &&
+      process.env.AI_PRIMARY_MODEL?.trim() &&
+      process.env.AI_BACKUP_API_KEY?.trim() &&
+      process.env.AI_BACKUP_MODEL?.trim()
+  );
+}
+
+function isAiConfigured(config: ReturnType<typeof getOpenAiConfig>) {
+  return config.configured || hasDedicatedGenerationProviders();
+}
+
+function omitModel<T>(options: JsonCallOptions<T>): Omit<JsonCallOptions<T>, 'model'> {
+  const { model: _model, ...rest } = options;
+  return rest;
+}
+
 function getRuntime(runtime: Partial<AiRuntime>): AiRuntime {
+  const useRoleProviders = hasDedicatedGenerationProviders();
   return {
-    callSmallModelJson: runtime.callSmallModelJson || callSmallModelJson,
-    callReportModelJson: runtime.callReportModelJson || callReportModelJson
+    callSmallModelJson:
+      runtime.callSmallModelJson ||
+      (useRoleProviders ? ((options) => callProviderRoleJson('backup', omitModel(options))) : callSmallModelJson),
+    callReportModelJson:
+      runtime.callReportModelJson ||
+      (useRoleProviders ? ((options) => callProviderRoleJson('primary', omitModel(options))) : callReportModelJson)
   };
 }
 
@@ -1556,7 +1579,7 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
 
   app.get('/api/ai/status', (_, res) => {
     const config = getOpenAiConfig();
-    if (!config.configured) {
+    if (!isAiConfigured(config)) {
       res.json({ configured: false, mode: 'demo', message: DEMO_MESSAGE });
       return;
     }
@@ -1568,7 +1591,7 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
 
   app.post('/api/ai/structure-resume', async (req, res) => {
     const config = getOpenAiConfig();
-    if (!config.configured) {
+    if (!isAiConfigured(config)) {
       res.json(attachUsage(demoStructureResume(req.body), null));
       return;
     }
@@ -1588,7 +1611,7 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
 
   app.post('/api/ai/dig-questions', async (req, res) => {
     const config = getOpenAiConfig();
-    if (!config.configured) {
+    if (!isAiConfigured(config)) {
       res.json(attachUsage(demoDigQuestions(req.body), null));
       return;
     }
@@ -1608,7 +1631,7 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
 
   app.post('/api/ai/jd-fit', async (req, res) => {
     const config = getOpenAiConfig();
-    if (!config.configured) {
+    if (!isAiConfigured(config)) {
       res.json(attachUsage(demoJdFit(req.body), null));
       return;
     }
@@ -1636,7 +1659,7 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
   app.post('/api/ai/report', async (req, res) => {
     const config = getOpenAiConfig();
     const qualityMode = getReportQualityMode(req.body);
-    if (!config.configured) {
+    if (!isAiConfigured(config)) {
       res.json(attachUsage(attachReportQuality(demoReport(req.body), qualityMode), null));
       return;
     }
