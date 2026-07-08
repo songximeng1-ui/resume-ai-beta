@@ -1,5 +1,22 @@
 # V0.4 版本记录
 
+## 2026-07-08：无 JD 完整报告真实 smoke 通过
+
+改动类型：真实 AI 验证、文档。
+
+本次在失败诊断修复后重新跑 1 次无 JD 完整链路：
+
+- `/api/ai/structure-resume`：成功，用时 17.14 秒。
+- `/api/ai/dig-questions`：成功，用时 9.59 秒，生成 3 个动态追问。
+- `/api/ai/report`：成功，用时 51.28 秒。
+- 总用时 78.02 秒。
+- 返回报告为无 JD 模式深度报告：`isBasic=false`。
+- 质量检查通过：`quality.passed=true`、`score=100`、`blockers=[]`、`safetyFindings=[]`。
+- 报告包含 3 个岗位方向、4 条简历改写、6 条行动计划，未输出 JD 矩阵或 JD 面试题。
+- `reportTask.status=completed`，完成模块为 highlights、directions、rewrites、actionPlan、assembledReport。
+
+本次未新增环境变量；README 和提示词文档暂无必要更新。
+
 ## 2026-07-08：基础版兜底保留真实失败原因
 
 改动类型：后端接口、测试、文档。
