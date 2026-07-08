@@ -81,6 +81,16 @@ export const v04RealisticJdSample: V04ProductQaSample = {
   ]
 };
 
+export const v04RealisticInventorySample: V04ProductQaSample = {
+  ...v04RealisticJdSample,
+  jdText: '',
+  confusion: '没有明确 JD，不知道自己能投什么方向，也担心经历太普通。',
+  profile: {
+    ...v04RealisticJdSample.profile,
+    targetRole: ''
+  }
+};
+
 function hasHiddenAgentLabels(report: DiagnosisReport): boolean {
   return /TAR|PART|PREP|HR 视角|为什么问|事实回忆维度/.test(JSON.stringify(report));
 }
@@ -121,6 +131,60 @@ export function runV04ProductQa(sample: V04ProductQaSample = v04RealisticJdSampl
       name: 'avoids fabrication and overpromising',
       passed: unsafeFindings.length === 0,
       detail: '报告不能鼓励编造、夸大或承诺 offer。'
+    }
+  ];
+
+  return {
+    sample,
+    report,
+    quality,
+    checks
+  };
+}
+
+export function runV04InventoryProductQa(sample: V04ProductQaSample = v04RealisticInventorySample): V04ProductQaResult {
+  const report = buildBasicReport({
+    mode: 'inventory',
+    profile: sample.profile,
+    assets: sample.assets,
+    jdText: ''
+  });
+  const quality = validateReportQuality(report, 'inventory');
+  const unsafeFindings = findUnsafeAdvice(report);
+  const directions = report.directionOptions ?? [];
+  const checks: V04ProductQaCheck[] = [
+    {
+      name: 'collects resume and confusion without JD',
+      passed: Boolean(sample.resumeText.trim() && !sample.jdText.trim() && sample.confusion.trim()),
+      detail: '无 JD QA 样本必须包含简历和求职困惑，但不能假装已有 JD。'
+    },
+    {
+      name: 'produces searchable direction options',
+      passed:
+        directions.length >= 2 &&
+        directions.length <= 3 &&
+        directions.every((direction) => direction.searchableJobNames.length >= 3 && direction.sevenDayValidation.includes('7 天')),
+      detail: '无 JD 报告必须输出 2-3 个可搜索方向，并给出 7 天验证动作。'
+    },
+    {
+      name: 'does not fake JD matching',
+      passed: !report.jdFit && !report.interviews,
+      detail: '无 JD 模式不能输出 JD 匹配矩阵或面试追问模块。'
+    },
+    {
+      name: 'binds report evidence to confirmed assets',
+      passed: hasConfirmedAssetEvidence(report, sample.assets),
+      detail: '方向探索也必须能追溯到已确认经历资产。'
+    },
+    {
+      name: 'keeps internal agent labels hidden',
+      passed: !hasHiddenAgentLabels(report),
+      detail: '用户可见输出不能暴露 TAR、PART、PREP 或内部追问标签。'
+    },
+    {
+      name: 'avoids fabrication and overpromising',
+      passed: unsafeFindings.length === 0,
+      detail: '无 JD 方向建议不能鼓励编造、夸大或承诺 offer。'
     }
   ];
 
