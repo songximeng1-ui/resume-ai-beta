@@ -179,6 +179,21 @@ async function withServer(runtime?: Partial<AiRuntime>) {
   };
 }
 
+async function requestReport(
+  server: Awaited<ReturnType<typeof withServer>>,
+  payload: Record<string, unknown>
+) {
+  const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stage: 'senior', profile: {}, assets: [], ...payload })
+  });
+  return {
+    response,
+    body: await response.json()
+  };
+}
+
 test('status returns demo mode when OPENAI_API_KEY is not configured', async () => {
   delete process.env.OPENAI_API_KEY;
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
@@ -653,6 +668,112 @@ test('configured report endpoint hides AI usage and model diagnostics from brows
     expect(body.reportTask.usage).toBeUndefined();
     expect(body.reportTask.moduleUsages).toBeUndefined();
     expect(JSON.stringify(body)).not.toMatch(/"usage":|"moduleUsages":|"model":|"inputTokens":|"outputTokens":|"totalTokens":|"estimatedCostUsd":|"byModelTier":/i);
+  } finally {
+    await server.close();
+  }
+});
+
+test('report generation skips Kimi extractor for normal sized inputs', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+  process.env.AI_EXTRACTOR_API_KEY = 'kimi-key';
+  process.env.AI_EXTRACTOR_MODEL = 'kimi-test';
+
+  const extractorCalls: string[] = [];
+  const server = await withServer({
+    callSmallModelJson: async (options) => {
+      extractorCalls.push(options.task);
+      throw new Error(`unexpected small task ${options.task}`);
+    },
+    callReportModelJson: async (options) => {
+      if (options.task === 'report-highlights') return { data: { source: 'real', highlights: validInventoryReport().highlights }, usage: null };
+      if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: validInventoryReport().directionOptions }, usage: null };
+      if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: validInventoryReport().rewrites }, usage: null };
+      throw new Error(`unexpected task ${options.task}`);
+    }
+  });
+
+  try {
+    const { response } = await requestReport(server, { mode: 'inventory', jdText: 'short jd' });
+    expect(response.status).toBe(200);
+    expect(extractorCalls).not.toContain('kimi-extract');
+  } finally {
+    await server.close();
+  }
+});
+
+test('report generation calls Kimi extractor for long JD and hides extractor diagnostics', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+  process.env.AI_EXTRACTOR_API_KEY = 'kimi-key';
+  process.env.AI_EXTRACTOR_MODEL = 'kimi-test';
+
+  const smallCalls: string[] = [];
+  const valid = validInventoryReport();
+  const server = await withServer({
+    callSmallModelJson: async (options) => {
+      smallCalls.push(options.task);
+      if (options.task === 'kimi-extract') {
+        return {
+          data: {
+            source: 'real',
+            sourceSnippets: ['负责社群维护和用户反馈整理'],
+            verificationNotes: ['社群规模需要用户确认'],
+            structuredFields: [{ field: 'jd_requirement', value: '社群维护', sourceSnippet: '负责社群维护和用户反馈整理' }]
+          },
+          usage: { model: 'kimi-test', task: 'kimi-extract', inputTokens: 10, outputTokens: 10, totalTokens: 20, estimatedCostUsd: null }
+        };
+      }
+      throw new Error(`unexpected small task ${options.task}`);
+    },
+    callReportModelJson: async (options) => {
+      expect(options.prompt).toContain('kimiExtract');
+      if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
+      if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: valid.directionOptions }, usage: null };
+      if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: valid.rewrites }, usage: null };
+      throw new Error(`unexpected task ${options.task}`);
+    }
+  });
+
+  try {
+    const { response, body } = await requestReport(server, { mode: 'inventory', jdText: '长'.repeat(5001) });
+    expect(response.status).toBe(200);
+    expect(smallCalls).toContain('kimi-extract');
+    expect(JSON.stringify(body)).not.toMatch(/kimi-test|inputTokens|outputTokens|estimatedCostUsd|provider|baseUrl/i);
+  } finally {
+    await server.close();
+  }
+});
+
+test('Kimi extractor failure does not block basic or deep report generation', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+  process.env.AI_EXTRACTOR_API_KEY = 'kimi-key';
+  process.env.AI_EXTRACTOR_MODEL = 'kimi-test';
+
+  const valid = validInventoryReport();
+  const server = await withServer({
+    callSmallModelJson: async (options) => {
+      if (options.task === 'kimi-extract') throw new Error('Kimi timeout sk-secret');
+      throw new Error(`unexpected small task ${options.task}`);
+    },
+    callReportModelJson: async (options) => {
+      expect(options.prompt).not.toContain('Kimi timeout');
+      if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
+      if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: valid.directionOptions }, usage: null };
+      if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: valid.rewrites }, usage: null };
+      throw new Error(`unexpected task ${options.task}`);
+    }
+  });
+
+  try {
+    const { response, body } = await requestReport(server, { mode: 'inventory', jdText: '长'.repeat(5001) });
+    expect(response.status).toBe(200);
+    expect(body.summary).toBeTruthy();
+    expect(JSON.stringify(body)).not.toContain('sk-secret');
   } finally {
     await server.close();
   }

@@ -13,8 +13,8 @@ import {
   type AiRuntimeResult,
   type JsonCallOptions
 } from './openaiClient.ts';
-import { digQuestionsPrompt, jdSummaryPrompt, jdFitPrompt, type ReportModuleTask, reportModulePrompt, reportPrompt, structureResumePrompt } from './prompts.ts';
-import { callJsonWithPrimaryBackup } from './modelOrchestrator.ts';
+import { digQuestionsPrompt, jdSummaryPrompt, jdFitPrompt, kimiExtractPrompt, type ReportModuleTask, reportModulePrompt, reportPrompt, structureResumePrompt } from './prompts.ts';
+import { callJsonWithPrimaryBackup, shouldUseExtractor } from './modelOrchestrator.ts';
 import {
   sanitizeRiskyInterview,
   sanitizeRiskyJdFit,
@@ -34,11 +34,13 @@ import {
   reportInterviewsJsonSchema,
   reportJdFitSummaryJsonSchema,
   reportRewritesJsonSchema,
+  kimiExtractJsonSchema,
   structuredResumeJsonSchema,
   validateDiagnosisReport,
   validateDigQuestionSet,
   validateJdFitReport,
   validateJdSummary,
+  validateKimiExtract,
   validateReportActionPlanModule,
   validateReportDirectionsModule,
   validateReportHighlightsModule,
@@ -49,6 +51,7 @@ import {
   validateStructuredResume
 } from './schemas.ts';
 import type {
+  KimiExtract,
   ReportActionPlanModule,
   ReportDirectionsModule,
   ReportHighlightsModule,
@@ -763,6 +766,37 @@ function aggregateUsage(results: ReportModuleResult<unknown>[]): AiUsage | null 
   return aggregateUsageModules(results.map((result) => result.module));
 }
 
+async function maybeBuildKimiExtract(body: unknown, aiRuntime: AiRuntime): Promise<KimiExtract | null> {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  if (!shouldUseExtractor({
+    jdText: readString(body.jdText),
+    profile: isRecord(body.profile) ? body.profile : {},
+    assets: Array.isArray(body.assets) ? body.assets : [],
+    estimatedTaskPackageChars: JSON.stringify(body).length
+  })) {
+    return null;
+  }
+
+  try {
+    const result = unwrapAiResult(
+      await aiRuntime.callSmallModelJson({
+        model: '',
+        task: 'kimi-extract',
+        schemaName: 'kimi_extract',
+        jsonSchema: kimiExtractJsonSchema,
+        prompt: kimiExtractPrompt(body),
+        validate: validateKimiExtract
+      })
+    );
+    return result.data;
+  } catch {
+    return null;
+  }
+}
+
 async function callReportModule<T>(
   body: unknown,
   aiRuntime: AiRuntime,
@@ -1191,8 +1225,10 @@ async function generateSplitReport(
   config: ReturnType<typeof getOpenAiConfig>,
   mode: Mode
 ): Promise<{ data: DiagnosisReport; usage: AiUsage | null }> {
+  const kimiExtract = await maybeBuildKimiExtract(body, aiRuntime);
+  const bodyWithExtract = isRecord(body) && kimiExtract ? { ...body, kimiExtract } : body;
   const results: ReportModuleResult<unknown>[] = [];
-  const highlights = await callReportModule<ReportHighlightsModule>(body, aiRuntime, config, {
+  const highlights = await callReportModule<ReportHighlightsModule>(bodyWithExtract, aiRuntime, config, {
     task: 'report-highlights',
     modelTier: mode === 'jd' ? 'small' : 'report',
     schemaName: 'report_highlights',
@@ -1202,7 +1238,7 @@ async function generateSplitReport(
   results.push(highlights);
 
   if (mode === 'inventory') {
-    const directions = await callReportModule<ReportDirectionsModule>(body, aiRuntime, config, {
+    const directions = await callReportModule<ReportDirectionsModule>(bodyWithExtract, aiRuntime, config, {
       task: 'report-directions',
       modelTier: 'report',
       schemaName: 'report_directions',
@@ -1210,7 +1246,7 @@ async function generateSplitReport(
       validate: validateReportDirectionsModule
     });
     results.push(directions);
-    const rewrites = await callReportModule<ReportRewritesModule>(body, aiRuntime, config, {
+    const rewrites = await callReportModule<ReportRewritesModule>(bodyWithExtract, aiRuntime, config, {
       task: 'report-rewrites',
       modelTier: 'report',
       schemaName: 'report_rewrites',
@@ -1238,7 +1274,7 @@ async function generateSplitReport(
     };
   }
 
-  const jdFit = await callReportModule<ReportJdFitSummaryModule>(body, aiRuntime, config, {
+  const jdFit = await callReportModule<ReportJdFitSummaryModule>(bodyWithExtract, aiRuntime, config, {
     task: 'report-jd-fit-summary',
     modelTier: 'report',
     schemaName: 'report_jd_fit_summary',
@@ -1246,7 +1282,7 @@ async function generateSplitReport(
     validate: validateReportJdFitSummaryModule
   });
   results.push(jdFit);
-  const rewrites = await callReportModule<ReportRewritesModule>(body, aiRuntime, config, {
+  const rewrites = await callReportModule<ReportRewritesModule>(bodyWithExtract, aiRuntime, config, {
     task: 'report-rewrites',
     modelTier: 'report',
     schemaName: 'report_rewrites',
@@ -1254,7 +1290,7 @@ async function generateSplitReport(
     validate: validateReportRewritesModule
   });
   results.push(rewrites);
-  const interviews = await callReportModule<ReportInterviewsModule>(body, aiRuntime, config, {
+  const interviews = await callReportModule<ReportInterviewsModule>(bodyWithExtract, aiRuntime, config, {
     task: 'report-interviews',
     modelTier: 'report',
     schemaName: 'report_interviews',
@@ -1294,7 +1330,9 @@ async function generateResumableReport(
   config: ReturnType<typeof getOpenAiConfig>,
   mode: Mode
 ): Promise<ResumableReportResult> {
-  const task = createReportTask(body, mode);
+  const kimiExtract = await maybeBuildKimiExtract(body, aiRuntime);
+  const bodyWithExtract = isRecord(body) && kimiExtract ? { ...body, kimiExtract } : body;
+  const task = createReportTask(bodyWithExtract, mode);
   const runCachedOrModule = async <T>(
     key: ReportModuleKey,
     validate: (value: unknown) => T,
@@ -1322,13 +1360,13 @@ async function generateResumableReport(
     const pieces: ReportModuleResult<ReportInterviewQuestionModule>[] = [];
     for (let index = 1; index <= 5; index += 1) {
       pieces.push(
-        await callReportModule<ReportInterviewQuestionModule>(body, aiRuntime, config, {
+        await callReportModule<ReportInterviewQuestionModule>(bodyWithExtract, aiRuntime, config, {
           task: 'report-interview-question',
           modelTier: 'report',
           schemaName: 'report_interview_question',
           jsonSchema: reportInterviewQuestionJsonSchema,
           validate: validateReportInterviewQuestionModule,
-          promptBody: { ...(isRecord(body) ? body : {}), interviewIndex: index }
+          promptBody: { ...(isRecord(bodyWithExtract) ? bodyWithExtract : {}), interviewIndex: index }
         })
       );
     }
@@ -1353,7 +1391,7 @@ async function generateResumableReport(
 
   try {
     await runCachedOrModule('highlights', validateReportHighlightsModule, () =>
-      callReportModule<ReportHighlightsModule>(body, aiRuntime, config, {
+      callReportModule<ReportHighlightsModule>(bodyWithExtract, aiRuntime, config, {
         task: 'report-highlights',
         modelTier: mode === 'jd' ? 'small' : 'report',
         schemaName: 'report_highlights',
@@ -1364,7 +1402,7 @@ async function generateResumableReport(
 
     if (mode === 'inventory') {
       await runCachedOrModule('directions', validateReportDirectionsModule, () =>
-        callReportModule<ReportDirectionsModule>(body, aiRuntime, config, {
+        callReportModule<ReportDirectionsModule>(bodyWithExtract, aiRuntime, config, {
           task: 'report-directions',
           modelTier: 'report',
           schemaName: 'report_directions',
@@ -1374,7 +1412,7 @@ async function generateResumableReport(
       );
     } else {
       await runCachedOrModule('jdFit', validateReportJdFitSummaryModule, () =>
-        callReportModule<ReportJdFitSummaryModule>(body, aiRuntime, config, {
+        callReportModule<ReportJdFitSummaryModule>(bodyWithExtract, aiRuntime, config, {
           task: 'report-jd-fit-summary',
           modelTier: 'report',
           schemaName: 'report_jd_fit_summary',
@@ -1385,7 +1423,7 @@ async function generateResumableReport(
     }
 
     await runCachedOrModule('rewrites', validateReportRewritesModule, () =>
-      callReportModule<ReportRewritesModule>(body, aiRuntime, config, {
+      callReportModule<ReportRewritesModule>(bodyWithExtract, aiRuntime, config, {
         task: 'report-rewrites',
         modelTier: 'report',
         schemaName: 'report_rewrites',
