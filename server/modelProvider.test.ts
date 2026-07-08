@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { toClientAiError } from './openaiClient.ts';
 
 const responsesCreate = vi.fn();
@@ -28,8 +28,16 @@ const keys = [
   'OPENAI_API_KEY',
   'OPENAI_MODEL_SMALL',
   'OPENAI_MODEL_REPORT',
-  'OPENAI_PROXY_URL'
+  'OPENAI_PROXY_URL',
+  'HTTPS_PROXY',
+  'HTTP_PROXY'
 ];
+
+beforeEach(() => {
+  for (const key of keys) {
+    delete process.env[key];
+  }
+});
 
 afterEach(() => {
   for (const key of keys) {

@@ -1,5 +1,23 @@
 # V0.4 版本记录
 
+## 2026-07-08：V0.4 worktree 成果合并回 main
+
+改动类型：Git 工作流、测试、文档。
+
+本次完成 V0.4 接力整理：
+
+- 将 `codex/v0-4-task-package` 分支已提交成果 fast-forward 合并回主目录 `main`，后续可继续以主目录作为可信开发入口。
+- 保留 `.worktrees/codex-v0-4-task-package` 中未跟踪的 `.superpowers/sdd` 接力材料，未删除或回滚已有工作。
+- `vite.config.mjs` 排除 `.worktrees` 测试扫描，避免主目录测试被临时 worktree 干扰。
+- `server/modelProvider.test.ts` 在测试前清理代理环境变量，避免本机 `OPENAI_PROXY_URL`、`HTTP_PROXY` 或 `HTTPS_PROXY` 影响单元测试。
+
+验证结果：
+
+- `npm.cmd test`：通过，9 个测试文件、116 个测试通过。
+- `npm.cmd run build`：通过。
+
+本次没有新增环境变量或启动方式，因此不需要更新 `.env.example`；README 暂无必要更新。
+
 ## 2026-07-08：Provider Adapter 与 Kimi 摘录链路
 
 改动类型：智能体工作流、后端接口、数据结构、提示词、测试、文档。
