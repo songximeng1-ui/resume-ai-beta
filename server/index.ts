@@ -1130,17 +1130,19 @@ function markRuleModuleDone<T>(task: ReportGenerationTask, key: ReportModuleKey,
   markReportModuleDone(task, key, result);
 }
 
-function markAssembledReportDone(task: ReportGenerationTask, report: DiagnosisReport) {
+function markAssembledReportDone(task: ReportGenerationTask, report: DiagnosisReport, options: { preserveFailure?: boolean } = {}) {
   task.modules.assembledReport = sanitizeJdTaskModuleData(task, 'assembledReport', report);
   if (!task.completedModules.includes('assembledReport')) {
     task.completedModules.push('assembledReport');
   }
   task.completedCount = task.completedModules.length;
   task.currentModule = undefined;
-  task.failedModule = undefined;
-  task.status = 'completed';
-  task.message = '报告已生成完成。';
-  task.technicalDetail = '';
+  if (!options.preserveFailure) {
+    task.failedModule = undefined;
+    task.status = 'completed';
+    task.message = '报告已生成完成。';
+    task.technicalDetail = '';
+  }
   task.usage = aggregateUsageModules(task.moduleUsages);
 }
 
@@ -1485,7 +1487,7 @@ async function generateResumableReport(
   } catch (error) {
     markReportTaskFailed(task, task.currentModule || 'assembledReport', error);
     const report = assembleMixedBasicReport(mode, task, body);
-    markAssembledReportDone(task, report);
+    markAssembledReportDone(task, report, { preserveFailure: true });
     task.message = task.completedModules.length > 1
       ? '已生成基础版报告，并保留已完成的深度分析内容。深度内容可在后续继续尝试补全。'
       : '已生成基础版报告。深度内容可在后续继续尝试补全。';

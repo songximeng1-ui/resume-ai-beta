@@ -1,5 +1,23 @@
 # V0.4 版本记录
 
+## 2026-07-08：基础版兜底保留真实失败原因
+
+改动类型：后端接口、测试、文档。
+
+本次修复基础版报告兜底吞掉真实失败原因的问题：
+
+- 根因：深度报告生成失败后，系统先写入 `failedModule` 和 `technicalDetail`，但随后基础版兜底的 `assembledReport` 标记会把任务状态改成 `completed`，并清空失败模块和技术详情。
+- 修复：正常深度报告组装成功仍标记为 `completed`；只有基础版兜底时保留原始 `failed` / `partial` 状态、`failedModule`、`retryable` 和脱敏后的 `technicalDetail`。
+- 用户仍能拿到基础版报告，但开发侧可以看见真实失败点，便于定位 assembled report 或某个模块失败原因。
+
+验证结果：
+
+- `npm.cmd test -- server/index.test.ts`：通过，1 个测试文件、41 个测试通过。
+- `npm.cmd test`：通过，10 个测试文件、125 个测试通过。
+- `npm.cmd run build`：通过。
+
+README、`.env.example` 和提示词文档暂无必要更新。
+
 ## 2026-07-08：无 JD 完整报告真实 smoke 复测
 
 改动类型：真实 AI 验证、文档。

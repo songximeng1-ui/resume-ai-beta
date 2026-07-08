@@ -526,10 +526,12 @@ test('report endpoint returns a conservative basic report instead of demo on rea
     expect(body.directionOptions.length).toBeGreaterThanOrEqual(2);
     expect(body.usage).toBeUndefined();
     expect(body.reportTask).toMatchObject({
-      status: 'completed',
+      status: 'failed',
+      failedModule: 'highlights',
       completedModules: ['assembledReport'],
       retryable: false
     });
+    expect(body.reportTask.technicalDetail).toContain('model not found');
     expect(JSON.stringify(body)).not.toContain('演示结果');
     expect(callReportModelJson).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1604,12 +1606,14 @@ test('report task returns mixed basic report on partial module failure without l
     expect(partial.directionOptions).toEqual(valid.directionOptions);
     expect(partial.rewrites.length).toBeGreaterThanOrEqual(3);
     expect(partial.reportTask).toMatchObject({
-      status: 'completed',
+      status: 'partial',
+      failedModule: 'rewrites',
       completedModules: ['highlights', 'directions', 'assembledReport'],
       completedCount: 3,
       totalModules: 5,
       retryable: true
     });
+    expect(partial.reportTask.technicalDetail).toContain('Connection error');
     expect(JSON.stringify(partial)).toContain('基础版报告');
     expect(JSON.stringify(partial)).not.toContain('sk-test-secret');
     expect(calls).toEqual([
@@ -1671,13 +1675,14 @@ test('report task basic fallback reflects final backup failure metadata', async 
     expect(response.status).toBe(200);
     expect(body.isBasic).toBe(true);
     expect(body.reportTask).toMatchObject({
-      status: 'completed',
+      status: 'partial',
+      failedModule: 'rewrites',
       completedModules: ['highlights', 'directions', 'assembledReport'],
       completedCount: 3,
       totalModules: 5,
       retryable: false
     });
-    expect(body.reportTask.technicalDetail).toBe('');
+    expect(body.reportTask.technicalDetail).toBe('backup invalid api key');
     expect(JSON.stringify(body)).toContain('基础版报告');
     expect(calls).toEqual([
       'report:report-highlights',
@@ -1752,10 +1757,12 @@ test('report module schema repair failure returns basic report without leaking A
     expect(body.isBasic).toBe(true);
     expect(body.summary).toContain('当前已为你生成基础版报告');
     expect(body.reportTask).toMatchObject({
-      status: 'completed',
+      status: 'failed',
+      failedModule: 'highlights',
       completedModules: ['assembledReport'],
       retryable: false
     });
+    expect(body.reportTask.technicalDetail).toContain('backup rejected sk-***');
     expect(JSON.stringify(body)).not.toContain('sk-test-secret');
     expect(JSON.stringify(body)).not.toContain('演示结果');
   } finally {
