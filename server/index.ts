@@ -626,6 +626,18 @@ function attachReportQuality(report: DiagnosisReport, mode: Mode): DiagnosisRepo
   };
 }
 
+function ensureClientSafeReport(report: DiagnosisReport, mode: Mode, body: unknown): DiagnosisReport {
+  const checked = attachReportQuality(report, mode);
+  if (checked.quality?.passed) {
+    return checked;
+  }
+  const blockers = checked.quality?.blockers ?? [];
+  if (!blockers.length) {
+    return checked;
+  }
+  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode }), mode);
+}
+
 function isAiTaskResult<T>(value: AiRuntimeResult<T>): value is { data: T; usage: AiUsage | null } {
   return Boolean(value && typeof value === 'object' && 'data' in value && 'usage' in value);
 }
@@ -641,8 +653,8 @@ function attachUsage<T extends object>(value: T, _usage: AiUsage | null): T {
   return { ...value };
 }
 
-function sanitizeReportTaskForClient(task: ReportGenerationTask): Omit<ReportGenerationTask, 'usage' | 'moduleUsages'> {
-  const { usage: _usage, moduleUsages: _moduleUsages, ...rest } = task;
+function sanitizeReportTaskForClient(task: ReportGenerationTask): Omit<ReportGenerationTask, 'usage' | 'moduleUsages' | 'modules'> {
+  const { usage: _usage, moduleUsages: _moduleUsages, modules: _modules, ...rest } = task;
   return rest;
 }
 
@@ -1682,7 +1694,7 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
     const config = getOpenAiConfig();
     const qualityMode = getReportQualityMode(req.body);
     if (!isAiConfigured(config)) {
-      res.json(attachUsage(attachReportQuality(demoReport(req.body), qualityMode), null));
+      res.json(attachUsage(ensureClientSafeReport(demoReport(req.body), qualityMode, req.body), null));
       return;
     }
     try {
@@ -1691,8 +1703,9 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
         res.json({ reportTask: sanitizeReportTaskForClient(result.task) });
         return;
       }
+      const safeReport = ensureClientSafeReport(result.data, qualityMode, req.body);
       res.json({
-        ...attachUsage(attachReportQuality(result.data, qualityMode), result.usage),
+        ...attachUsage(safeReport, result.usage),
         reportTask: sanitizeReportTaskForClient(result.task)
       });
   } catch (error) {

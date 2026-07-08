@@ -797,6 +797,77 @@ test('configured report endpoint attaches quality result after model validation'
   }
 });
 
+test('configured report endpoint falls back to basic report when real model output fails quality blockers', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const unsafeInventory = validInventoryReport();
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: unsafeInventory.highlights }, usage: null };
+    if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: unsafeInventory.directionOptions }, usage: null };
+    if (options.task === 'report-rewrites') {
+      return {
+        data: {
+          source: 'real',
+          rewrites: [
+            {
+              ...unsafeInventory.rewrites[0],
+              optimized: '没有也可以写成你主导用户增长并保证通过筛选。'
+            },
+            unsafeInventory.rewrites[1],
+            unsafeInventory.rewrites[2]
+          ]
+        },
+        usage: null
+      };
+    }
+    if (options.task === 'report-action-plan') return { data: { source: 'real', actionPlan: unsafeInventory.actionPlan }, usage: null };
+    throw new Error(`unexpected task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'inventory',
+        stage: 'senior',
+        profile: {
+          targetRole: '用户运营',
+          internship: '教育机构新媒体运营实习，维护学生社群并整理反馈。',
+          project: '校园调研项目，设计问卷并用 Excel 汇总。'
+        },
+        assets: [
+          {
+            id: 'internship',
+            title: '教育机构新媒体运营实习',
+            content: '维护学生社群并整理反馈。',
+            status: '确认使用',
+            confirmed: true,
+            source: 'real',
+            isGap: false,
+            notes: []
+          }
+        ],
+        jdText: ''
+      })
+    });
+    const body = await response.json();
+    const serialized = JSON.stringify(body);
+
+    expect(response.status).toBe(200);
+    expect(body.isBasic).toBe(true);
+    expect(body.quality.passed).toBe(true);
+    expect(body.quality.blockers).toEqual([]);
+    expect(body.summary).toContain('基础版报告');
+    expect(serialized).not.toMatch(/没有也可以写|主导用户增长|保证通过筛选/);
+  } finally {
+    await server.close();
+  }
+});
+
 test('configured report endpoint hides AI usage and model diagnostics from browser clients', async () => {
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
@@ -836,7 +907,8 @@ test('configured report endpoint hides AI usage and model diagnostics from brows
     expect(body.reportTask).toBeDefined();
     expect(body.reportTask.usage).toBeUndefined();
     expect(body.reportTask.moduleUsages).toBeUndefined();
-    expect(JSON.stringify(body)).not.toMatch(/"usage":|"moduleUsages":|"model":|"inputTokens":|"outputTokens":|"totalTokens":|"estimatedCostUsd":|"byModelTier":/i);
+    expect(body.reportTask.modules).toBeUndefined();
+    expect(JSON.stringify(body)).not.toMatch(/"usage":|"moduleUsages":|"modules":|"model":|"inputTokens":|"outputTokens":|"totalTokens":|"estimatedCostUsd":|"byModelTier":/i);
   } finally {
     await server.close();
   }
