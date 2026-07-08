@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { kimiExtractPrompt } from './prompts.ts';
 import { buildTaskPackage } from './taskPackage.ts';
 
 describe('buildTaskPackage', () => {
@@ -44,5 +45,47 @@ describe('buildTaskPackage', () => {
     expect(taskPackage.excludedAssets.map((asset) => asset.title)).toEqual(['校园经历']);
     expect(taskPackage.forbiddenInputs.unconfirmedAssets).toEqual(['未确认实习', '暂不使用经历']);
     expect(JSON.stringify(taskPackage.confirmedAssets)).not.toMatch(/未确认实习|暂不使用经历/);
+  });
+  it('includes Kimi extract as evidence notes without confirming uncertain info', () => {
+    const taskPackage = buildTaskPackage({
+      mode: 'jd',
+      module: 'report',
+      jdText: 'long jd',
+      kimiExtract: {
+        source: 'real',
+        sourceSnippets: ['Responsible for community operations and user feedback triage.'],
+        verificationNotes: ['Community size needs user confirmation before it can be cited.'],
+        structuredFields: [
+          {
+            field: 'jd_requirement',
+            value: 'Community operations',
+            sourceSnippet: 'Responsible for community operations and user feedback triage.'
+          }
+        ]
+      }
+    });
+
+    expect(taskPackage.kimiExtract).toEqual({
+      source: 'real',
+      sourceSnippets: ['Responsible for community operations and user feedback triage.'],
+      verificationNotes: ['Community size needs user confirmation before it can be cited.'],
+      structuredFields: [
+        {
+          field: 'jd_requirement',
+          value: 'Community operations',
+          sourceSnippet: 'Responsible for community operations and user feedback triage.'
+        }
+      ]
+    });
+    expect(taskPackage.pendingOrUnverifiedInfo).toContain('Community size needs user confirmation before it can be cited.');
+  });
+
+  it('builds a Kimi extractor prompt that stays in evidence-only mode', () => {
+    const prompt = kimiExtractPrompt({ jdText: 'long jd' });
+
+    expect(prompt).toContain('"role": "kimi_extractor"');
+    expect(prompt).toContain('Only perform structured extraction for long text.');
+    expect(prompt).toContain('Do not make judgments, recommendations, or rewrite resume content.');
+    expect(prompt).toContain('Keep uncertain information inside verificationNotes.');
   });
 });

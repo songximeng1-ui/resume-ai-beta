@@ -27,6 +27,24 @@ export function structureResumePrompt(payload: unknown) {
 ${JSON.stringify(payload)}`;
 }
 
+export function kimiExtractPrompt(payload: unknown) {
+  return JSON.stringify(
+    {
+      role: 'kimi_extractor',
+      instruction: [
+        'Only perform structured extraction for long text.',
+        'Do not make judgments, recommendations, or rewrite resume content.',
+        'Preserve source snippets as evidence.',
+        'Keep uncertain information inside verificationNotes.',
+        'Do not turn unconfirmed information into confirmed experience.'
+      ],
+      payload
+    },
+    null,
+    2
+  );
+}
+
 export function digQuestionsPrompt(payload: unknown) {
   return `任务：根据用户已确认经历、目标岗位 JD、已有补充回答，生成 V0.4 动态追问。
 

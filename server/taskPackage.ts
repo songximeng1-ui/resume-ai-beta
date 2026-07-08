@@ -1,3 +1,5 @@
+import { validateKimiExtract, type KimiExtract } from './schemas.ts';
+
 export type TaskPackageModule =
   | 'asset_cards'
   | 'dynamic_questions'
@@ -74,6 +76,11 @@ function readRequirements(value: unknown): string[] {
   return value.requirements.map(String).map((item) => item.trim()).filter(Boolean);
 }
 
+function normalizeKimiExtract(value: unknown): KimiExtract | null {
+  if (!value) return null;
+  return validateKimiExtract(value);
+}
+
 export function buildTaskPackage(input: Record<string, unknown>) {
   const assets = Array.isArray(input.assets) ? input.assets.map(normalizeAsset).filter((asset): asset is TaskPackageAsset => Boolean(asset)) : [];
   const confirmedAssets = assets.filter(isConfirmedAsset);
@@ -82,6 +89,7 @@ export function buildTaskPackage(input: Record<string, unknown>) {
     .filter((asset) => !confirmedAssets.includes(asset))
     .map((asset) => asset.content || asset.title || '未确认经历');
   const requirements = readRequirements(input.jdSummary);
+  const kimiExtract = normalizeKimiExtract(input.kimiExtract);
 
   return {
     meta: {
@@ -94,7 +102,8 @@ export function buildTaskPackage(input: Record<string, unknown>) {
     userProfile: isRecord(input.profile) ? input.profile : {},
     confirmedAssets,
     excludedAssets,
-    pendingOrUnverifiedInfo: [],
+    kimiExtract,
+    pendingOrUnverifiedInfo: kimiExtract?.verificationNotes || [],
     userAnswers: Array.isArray(input.userAnswers) ? input.userAnswers : [],
     jd: {
       rawText: readString(input.jdText),
