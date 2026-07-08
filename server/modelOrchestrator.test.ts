@@ -1,7 +1,8 @@
-import { describe, expect, test } from 'vitest';
-import { defaultModelRoles, shouldUseExtractor, callJsonWithPrimaryBackup } from './modelOrchestrator.ts';
+import { describe, expect, test, vi } from 'vitest';
+import { defaultModelRoles, shouldUseExtractor, callJsonWithPrimaryBackup, callRoleJsonWithPrimaryBackup } from './modelOrchestrator.ts';
 import { AiServiceError, type AiRuntime, type JsonCallOptions } from './openaiClient.ts';
 import { kimiExtractJsonSchema, validateKimiExtract } from './schemas.ts';
+import * as modelProvider from './modelProvider.ts';
 
 function runtimeWithCalls(
   calls: string[],
@@ -125,6 +126,41 @@ describe('shouldUseExtractor', () => {
 });
 
 describe('callJsonWithPrimaryBackup', () => {
+  test('role orchestrator calls primary and backup provider roles with the same prompt', async () => {
+    const calls: string[] = [];
+    const spy = vi.spyOn(modelProvider, 'callProviderRoleJson').mockImplementation(async (role, options) => {
+      calls.push(`${role}:${options.task}:${options.prompt}`);
+      if (role === 'primary') {
+        throw new AiServiceError({
+          code: 'schema_validation',
+          message: 'schema invalid',
+          detail: 'schema invalid',
+          retryable: true,
+          attempts: 1
+        });
+      }
+      return { data: options.validate({ source: 'real', value: 'backup' }), usage: null };
+    });
+
+    try {
+      const result = await callRoleJsonWithPrimaryBackup({
+        task: 'module-test',
+        schemaName: 'module_test',
+        jsonSchema: {},
+        prompt: 'same complete task package',
+        validate: (value) => value as { source: string; value: string }
+      });
+
+      expect(result).toMatchObject({ role: 'backup', data: { value: 'backup' } });
+      expect(calls).toEqual([
+        'primary:module-test:same complete task package',
+        'backup:module-test:same complete task package'
+      ]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   test('primary success does not call backup', async () => {
     const calls: string[] = [];
     const result = await callJsonWithPrimaryBackup(runtimeWithCalls(calls), {

@@ -1,5 +1,6 @@
 import { classifyAiError, type AiRuntime, type AiRuntimeResult, type AiTaskResult, type JsonCallOptions } from './openaiClient.ts';
 import type { AiUsage } from '../src/types.ts';
+import { callProviderRoleJson } from './modelProvider.ts';
 
 export type ModelRole = 'primary' | 'backup' | 'extractor' | 'rule';
 
@@ -21,6 +22,8 @@ export interface RoleJsonCallOptions<T> extends Omit<JsonCallOptions<T>, 'model'
   primaryModel: string;
   backupModel: string;
 }
+
+export interface RoleJsonTaskOptions<T> extends Omit<JsonCallOptions<T>, 'model'> {}
 
 export interface RoleJsonCallResult<T> {
   data: T;
@@ -117,5 +120,21 @@ export async function callJsonWithPrimaryBackup<T>(
       model: options.backupModel
     })
   );
+  return { ...backup, role: 'backup' };
+}
+
+export async function callRoleJsonWithPrimaryBackup<T>(
+  options: RoleJsonTaskOptions<T>
+): Promise<RoleJsonCallResult<T>> {
+  try {
+    const primary = unwrapRuntimeResult(await callProviderRoleJson('primary', options));
+    return { ...primary, role: 'primary' };
+  } catch (error) {
+    if (!shouldUseBackup(error)) {
+      throw error;
+    }
+  }
+
+  const backup = unwrapRuntimeResult(await callProviderRoleJson('backup', options));
   return { ...backup, role: 'backup' };
 }
