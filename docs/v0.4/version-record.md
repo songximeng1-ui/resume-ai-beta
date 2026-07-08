@@ -1,5 +1,23 @@
 # V0.4 版本记录
 
+## 2026-07-08：有 JD 完整报告真实 smoke 通过
+
+改动类型：真实 AI 验证、文档。
+
+本次在 `originalIssue` 质量误判修复后重新跑 1 次有 JD 完整链路：
+
+- `/api/ai/structure-resume`：成功，用时 11.75 秒。
+- `/api/ai/jd-fit`：成功，用时 24.75 秒，投递判断为“可以投递，建议先优化简历”，生成 6 条前置 JD 匹配矩阵。
+- `/api/ai/dig-questions`：成功，用时 6.72 秒，生成 3 个动态追问。
+- `/api/ai/report`：成功，用时 107.28 秒。
+- 总用时 150.50 秒。
+- 返回报告为有 JD 模式深度报告：`isBasic=false`。
+- 质量检查通过：`quality.passed=true`、`score=100`、`blockers=[]`、`safetyFindings=[]`。
+- 报告包含 5 条 JD 证据矩阵、4 条简历改写、5 个面试题、6 条行动计划，未输出无 JD 方向探索。
+- `reportTask.status=completed`，完成模块为 highlights、jdFit、rewrites、interviews、actionPlan、assembledReport。
+
+本次未新增环境变量；README 和提示词文档暂无必要更新。
+
 ## 2026-07-08：有 JD 完整报告 smoke 诊断与问题说明误判修复
 
 改动类型：后端质量规则、测试、真实 AI 验证、文档。
