@@ -15,6 +15,7 @@ import {
 } from './openaiClient.ts';
 import { digQuestionsPrompt, jdSummaryPrompt, jdFitPrompt, kimiExtractPrompt, type ReportModuleTask, reportModulePrompt, reportPrompt, structureResumePrompt } from './prompts.ts';
 import { callJsonWithPrimaryBackup, shouldUseExtractor } from './modelOrchestrator.ts';
+import { callProviderRoleJson } from './modelProvider.ts';
 import {
   sanitizeRiskyInterview,
   sanitizeRiskyJdFit,
@@ -766,7 +767,7 @@ function aggregateUsage(results: ReportModuleResult<unknown>[]): AiUsage | null 
   return aggregateUsageModules(results.map((result) => result.module));
 }
 
-async function maybeBuildKimiExtract(body: unknown, aiRuntime: AiRuntime): Promise<KimiExtract | null> {
+async function maybeBuildKimiExtract(body: unknown): Promise<KimiExtract | null> {
   if (!isRecord(body)) {
     return null;
   }
@@ -782,8 +783,7 @@ async function maybeBuildKimiExtract(body: unknown, aiRuntime: AiRuntime): Promi
 
   try {
     const result = unwrapAiResult(
-      await aiRuntime.callSmallModelJson({
-        model: '',
+      await callProviderRoleJson('extractor', {
         task: 'kimi-extract',
         schemaName: 'kimi_extract',
         jsonSchema: kimiExtractJsonSchema,
@@ -1225,7 +1225,7 @@ async function generateSplitReport(
   config: ReturnType<typeof getOpenAiConfig>,
   mode: Mode
 ): Promise<{ data: DiagnosisReport; usage: AiUsage | null }> {
-  const kimiExtract = await maybeBuildKimiExtract(body, aiRuntime);
+  const kimiExtract = await maybeBuildKimiExtract(body);
   const bodyWithExtract = isRecord(body) && kimiExtract ? { ...body, kimiExtract } : body;
   const results: ReportModuleResult<unknown>[] = [];
   const highlights = await callReportModule<ReportHighlightsModule>(bodyWithExtract, aiRuntime, config, {
@@ -1330,7 +1330,7 @@ async function generateResumableReport(
   config: ReturnType<typeof getOpenAiConfig>,
   mode: Mode
 ): Promise<ResumableReportResult> {
-  const kimiExtract = await maybeBuildKimiExtract(body, aiRuntime);
+  const kimiExtract = await maybeBuildKimiExtract(body);
   const bodyWithExtract = isRecord(body) && kimiExtract ? { ...body, kimiExtract } : body;
   const task = createReportTask(bodyWithExtract, mode);
   const runCachedOrModule = async <T>(

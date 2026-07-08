@@ -12,6 +12,7 @@ import {
 } from './schemas.ts';
 import { AiServiceError } from './openaiClient.ts';
 import type { AiRuntime, JsonCallOptions } from './openaiClient.ts';
+import * as modelProvider from './modelProvider.ts';
 
 function v04Rewrite(overrides: Record<string, string> = {}) {
   const rewrite = {
@@ -680,12 +681,8 @@ test('report generation skips Kimi extractor for normal sized inputs', async () 
   process.env.AI_EXTRACTOR_API_KEY = 'kimi-key';
   process.env.AI_EXTRACTOR_MODEL = 'kimi-test';
 
-  const extractorCalls: string[] = [];
+  const extractorSpy = vi.spyOn(modelProvider, 'callProviderRoleJson');
   const server = await withServer({
-    callSmallModelJson: async (options) => {
-      extractorCalls.push(options.task);
-      throw new Error(`unexpected small task ${options.task}`);
-    },
     callReportModelJson: async (options) => {
       if (options.task === 'report-highlights') return { data: { source: 'real', highlights: validInventoryReport().highlights }, usage: null };
       if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: validInventoryReport().directionOptions }, usage: null };
@@ -697,7 +694,7 @@ test('report generation skips Kimi extractor for normal sized inputs', async () 
   try {
     const { response } = await requestReport(server, { mode: 'inventory', jdText: 'short jd' });
     expect(response.status).toBe(200);
-    expect(extractorCalls).not.toContain('kimi-extract');
+    expect(extractorSpy).not.toHaveBeenCalled();
   } finally {
     await server.close();
   }
@@ -710,24 +707,21 @@ test('report generation calls Kimi extractor for long JD and hides extractor dia
   process.env.AI_EXTRACTOR_API_KEY = 'kimi-key';
   process.env.AI_EXTRACTOR_MODEL = 'kimi-test';
 
-  const smallCalls: string[] = [];
+  const extractorCalls: string[] = [];
   const valid = validInventoryReport();
+  vi.spyOn(modelProvider, 'callProviderRoleJson').mockImplementation(async (role, options) => {
+    extractorCalls.push(`${role}:${options.task}`);
+    return {
+      data: {
+        source: 'real',
+        sourceSnippets: ['负责社群维护和用户反馈整理'],
+        verificationNotes: ['社群规模需要用户确认'],
+        structuredFields: [{ field: 'jd_requirement', value: '社群维护', sourceSnippet: '负责社群维护和用户反馈整理' }]
+      },
+      usage: { model: 'kimi-test', task: 'kimi-extract', inputTokens: 10, outputTokens: 10, totalTokens: 20, estimatedCostUsd: null }
+    };
+  });
   const server = await withServer({
-    callSmallModelJson: async (options) => {
-      smallCalls.push(options.task);
-      if (options.task === 'kimi-extract') {
-        return {
-          data: {
-            source: 'real',
-            sourceSnippets: ['负责社群维护和用户反馈整理'],
-            verificationNotes: ['社群规模需要用户确认'],
-            structuredFields: [{ field: 'jd_requirement', value: '社群维护', sourceSnippet: '负责社群维护和用户反馈整理' }]
-          },
-          usage: { model: 'kimi-test', task: 'kimi-extract', inputTokens: 10, outputTokens: 10, totalTokens: 20, estimatedCostUsd: null }
-        };
-      }
-      throw new Error(`unexpected small task ${options.task}`);
-    },
     callReportModelJson: async (options) => {
       expect(options.prompt).toContain('kimiExtract');
       if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
@@ -740,7 +734,7 @@ test('report generation calls Kimi extractor for long JD and hides extractor dia
   try {
     const { response, body } = await requestReport(server, { mode: 'inventory', jdText: '长'.repeat(5001) });
     expect(response.status).toBe(200);
-    expect(smallCalls).toContain('kimi-extract');
+    expect(extractorCalls).toEqual(['extractor:kimi-extract']);
     expect(JSON.stringify(body)).not.toMatch(/kimi-test|inputTokens|outputTokens|estimatedCostUsd|provider|baseUrl/i);
   } finally {
     await server.close();
@@ -755,11 +749,11 @@ test('Kimi extractor failure does not block basic or deep report generation', as
   process.env.AI_EXTRACTOR_MODEL = 'kimi-test';
 
   const valid = validInventoryReport();
+  vi.spyOn(modelProvider, 'callProviderRoleJson').mockImplementation(async (role, options) => {
+    if (role === 'extractor' && options.task === 'kimi-extract') throw new Error('Kimi timeout sk-secret');
+    throw new Error(`unexpected provider role ${role}:${options.task}`);
+  });
   const server = await withServer({
-    callSmallModelJson: async (options) => {
-      if (options.task === 'kimi-extract') throw new Error('Kimi timeout sk-secret');
-      throw new Error(`unexpected small task ${options.task}`);
-    },
     callReportModelJson: async (options) => {
       expect(options.prompt).not.toContain('Kimi timeout');
       if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
