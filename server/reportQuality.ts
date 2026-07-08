@@ -46,6 +46,26 @@ const prohibitionMarkers = [
   '需核实'
 ];
 const genericPatterns = [/提升综合素质/, /增强岗位认知/, /加强学习/, /努力提升/, /认真准备/, /全面提高/];
+const genericEvidencePatterns = [/材料能证明/, /已有材料/, /部分岗位要求/, /相关经历/, /匹配岗位/, /具备一定基础/, /可以支撑/];
+const concreteEvidencePatterns = [
+  /实习/,
+  /项目/,
+  /社群/,
+  /问卷/,
+  /Excel/i,
+  /公众号/,
+  /剪映/,
+  /学生/,
+  /校园/,
+  /调研/,
+  /内容/,
+  /反馈/,
+  /维护/,
+  /排版/,
+  /作品/,
+  /活动/,
+  /\d+\s*(个|次|月|周|天|篇|份|人)/
+];
 const directionPriorities = ['优先探索', '可以尝试', '过渡方向', '先补证据'];
 const riskyClaimPatterns = [
   /没有也可以写/,
@@ -154,6 +174,25 @@ export function findUnsafeAdvice(value: unknown): UnsafeFinding[] {
 
 function hasGenericText(text: string): boolean {
   return genericPatterns.some((pattern) => pattern.test(text));
+}
+
+function hasWeakEvidenceText(text: string): boolean {
+  const value = text.trim();
+  if (!value) return true;
+  const hasGenericEvidence = genericEvidencePatterns.some((pattern) => pattern.test(value));
+  const hasConcreteEvidence = concreteEvidencePatterns.some((pattern) => pattern.test(value));
+  return hasGenericEvidence && !hasConcreteEvidence;
+}
+
+function checkEvidenceAlignment(report: DiagnosisReport, warnings: string[]) {
+  const evidenceTexts = [
+    ...(report.jdFit?.matrix.map((row) => row.evidence) ?? []),
+    ...(report.directionOptions?.map((direction) => direction.evidence) ?? [])
+  ];
+
+  if (evidenceTexts.some(hasWeakEvidenceText)) {
+    warnings.push('报告证据引用过于笼统，建议明确绑定具体经历、动作或材料。');
+  }
 }
 
 function hasUnsafeRewriteClaim(report: DiagnosisReport): boolean {
@@ -474,6 +513,7 @@ export function validateReportQuality(report: DiagnosisReport, mode: Mode): Repo
   const safetyFindings = [...findUnsafeAdvice(report), ...findUnsafeRewriteClaims(report)];
 
   checkCommonReport(report, blockers, warnings, safetyFindings);
+  checkEvidenceAlignment(report, warnings);
   if (mode === 'jd') {
     checkJdReport(report, blockers, warnings);
   } else {

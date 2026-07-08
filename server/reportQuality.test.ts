@@ -188,7 +188,7 @@ function inventoryReport(overrides: Partial<DiagnosisReport> = {}): DiagnosisRep
 }
 
 describe('report quality checks', () => {
-  test('有 JD 报告满足 V0.3 成功诊断标准时通过', () => {
+  test('有 JD 报告满足 V0.4 成功诊断标准时通过', () => {
     const result = validateReportQuality(jdReport(), 'jd');
 
     expect(result.passed).toBe(true);
@@ -472,6 +472,27 @@ describe('report quality checks', () => {
 
     expect(result.passed).toBe(true);
     expect(result.warnings).toContain('补强计划存在偏空泛或不可验证的表达。');
+    expect(result.score).toBeLessThan(100);
+  });
+
+  test('证据字段过于笼统且没有指向具体经历时产生质量警告', () => {
+    const result = validateReportQuality(
+      jdReport({
+        jdFit: {
+          ...jdReport().jdFit!,
+          matrix: [
+            {
+              ...jdReport().jdFit!.matrix[0],
+              evidence: '材料能证明部分岗位要求。'
+            }
+          ]
+        }
+      }),
+      'jd'
+    );
+
+    expect(result.passed).toBe(true);
+    expect(result.warnings).toContain('报告证据引用过于笼统，建议明确绑定具体经历、动作或材料。');
     expect(result.score).toBeLessThan(100);
   });
 });
