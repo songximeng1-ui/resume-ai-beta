@@ -14,7 +14,7 @@ import {
   type JsonCallOptions
 } from './openaiClient.ts';
 import { digQuestionsPrompt, jdSummaryPrompt, jdFitPrompt, kimiExtractPrompt, type ReportModuleTask, reportModulePrompt, reportPrompt, structureResumePrompt } from './prompts.ts';
-import { callJsonWithPrimaryBackup, shouldUseExtractor } from './modelOrchestrator.ts';
+import { callJsonWithPrimaryBackup, callRoleJsonWithPrimaryBackup, shouldUseExtractor } from './modelOrchestrator.ts';
 import { callProviderRoleJson } from './modelProvider.ts';
 import {
   sanitizeRiskyInterview,
@@ -814,6 +814,23 @@ async function callReportModule<T>(
   let lastError: unknown = null;
   const promptBody = options.promptBody ?? body;
   const promptFor = (repair: boolean) => reportModulePrompt(promptBody, options.task, repair);
+  if (hasDedicatedGenerationProviders()) {
+    const result = await callRoleJsonWithPrimaryBackup({
+      task: options.task,
+      schemaName: options.schemaName,
+      jsonSchema: options.jsonSchema,
+      prompt: promptFor(false),
+      validate: options.validate,
+      maxAttempts: 1
+    });
+    const modelTier = result.role === 'primary' ? 'report' : 'small';
+    return {
+      data: validateReportModule(options.task, options.validate, result.data),
+      usage: result.usage,
+      module: usageModule(options.task, modelTier, result.usage)
+    };
+  }
+
   const callTier = async (modelTier: Exclude<ReportModelTier, 'rule'>, repair: boolean) => {
     const model = modelTier === 'small' ? config.smallModel : config.reportModel;
     const call = modelTier === 'small' ? aiRuntime.callSmallModelJson : aiRuntime.callReportModelJson;
@@ -1486,7 +1503,7 @@ function getRuntime(runtime: Partial<AiRuntime>): AiRuntime {
   return {
     callSmallModelJson:
       runtime.callSmallModelJson ||
-      (useRoleProviders ? ((options) => callProviderRoleJson('backup', omitModel(options))) : callSmallModelJson),
+      (useRoleProviders ? ((options) => callProviderRoleJson('primary', omitModel(options))) : callSmallModelJson),
     callReportModelJson:
       runtime.callReportModelJson ||
       (useRoleProviders ? ((options) => callProviderRoleJson('primary', omitModel(options))) : callReportModelJson)

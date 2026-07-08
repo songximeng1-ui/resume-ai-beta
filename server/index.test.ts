@@ -574,6 +574,54 @@ test('report endpoint can use dedicated primary provider config without OPENAI_A
   }
 });
 
+test('dedicated provider report falls back to backup only after primary module failure', async () => {
+  delete process.env.OPENAI_API_KEY;
+  process.env.AI_PRIMARY_API_KEY = 'deepseek-key';
+  process.env.AI_PRIMARY_MODEL = 'deepseek-chat';
+  process.env.AI_BACKUP_API_KEY = 'qwen-key';
+  process.env.AI_BACKUP_MODEL = 'qwen-plus';
+
+  const providerCalls: string[] = [];
+  const directionPrompts: string[] = [];
+  const valid = validInventoryReport();
+  vi.spyOn(modelProvider, 'callProviderRoleJson').mockImplementation(async (role, options) => {
+    providerCalls.push(`${role}:${options.task}`);
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
+    if (options.task === 'report-directions') {
+      directionPrompts.push(`${role}:${options.prompt}`);
+      if (role === 'primary') {
+        throw new AiServiceError({
+          code: 'schema_validation',
+          message: 'schema invalid',
+          detail: 'schema invalid',
+          retryable: true,
+          attempts: 1
+        });
+      }
+      return { data: { source: 'real', directionOptions: valid.directionOptions }, usage: null };
+    }
+    if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: valid.rewrites }, usage: null };
+    throw new Error(`unexpected provider task ${role}:${options.task}`);
+  });
+
+  const server = await withServer();
+  try {
+    const { response, body } = await requestReport(server, { mode: 'inventory', jdText: 'short jd' });
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('real');
+    expect(providerCalls).toEqual([
+      'primary:report-highlights',
+      'primary:report-directions',
+      'backup:report-directions',
+      'primary:report-rewrites'
+    ]);
+    expect(directionPrompts[1]).toBe(directionPrompts[0].replace('primary:', 'backup:'));
+  } finally {
+    await server.close();
+  }
+});
+
 test('demo report supports inventory mode without requiring JD fit or 5 interview questions', async () => {
   delete process.env.OPENAI_API_KEY;
 
