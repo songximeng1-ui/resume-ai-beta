@@ -50,7 +50,7 @@ function confirmedAssets(value: unknown, profile: Profile): ConfirmedAsset[] {
     .filter(isRecord)
     .filter((asset) => {
       const status = readString(asset.status);
-      return asset.confirmed === true || status === '已确认' || status === '用户已修改';
+      return asset.confirmed === true || status === '确认使用' || status === '编辑后确认' || status === '已确认' || status === '用户已修改';
     })
     .filter((asset) => asset.isGap !== true && readString(asset.content))
     .map((asset) => ({

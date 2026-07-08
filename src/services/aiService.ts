@@ -169,10 +169,11 @@ export function createAssetCardsFromProfile(profile: Profile, source: 'real' | '
       id,
       title: assetTitles[id],
       content: isGap ? '' : content,
-      status: content ? '待用户确认' : '暂未填写',
+      status: content ? '待确认' : '暂未填写',
       confirmed: false,
       source,
       isGap,
+      sourceDescription: content ? '来自用户粘贴的简历文本、基础信息或经历材料。' : '当前未识别到对应经历，可稍后补充真实材料。',
       gapAdvice: isGap
         ? `目前没有识别到这段经历。没关系，后续不会强行追问这一项。如果目标岗位看重这类经历，可以后续补充。`
         : undefined,

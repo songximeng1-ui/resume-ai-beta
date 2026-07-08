@@ -19,6 +19,7 @@ type TaskPackageAsset = {
   content: string;
   confirmed?: boolean;
   status?: string;
+  sourceDescription?: string;
   notes?: unknown[];
 };
 
@@ -63,6 +64,7 @@ function normalizeAsset(value: unknown): TaskPackageAsset | null {
     content,
     confirmed: value.confirmed === true,
     status: readString(value.status),
+    sourceDescription: readString(value.sourceDescription),
     notes: Array.isArray(value.notes) ? value.notes : []
   };
 }

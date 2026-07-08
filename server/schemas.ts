@@ -16,6 +16,7 @@ import type {
 } from '../src/types.ts';
 
 const fieldStatuses = ['AI 已识别', '待用户确认', '用户已修改'] as const;
+const assetStatuses = ['待确认', '确认使用', '编辑后确认', '暂未填写', '暂不使用', '已确认', '待用户确认', '用户已修改'] as const;
 const verdicts = ['主投', '可冲', '过渡', '暂不建议主投'] as const;
 const matchLevels = ['匹配较强', '有一定匹配', '需要补充证据', '当前证据不足'] as const;
 const deliveryDecisions = ['建议优先投递', '可以投递，建议先优化简历', '可以作为尝试方向', '建议先补强后再重点投递'] as const;
@@ -130,14 +131,23 @@ function normalizeAsset(value: unknown, index: number): AssetCard {
   if (!isRecord(value)) {
     throw new Error(`assets.${index} must be an object`);
   }
+  const rawStatus = String(value.status || '待确认');
+  const status = assetStatuses.includes(rawStatus as AssetCard['status']) ? (rawStatus as AssetCard['status']) : '待确认';
+  const content = String(value.content || '');
+  const isGap = Boolean(value.isGap);
   return {
     id: assertString(value.id, `assets.${index}.id`) as AssetCard['id'],
     title: assertString(value.title, `assets.${index}.title`),
-    content: String(value.content || ''),
-    status: String(value.status || '待用户确认') as AssetCard['status'],
+    content,
+    status,
     confirmed: Boolean(value.confirmed),
     source: assertSource(value.source || 'real', `assets.${index}.source`),
-    isGap: Boolean(value.isGap),
+    isGap,
+    sourceDescription: value.sourceDescription
+      ? String(value.sourceDescription)
+      : isGap || !content.trim()
+        ? '当前未识别到对应经历，可稍后补充真实材料。'
+        : '来自用户粘贴的简历文本、基础信息或经历材料。',
     gapAdvice: value.gapAdvice ? String(value.gapAdvice) : undefined,
     notes: Array.isArray(value.notes) ? value.notes.map(String) : []
   };
@@ -626,7 +636,7 @@ const assetSchema = {
     id: { enum: [...assetIds] },
     title: stringSchema,
     content: stringSchema,
-    status: { enum: ['已确认', '待用户确认', '用户已修改', '估算数据', '待核实', '不建议写入'] },
+    status: { enum: [...assetStatuses, '估算数据', '待核实', '不建议写入'] },
     confirmed: booleanSchema,
     source: { enum: ['real'] },
     isGap: booleanSchema,

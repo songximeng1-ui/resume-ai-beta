@@ -154,10 +154,11 @@ function makeAsset(id: AssetKind, content: string, source: 'demo' | 'real' = 'de
     id,
     title: assetTitles[id],
     content: isGap ? '' : content.trim(),
-    status: '待用户确认',
+    status: content.trim() ? '待确认' : '暂未填写',
     confirmed: false,
     source,
     isGap,
+    sourceDescription: content.trim() ? '来自用户粘贴的简历文本、基础信息或经历材料。' : '当前未识别到对应经历，可稍后补充真实材料。',
     gapAdvice: isGap
       ? `你目前没有${assetTitles[id]}，这不是问题本身；如果目标岗位看重这类证据，建议优先补一个与岗位相关的校内项目、作品集项目或短期实践。`
       : '',
@@ -929,7 +930,11 @@ function activeAssetSummaries(body: unknown): string[] {
   const payload = isRecord(body) ? body : {};
   const assets = Array.isArray(payload.assets) ? payload.assets.filter(isRecord) : [];
   return assets
-    .filter((asset) => readString(asset.content).trim() && asset.isGap !== true && asset.status !== '暂不使用')
+    .filter((asset) => {
+      const status = readString(asset.status);
+      const confirmed = asset.confirmed === true || ['确认使用', '编辑后确认', '已确认', '用户已修改'].includes(status);
+      return confirmed && readString(asset.content).trim() && asset.isGap !== true && status !== '暂不使用';
+    })
     .slice(0, 4)
     .map((asset) => `${readString(asset.title) || readString(asset.id)}：${readString(asset.content).slice(0, 90)}`);
 }

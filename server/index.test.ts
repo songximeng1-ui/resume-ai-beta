@@ -540,6 +540,69 @@ test('report endpoint returns a conservative basic report instead of demo on rea
   }
 });
 
+test('basic report fallback only uses confirmed or edited-confirmed assets', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const callReportModelJson = vi.fn(async () => {
+    throw new Error('model timeout');
+  });
+
+  const server = await withServer({ callReportModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'inventory',
+        stage: 'senior',
+        profile: {},
+        assets: [
+          {
+            id: 'project',
+            title: '项目经历',
+            content: '确认可用项目经历',
+            status: '确认使用',
+            confirmed: true,
+            source: 'real',
+            isGap: false
+          },
+          {
+            id: 'internship',
+            title: '实习经历',
+            content: '未确认实习不能进入报告',
+            status: '待确认',
+            confirmed: false,
+            source: 'real',
+            isGap: false
+          },
+          {
+            id: 'campus',
+            title: '校园经历',
+            content: '暂不使用经历不能进入报告',
+            status: '暂不使用',
+            confirmed: false,
+            source: 'real',
+            isGap: false
+          }
+        ],
+        jdText: ''
+      })
+    });
+    const body = await response.json();
+    const serialized = JSON.stringify(body);
+
+    expect(response.status).toBe(200);
+    expect(body.isBasic).toBe(true);
+    expect(serialized).toContain('确认可用项目经历');
+    expect(serialized).not.toContain('未确认实习不能进入报告');
+    expect(serialized).not.toContain('暂不使用经历不能进入报告');
+  } finally {
+    await server.close();
+  }
+});
+
 test('report endpoint can use dedicated primary provider config without OPENAI_API_KEY', async () => {
   delete process.env.OPENAI_API_KEY;
   process.env.AI_PRIMARY_API_KEY = 'deepseek-key';

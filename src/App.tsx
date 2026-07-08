@@ -245,11 +245,15 @@ function canEnterDig(asset: AssetCard) {
   return diggableAssetIds.includes(asset.id) && !asset.isGap && asset.status !== '暂不使用' && Boolean(asset.content.trim());
 }
 
+function isConfirmedAssetStatus(asset: AssetCard) {
+  return asset.confirmed || ['确认使用', '编辑后确认', '已确认', '用户已修改'].includes(asset.status);
+}
+
 function isAssetProcessed(asset: AssetCard) {
   if (asset.isGap || !asset.content.trim()) {
     return true;
   }
-  return asset.status === '已确认' || asset.status === '暂不使用';
+  return isConfirmedAssetStatus(asset) || asset.status === '暂不使用';
 }
 
 function readFileAsText(file: File) {
@@ -503,12 +507,13 @@ function App() {
           return {
             ...next,
             isGap: asset.id !== 'education' && !hasContent,
-            status: hasContent ? '用户已修改' : '暂未填写',
+            status: hasContent ? '待确认' : '暂未填写',
             confirmed: false,
+            sourceDescription: hasContent ? '用户在经历卡中编辑或补充的内容，需确认后进入后续分析。' : next.sourceDescription,
             gapAdvice: hasContent ? undefined : '目前没有识别到这段经历。没关系，后续不会强行追问这一项。如果目标岗位看重这类经历，可以后续补充。'
           };
         }
-        return { ...next, status: patch.status || '用户已修改' };
+        return { ...next, status: patch.status || '待确认' };
       })
     );
   };
@@ -518,7 +523,13 @@ function App() {
   };
 
   const confirmAsset = (id: AssetKind) => {
-    setAssets((current) => current.map((asset) => (asset.id === id && !asset.isGap ? { ...asset, confirmed: true, status: '已确认' } : asset)));
+    setAssets((current) =>
+      current.map((asset) =>
+        asset.id === id && !asset.isGap
+          ? { ...asset, confirmed: true, status: asset.sourceDescription?.includes('编辑') ? '编辑后确认' : '确认使用' }
+          : asset
+      )
+    );
   };
 
   const ignoreAsset = (id: AssetKind) => {
@@ -582,7 +593,7 @@ function App() {
     let nextAssets = assets;
     if (digAnswer.trim()) {
       nextAssets = assets.map((asset) =>
-          asset.id === currentDigAsset.id ? { ...asset, notes: [...asset.notes, digAnswer.trim()], confirmed: true, status: '已确认' } : asset
+          asset.id === currentDigAsset.id ? { ...asset, notes: [...asset.notes, digAnswer.trim()], confirmed: true, status: '编辑后确认' } : asset
       );
       setAssets(nextAssets);
     }
@@ -1118,6 +1129,7 @@ function AssetsPage({
             ) : (
               <>
                 <p>{asset.content}</p>
+                <p className="asset-helper">来源说明：{asset.sourceDescription || '来自用户粘贴的简历文本、基础信息或经历材料。'}</p>
                 <p className="asset-helper">确认后，AI 会围绕这段经历继续追问真实细节。</p>
               </>
             )}

@@ -4,7 +4,15 @@ export type Step = 'start' | 'input' | 'assets' | 'dig' | 'direction' | 'match' 
 export type AiSource = 'real' | 'demo';
 
 export type FieldStatus = 'AI 已识别' | '待用户确认' | '用户已修改';
-export type AssetStatus = '已确认' | '待用户确认' | '用户已修改' | '暂未填写' | '暂不使用';
+export type AssetStatus =
+  | '待确认'
+  | '确认使用'
+  | '编辑后确认'
+  | '暂未填写'
+  | '暂不使用'
+  | '已确认'
+  | '待用户确认'
+  | '用户已修改';
 export type DeliveryVerdict = '主投' | '可冲' | '过渡' | '暂不建议主投';
 export type MatchLevel = '匹配较强' | '有一定匹配' | '需要补充证据' | '当前证据不足';
 export type DeliveryDecision = '建议优先投递' | '可以投递，建议先优化简历' | '可以作为尝试方向' | '建议先补强后再重点投递';
@@ -114,6 +122,7 @@ export interface AssetCard {
   confirmed: boolean;
   source: AiSource;
   isGap: boolean;
+  sourceDescription?: string;
   gapAdvice?: string;
   notes: string[];
 }
