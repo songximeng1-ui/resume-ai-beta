@@ -8,10 +8,12 @@
 
 - 根因：深度报告生成失败后，系统先写入 `failedModule` 和 `technicalDetail`，但随后基础版兜底的 `assembledReport` 标记会把任务状态改成 `completed`，并清空失败模块和技术详情。
 - 修复：正常深度报告组装成功仍标记为 `completed`；只有基础版兜底时保留原始 `failed` / `partial` 状态、`failedModule`、`retryable` 和脱敏后的 `technicalDetail`。
+- 追加修复：深度报告生成成功但最终质量检查失败时，也会把 `assembledReport` 标记为失败模块，并保留 blocker 和字段路径；不会把危险建议原文泄回浏览器响应。
 - 用户仍能拿到基础版报告，但开发侧可以看见真实失败点，便于定位 assembled report 或某个模块失败原因。
 
 验证结果：
 
+- `npm.cmd test -- server/index.test.ts -t "quality blockers"`：通过，1 个目标测试通过。
 - `npm.cmd test -- server/index.test.ts`：通过，1 个测试文件、41 个测试通过。
 - `npm.cmd test`：通过，10 个测试文件、125 个测试通过。
 - `npm.cmd run build`：通过。

@@ -638,6 +638,39 @@ function ensureClientSafeReport(report: DiagnosisReport, mode: Mode, body: unkno
   return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode }), mode);
 }
 
+function markReportTaskQualityFallback(task: ReportGenerationTask, checked: DiagnosisReport) {
+  const blockers = checked.quality?.blockers ?? [];
+  const warnings = checked.quality?.warnings ?? [];
+  const findings = checked.quality?.safetyFindings ?? [];
+  task.status = task.completedModules.length ? 'partial' : 'failed';
+  task.currentModule = undefined;
+  task.failedModule = 'assembledReport';
+  task.retryable = true;
+  task.message = '深度报告已生成，但最终质量检查未通过；已返回基础版报告，并保留失败原因用于继续排查。';
+  task.technicalDetail = redactSensitiveText(
+    [
+      ...blockers,
+      ...warnings,
+      ...findings.map((finding) => `${finding.path}: ${finding.riskKind}`)
+    ].filter(Boolean).join('；') ||
+      '报告最终质量检查未通过。'
+  );
+  task.completedCount = task.completedModules.length;
+}
+
+function ensureClientSafeReportForTask(report: DiagnosisReport, mode: Mode, body: unknown, task: ReportGenerationTask): DiagnosisReport {
+  const checked = attachReportQuality(report, mode);
+  if (checked.quality?.passed) {
+    return checked;
+  }
+  const blockers = checked.quality?.blockers ?? [];
+  if (!blockers.length) {
+    return checked;
+  }
+  markReportTaskQualityFallback(task, checked);
+  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode }), mode);
+}
+
 function isAiTaskResult<T>(value: AiRuntimeResult<T>): value is { data: T; usage: AiUsage | null } {
   return Boolean(value && typeof value === 'object' && 'data' in value && 'usage' in value);
 }
@@ -1705,7 +1738,7 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
         res.json({ reportTask: sanitizeReportTaskForClient(result.task) });
         return;
       }
-      const safeReport = ensureClientSafeReport(result.data, qualityMode, req.body);
+      const safeReport = ensureClientSafeReportForTask(result.data, qualityMode, req.body, result.task);
       res.json({
         ...attachUsage(safeReport, result.usage),
         reportTask: sanitizeReportTaskForClient(result.task)

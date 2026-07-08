@@ -866,6 +866,12 @@ test('configured report endpoint falls back to basic report when real model outp
     expect(body.quality.passed).toBe(true);
     expect(body.quality.blockers).toEqual([]);
     expect(body.summary).toContain('基础版报告');
+    expect(body.reportTask).toMatchObject({
+      status: 'partial',
+      failedModule: 'assembledReport',
+      retryable: true
+    });
+    expect(body.reportTask.technicalDetail).toContain('报告正文存在可能鼓励造假、夸大或过度承诺的表达');
     expect(serialized).not.toMatch(/没有也可以写|主导用户增长|保证通过筛选/);
   } finally {
     await server.close();
