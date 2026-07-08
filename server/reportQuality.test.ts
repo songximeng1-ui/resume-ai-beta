@@ -204,6 +204,43 @@ describe('report quality checks', () => {
     expect(result.blockers).toEqual([]);
   });
 
+  test('无 JD 报告引用简历原文中的职责和结果证据时不误判为夸大建议', () => {
+    const originalEvidence =
+      '运营推广：负责门店官方抖音账号日常运营、内容推广及直播策划，独立完成视频合集题材策划、素材拍摄与剪辑，单场直播引流效果提升超30%，累计策划制作视频13条。';
+    const result = validateReportQuality(
+      inventoryReport({
+        highlights: [
+          {
+            ...inventoryReport().highlights[0],
+            sourceExperience: originalEvidence
+          },
+          inventoryReport().highlights[1]
+        ],
+        rewrites: [
+          {
+            ...inventoryReport().rewrites[0],
+            relatedExperience: originalEvidence,
+            original: originalEvidence
+          },
+          inventoryReport().rewrites[1],
+          inventoryReport().rewrites[2]
+        ],
+        directionOptions: [
+          {
+            ...inventoryReport().directionOptions![0],
+            evidence: originalEvidence
+          },
+          inventoryReport().directionOptions![1]
+        ]
+      }),
+      'inventory'
+    );
+
+    expect(result.passed).toBe(true);
+    expect(result.blockers).toEqual([]);
+    expect(result.safetyFindings).toEqual([]);
+  });
+
   test('缺少关键 JD 输出时失败', () => {
     const result = validateReportQuality(jdReport({ interviews: [] }), 'jd');
 

@@ -1,5 +1,23 @@
 # V0.4 版本记录
 
+## 2026-07-08：无 JD 报告证据引用质量误判修复
+
+改动类型：后端接口、测试、文档。
+
+本次修复真实 AI smoke 中发现的无 JD 报告质量误判：
+
+- 根因：质量检查递归扫描所有报告文本，把 `sourceExperience`、`relatedExperience`、`original`、`directionOptions.evidence` 等证据/原文引用字段也当成 AI 建议正文处理。
+- 修复：证据引用字段中的普通履历措辞不再触发“夸大建议” blocker；但如果出现“建议写成、可以包装、保证、伪造、编造”等指导性危险话术，仍然会被拦截。
+- 新增回归测试覆盖真实简历原文中“负责、独立完成、提升”等表达被引用到无 JD 报告时不误判。
+
+验证结果：
+
+- `npm.cmd test -- server/reportQuality.test.ts`：通过，1 个测试文件、15 个测试通过。
+- `npm.cmd test`：通过，10 个测试文件、125 个测试通过。
+- `npm.cmd run build`：通过。
+
+README、`.env.example` 和提示词文档暂无必要更新。
+
 ## 2026-07-08：真实 AI smoke 排查模式收口
 
 改动类型：后端接口、测试、环境变量示例、文档。

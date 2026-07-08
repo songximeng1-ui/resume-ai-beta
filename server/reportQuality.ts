@@ -115,6 +115,18 @@ function isBoundaryRiskSentence(sentence: string): boolean {
   );
 }
 
+function isEvidenceQuotePath(path: string): boolean {
+  return /(?:^|\.)(sourceExperience|relatedExperience|original|evidence)$/.test(path);
+}
+
+function isUnsafeInstructionSentence(sentence: string): boolean {
+  return /(?:建议|可以|写成|包装成|没有也可以|缺少.*也可以|保证|必过|确保|伪造|编造|虚构)/.test(sentence);
+}
+
+function shouldIgnoreQuotedEvidenceFinding(path: string, sentence: string, riskKind: UnsafeFinding['riskKind']): boolean {
+  return isEvidenceQuotePath(path) && riskKind === 'exaggeration' && !isUnsafeInstructionSentence(sentence);
+}
+
 export function containsUnsafeAdvice(text: string): boolean {
   return findUnsafeAdvice(text).some((finding) => finding.severity === 'blocker');
 }
@@ -159,6 +171,7 @@ export function findUnsafeAdvice(value: unknown): UnsafeFinding[] {
       return unsafeAdvicePatterns.flatMap(({ pattern, riskKind, severity }) => {
         const match = sentence.match(pattern);
         if (!match) return [];
+        if (shouldIgnoreQuotedEvidenceFinding(path, sentence, riskKind)) return [];
         return [
           {
             path,
