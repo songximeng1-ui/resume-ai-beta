@@ -8,6 +8,7 @@ import {
   validateDigQuestionSet,
   validateReportActionPlanModule,
   validateReportDirectionsModule,
+  validateReportInterviewQuestionModule,
   validateReportJdFitSummaryModule,
   validateReportRewritesModule
 } from './schemas.ts';
@@ -2463,9 +2464,26 @@ test('report interview question prompt requires JD-linked source-bound placehold
   expect(prompt).toContain('可使用的真实经历必须从 sourceExperienceCandidates 中逐字复制');
   expect(prompt).toContain('sampleAnswer 只能写占位式表达，不能输出可直接照抄的完整答案');
   expect(prompt).toContain('不要引导用户伪造数据、夸大角色或包装不存在成果');
+  expect(prompt).toContain('即使用否定句也不要出现“显著提升、大幅增长、伪造数据、夸大角色、包装不存在成果”这些字样');
   expect(context.sourceExperienceCandidates).toEqual([
     '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。'
   ]);
+});
+
+test('interview question schema prefixes JD keyword when question is too generic', () => {
+  const result = validateReportInterviewQuestionModule({
+    source: 'real',
+    interview: {
+      question: '你能详细说说这段经历吗？',
+      whyAsk: 'HR 可能会围绕社群维护要求追问真实分工。',
+      answerAngle: '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。',
+      concern: '不要把协助维护写成主导负责。',
+      sampleAnswer: '我主要参与的是……我能确认的是……',
+      doNotExaggerate: '这部分数据需要按真实记录补充。'
+    }
+  });
+
+  expect(result.interview.question).toContain('社群维护');
 });
 
 test('direction schema fills level from priority for chat providers', () => {

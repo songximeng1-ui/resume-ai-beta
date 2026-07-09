@@ -351,14 +351,24 @@ function validateRewrite(value: unknown, index: number): ResumeRewrite {
 
 function validateInterview(value: unknown, index: number): InterviewPrep {
   if (!isRecord(value)) throw new Error(`interviews.${index} must be an object`);
+  const whyAsk = assertString(value.whyAsk, `interviews.${index}.whyAsk`);
+  const answerAngle = assertString(value.answerAngle, `interviews.${index}.answerAngle`);
+  const question = normalizeInterviewQuestion(assertString(value.question, `interviews.${index}.question`), `${whyAsk}\n${answerAngle}`);
   return {
-    question: assertString(value.question, `interviews.${index}.question`),
-    whyAsk: assertString(value.whyAsk, `interviews.${index}.whyAsk`),
-    answerAngle: assertString(value.answerAngle, `interviews.${index}.answerAngle`),
+    question,
+    whyAsk,
+    answerAngle,
     concern: assertString(value.concern, `interviews.${index}.concern`),
     sampleAnswer: assertString(value.sampleAnswer, `interviews.${index}.sampleAnswer`),
     doNotExaggerate: assertString(value.doNotExaggerate, `interviews.${index}.doNotExaggerate`)
   };
+}
+
+function normalizeInterviewQuestion(question: string, context: string): string {
+  const jdKeywords = ['社群维护', '维护用户社群', '用户反馈', '活动复盘', '内容表达', '数据整理', 'Excel'];
+  if (jdKeywords.some((keyword) => question.includes(keyword))) return question;
+  const keyword = jdKeywords.find((item) => context.includes(item));
+  return keyword ? `关于${keyword}：${question}` : question;
 }
 
 function validateActionPlan(value: unknown): ActionPlanReport {
