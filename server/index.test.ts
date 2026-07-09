@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createAiServer, getServerListenConfig } from './index.ts';
-import { buildCompactReportContext, careerCoachSystemPrompt, jdFitPrompt, reportModulePrompt, reportPrompt } from './prompts.ts';
+import { buildCompactReportContext, careerCoachSystemPrompt, jdFitPrompt, reportModulePrompt, reportPrompt, structureResumePrompt } from './prompts.ts';
 import {
   diagnosisReportJsonSchema,
   digQuestionsJsonSchema,
@@ -562,6 +562,168 @@ test('report endpoint returns a conservative basic report instead of demo on rea
         task: 'report-highlights'
       })
     );
+  } finally {
+    await server.close();
+  }
+});
+
+test('structure resume prompt spells out the exact top-level contract for chat providers', () => {
+  const prompt = structureResumePrompt({ resumeText: '本科 市场营销 目标用户运营', currentProfile: {} });
+
+  expect(prompt).toContain('顶层 JSON 对象只能包含 source、profile、fieldStatuses、assets');
+  expect(prompt).toContain('profile 必须是对象');
+  expect(prompt).toContain('fieldStatuses 必须是对象');
+  expect(prompt).toContain('assets 必须是数组');
+});
+
+test('role provider structure-resume falls back from primary to backup', async () => {
+  delete process.env.OPENAI_API_KEY;
+  process.env.AI_PRIMARY_API_KEY = 'primary-key';
+  process.env.AI_PRIMARY_MODEL = 'deepseek-test';
+  process.env.AI_BACKUP_API_KEY = 'backup-key';
+  process.env.AI_BACKUP_MODEL = 'qwen-test';
+
+  const calls: string[] = [];
+  vi.spyOn(modelProvider, 'callProviderRoleJson').mockImplementation(async (role, options) => {
+    calls.push(`${role}:${options.task}`);
+    if (role === 'primary') {
+      throw new AiServiceError({
+        code: 'schema_validation',
+        message: 'profile must be an object',
+        detail: 'profile must be an object',
+        retryable: true,
+        attempts: 1
+      });
+    }
+    return {
+      data: options.validate({
+        source: 'real',
+        profile: {
+          education: '本科',
+          schoolName: '杭州应用技术学院',
+          major: '市场营销',
+          graduation: '2026',
+          city: '杭州',
+          targetRole: '用户运营实习生',
+          internship: '教育机构新媒体运营实习',
+          project: '',
+          campus: '',
+          partTime: '',
+          awards: '',
+          skills: 'Excel',
+          portfolio: ''
+        },
+        fieldStatuses: {
+          education: 'AI 已识别',
+          schoolName: 'AI 已识别',
+          major: 'AI 已识别',
+          graduation: 'AI 已识别',
+          city: 'AI 已识别',
+          targetRole: 'AI 已识别',
+          internship: 'AI 已识别',
+          project: '待用户确认',
+          campus: '待用户确认',
+          partTime: '待用户确认',
+          awards: '待用户确认',
+          skills: 'AI 已识别',
+          portfolio: '待用户确认'
+        },
+        assets: [
+          {
+            id: 'internship',
+            title: '实习经历',
+            content: '教育机构新媒体运营实习',
+            status: '待确认',
+            confirmed: false,
+            source: 'real',
+            isGap: false,
+            sourceDescription: '来自用户粘贴的简历文本、基础信息或经历材料。',
+            notes: []
+          }
+        ]
+      }),
+      usage: null
+    };
+  });
+
+  const server = await withServer();
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/structure-resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resumeText: '本科 市场营销 目标用户运营', currentProfile: {} })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('real');
+    expect(body.profile.targetRole).toBe('用户运营实习生');
+    expect(calls).toEqual(['primary:structure-resume', 'backup:structure-resume']);
+    expect(JSON.stringify(body)).not.toMatch(/deepseek-test|qwen-test|primary-key|backup-key|provider|baseUrl/i);
+  } finally {
+    await server.close();
+  }
+});
+
+test('role provider dig-questions falls back from primary to backup', async () => {
+  delete process.env.OPENAI_API_KEY;
+  process.env.AI_PRIMARY_API_KEY = 'primary-key';
+  process.env.AI_PRIMARY_MODEL = 'deepseek-test';
+  process.env.AI_BACKUP_API_KEY = 'backup-key';
+  process.env.AI_BACKUP_MODEL = 'qwen-test';
+
+  const calls: string[] = [];
+  vi.spyOn(modelProvider, 'callProviderRoleJson').mockImplementation(async (role, options) => {
+    calls.push(`${role}:${options.task}`);
+    if (role === 'primary') {
+      throw new AiServiceError({
+        code: 'network_error',
+        message: 'Connection error.',
+        detail: 'Connection error.',
+        retryable: true,
+        attempts: 1
+      });
+    }
+    return {
+      data: options.validate({
+        source: 'real',
+        assetId: 'internship',
+        userVisibleQuestions: ['你提到维护学生社群，当时每周大概会做哪些具体动作？'],
+        internalMetadata: [
+          {
+            questionId: 'q_1',
+            relatedAssetId: 'internship',
+            relatedJdRequirementId: 'req_1',
+            method: 'hr',
+            factDimensions: ['task', 'action'],
+            internalWhy: '核实真实分工和动作边界。'
+          }
+        ],
+        encouragement: '先回忆真实发生过的动作即可，不需要包装。'
+      }),
+      usage: null
+    };
+  });
+
+  const server = await withServer();
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/dig-questions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        profile: { targetRole: '用户运营实习生' },
+        asset: { id: 'internship', title: '实习经历', content: '维护学生社群', status: '确认使用', confirmed: true },
+        jdText: '负责社群维护和反馈整理。',
+        previousAnswers: []
+      })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.source).toBe('real');
+    expect(body.userVisibleQuestions).toHaveLength(1);
+    expect(calls).toEqual(['primary:dig-questions', 'backup:dig-questions']);
+    expect(JSON.stringify(body)).not.toMatch(/deepseek-test|qwen-test|primary-key|backup-key|provider|baseUrl/i);
   } finally {
     await server.close();
   }

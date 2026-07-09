@@ -1555,10 +1555,10 @@ function getRuntime(runtime: Partial<AiRuntime>): AiRuntime {
   return {
     callSmallModelJson:
       runtime.callSmallModelJson ||
-      (useRoleProviders ? ((options) => callProviderRoleJson('primary', omitModel(options))) : callSmallModelJson),
+      (useRoleProviders ? ((options) => callRoleJsonWithPrimaryBackup(omitModel(options))) : callSmallModelJson),
     callReportModelJson:
       runtime.callReportModelJson ||
-      (useRoleProviders ? ((options) => callProviderRoleJson('primary', omitModel(options))) : callReportModelJson)
+      (useRoleProviders ? ((options) => callRoleJsonWithPrimaryBackup(omitModel(options))) : callReportModelJson)
   };
 }
 

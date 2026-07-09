@@ -18,10 +18,17 @@ export function structureResumePrompt(payload: unknown) {
   return `任务：把用户粘贴的简历文本结构化为基础信息和经历资产卡。
 
 要求：
+- 顶层 JSON 对象只能包含 source、profile、fieldStatuses、assets。
 - 只根据用户原文识别，不能编造。
 - 识别不确定的字段标记为“待用户确认”。
 - 空白经历生成缺口/补强卡。
 - source 必须为 "real"。
+- profile 必须是对象，字段固定为 education、schoolName、major、graduation、city、targetRole、internship、project、campus、partTime、awards、skills、portfolio；无法识别时填空字符串。
+- fieldStatuses 必须是对象，字段与 profile 完全一致；每个值写“AI 已识别”或“待用户确认”。
+- assets 必须是数组；每项必须包含 id、title、content、status、confirmed、source、isGap、sourceDescription、notes。
+- assets.id 只能使用 education、internship、project、campus、partTime、awards、skills。
+- 有内容但待用户确认的经历 status 用“待确认”，confirmed 为 false；空白缺口卡 status 用“暂未填写”，isGap 为 true。
+- 不要把 profile 放进 resume、data、result、output 等嵌套对象里。
 
 输入：
 ${JSON.stringify(payload)}`;
