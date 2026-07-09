@@ -1,5 +1,31 @@
 # V0.5 版本记录
 
+## 2026-07-09：JD fit 小范围业务 smoke 通过
+
+改动类型：真实 AI 验证、文档。
+
+本次按 V0.5 下一步计划，只跑 `/api/ai/jd-fit` 小范围业务 smoke，未调用 `/api/ai/report`，未跑完整报告。
+
+验证内容：
+
+- DeepSeek direct `/api/ai/jd-fit`：成功，用时约 17.36 秒。
+- Direct 路径可推断内部 `jd-summary` 步骤通过；接口响应返回最终 JD fit，不直接暴露 JD summary。
+- Direct 路径返回 `source=real`，投递判断为“可以投递，建议先优化简历”，生成 5 条 JD fit matrix。
+- 强制 primary base URL 失败后 fallback 到 Qwen `/api/ai/jd-fit`：成功，用时约 30.72 秒。
+- Fallback 路径可推断内部 `jd-summary` 步骤通过；接口响应返回最终 JD fit，不直接暴露 JD summary。
+- Fallback 路径返回 `source=real`，投递判断为“可以投递，建议先优化简历”，生成 5 条 JD fit matrix。
+
+失败分类结果：
+
+- 本次最终 direct 和 fallback 均成功，无业务失败需要归类。
+- fallback 验证过程中曾确认 primary 人为网络失败后已由 backup 接手；最终成功响应未向用户端暴露 provider、模型名、token、base URL 或密钥。
+
+边界：
+
+- 本次没有跑完整报告。
+- 本次没有新增环境变量；`.env.example` 暂无必要更新。
+- 下一步可考虑继续跑 `jd-fit` 的更多样本，或进入完整报告前的更小粒度模块 smoke。
+
 ## 2026-07-09：业务接口 provider fallback 与结构化 prompt 修复
 
 改动类型：后端接口、provider 编排、提示词、测试、文档。
