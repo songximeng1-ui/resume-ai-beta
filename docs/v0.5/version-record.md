@@ -1,5 +1,33 @@
 # V0.5 版本记录
 
+## 2026-07-09：无 JD 完整报告 smoke 复测恢复深度报告
+
+改动类型：真实 AI 验证、文档。
+
+本次复测 commit `6c6fa46` 后的 `/api/ai/report` 无 JD 完整报告链路，严格只跑 1 次完整报告，未跑有 JD 流程，未追加第二次复跑。
+
+真实完整报告复测：
+
+- `/api/ai/report` 无 JD 完整报告 HTTP 200，总耗时约 23.52 秒。
+- 返回 `isBasic=false`，确认从基础版兜底恢复为深度报告。
+- 返回 `quality.passed=true`。
+- 返回包含 `highlights`、`directionOptions`、`rewrites`、`actionPlan`、`reportTask`。
+- 返回 2 条 highlights、3 个 directionOptions、3 条 rewrites、6 条 actionPlan。
+- `reportTask.status=completed`，完成模块为 `highlights`、`directions`、`rewrites`、`actionPlan`、`assembledReport`。
+- 未返回 JD fit matrix，未返回 interviews。
+
+失败诊断：
+
+- 本次未失败，未进入基础版兜底。
+- `failedModule` / `technicalDetail` / quality blockers / safetyFindings 均无失败残留。
+- 客户端安全响应不暴露 provider 角色，因此未观察到明确 Qwen fallback 接手信号。
+
+边界：
+
+- 本次只复测无 JD 完整报告。
+- 本次没有跑有 JD 流程。
+- 本次没有新增环境变量；`.env.example` 暂无必要更新。
+
 ## 2026-07-09：无 JD 完整报告 smoke 首次触发基础版兜底，已收口质量清洗链路
 
 改动类型：后端质量链路、测试、真实 AI 验证、文档。
