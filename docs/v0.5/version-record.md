@@ -1,5 +1,42 @@
 # V0.5 版本记录
 
+## 2026-07-09：V0.5 阶段收口结论
+
+改动类型：阶段验收、文档。
+
+V0.5 主线目标“多模型 provider 与失败可观测链路”已完成阶段验收。本阶段已验证 DeepSeek primary + Qwen backup 的最小真实链路、业务接口链路、报告单模块链路，以及无 JD / 有 JD 完整报告深度生成链路。
+
+已完成能力：
+
+- DeepSeek / Qwen provider 最小真实链路通过：DeepSeek direct 成功、Qwen direct 成功、强制 primary 网络失败后 fallback 到 Qwen 成功。
+- `/api/ai/structure-resume` 业务接口 smoke 通过：DeepSeek direct 成功，强制 primary 失败后 Qwen fallback 成功。
+- `/api/ai/dig-questions` 业务接口 smoke 通过：DeepSeek direct 成功，强制 primary 失败后 Qwen fallback 成功。
+- `/api/ai/jd-fit` 业务接口 smoke 通过：DeepSeek direct 成功，强制 primary 失败后 Qwen fallback 成功。
+- 报告模块 `report-highlights` smoke 通过。
+- 报告模块 `report-rewrites` smoke 通过。
+- 报告模块 `report-action-plan` smoke 通过。
+- 报告模块 `report-directions` smoke 通过。
+- 报告模块 `report-jd-fit-summary` smoke 通过。
+- 报告模块 `report-interview-question` smoke 通过。
+- 无 JD `/api/ai/report` 完整报告 deep report 通过：`isBasic=false`，`quality.passed=true`，包含 `highlights`、`directionOptions`、`rewrites`、`actionPlan`、`reportTask`，不包含 JD fit matrix 或 interviews。
+- 有 JD `/api/ai/report` 完整报告 deep report 通过：`isBasic=false`，`quality.passed=true`，包含 `highlights`、`jdFit`、`rewrites`、`interviews`、`actionPlan`、`reportTask`，不包含无 JD `directionOptions`。
+- 最终验证：`npm.cmd test` 通过，10 个测试文件，153 个测试通过。
+- 最终验证：`npm.cmd run build` 通过。
+
+V0.5 收口边界：
+
+- 本阶段已经完成 DeepSeek / Qwen 真实生成链路与 primary -> backup 编排验证，但客户端仍保持 provider、模型名、token、base URL、原始错误和 API key 隐藏。
+- 本阶段已记录真实 smoke 的耗时、结构结果、fallback/兜底判断和失败收口过程，但未建设完整后台观测界面。
+- 本阶段没有进入支付、账号、历史报告库等产品商业化能力。
+
+保留到 V0.6 的边界：
+
+- Kimi extractor 真实链路。
+- provider 可观测后台 / 日志。
+- 更细的失败分类 UI。
+- 移动端人工体验走查。
+- 不进入支付、账号、历史报告库。
+
 ## 2026-07-09：有 JD 完整报告 smoke 通过
 
 改动类型：真实 AI 验证、文档。
