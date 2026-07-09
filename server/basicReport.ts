@@ -209,7 +209,7 @@ function buildInterviews(assets: ConfirmedAsset[]): InterviewPrep[] {
 
 function buildActionPlan(mode: Mode, assets: ConfirmedAsset[]): ActionPlanItem[] {
   const main = assetAt(assets, 0);
-  const modeTarget = mode === 'jd' ? '目标岗位 JD' : '可探索岗位方向';
+  const modeTarget = mode === 'jd' ? '目标岗位要求' : '可探索岗位方向';
   return [
     action('7 天内', `整理${main.title}的事实清单。`, '先让后续分析尽量只使用真实经历。', '按任务、对象、工具、周期、本人动作、交付物六列填写。', '完成 1 份事实清单。', '为简历改写和面试回答提供证据。'),
     action('7 天内', mode === 'jd' ? '逐条标注目标岗位要求。' : '搜索 3 个真实岗位 JD。', '用真实岗位要求校验方向，不凭感觉判断。', `把每条要求和${modeTarget}中的关键词写成对照表。`, '完成 1 份岗位要求对照表。', '判断当前材料能证明什么、还缺什么。'),

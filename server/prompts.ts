@@ -53,14 +53,16 @@ export function kimiExtractPrompt(payload: unknown) {
 }
 
 export function digQuestionsPrompt(payload: unknown) {
-  return `任务：根据用户已确认经历、目标岗位 JD、已有补充回答，生成 V0.4 动态追问。
+  return `任务：根据用户已确认经历、目标岗位要求、已有补充回答，生成 V0.6 动态追问。
 
 要求：
 - 输出字段只能包含：source、assetId、userVisibleQuestions、internalMetadata、encouragement。
-- userVisibleQuestions：1-3 个自然问题，必须具体引用用户原经历、目标岗位 JD 或已有回答；不要问“你做了什么”这类泛泛问题。
+- userVisibleQuestions：1-3 个自然问题，必须具体引用用户原经历、目标岗位要求或已有回答；不要问“你做了什么”这类泛泛问题。
 - internalMetadata：每个问题的内部追问依据，包含 questionId、relatedAssetId、relatedJdRequirementId、method、factDimensions、internalWhy。
 - method 只能用 hr、tar、part、prep、custom；factDimensions 只能用 task、action、result、reflection、scale、tool、risk。
-- JD 模式必须结合 JD 要求、用户已确认经历、用户已有补充回答；relatedJdRequirementId 优先绑定 jdSummary.requirements 对应的 req_x。
+- 有岗位要求路线必须结合岗位要求、用户已确认经历、用户已有补充回答；每个 userVisibleQuestions 至少包含一个岗位要求原文关键词或明确岗位任务，不允许只根据经历资产卡泛泛追问。
+- 如果当前经历是技能作品或作品集，必须追问这些材料如何支撑岗位要求中的工具、内容、数据、作品或交付物，不要忽略它们。
+- relatedJdRequirementId 优先绑定 jdSummary.requirements 对应的 req_x。
 - 无 JD 模式也可以用 HR/TAR/PART/PREP 逻辑做内部追问，但不要展示这些方法名称。
 - userVisibleQuestions 里禁止出现 TAR、PART、PREP、HR 视角、为什么问、事实回忆维度等内部标签。
 - 不展示可能挖出的亮点，不给“你可以这样回答”的明确答案，不给完整示例，不输出简历草稿。

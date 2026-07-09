@@ -159,7 +159,8 @@ export function createAssetCardsFromProfile(profile: Profile, source: 'real' | '
     campus: clean(profile.campus),
     partTime: clean(profile.partTime),
     awards: clean(profile.awards),
-    skills: clean([profile.skills, profile.portfolio].filter(Boolean).join('；'))
+    skills: clean(profile.skills),
+    portfolio: clean(profile.portfolio)
   };
 
   return (Object.keys(contents) as AssetKind[]).map((id) => {
@@ -447,7 +448,7 @@ function buildActionPlan(stage: Stage, profile: Profile, jdFit?: JdFitReport): A
       ),
       actionPlanItem(
         '7 天内',
-        `围绕${target}搜索 3 个真实 JD，记录岗位要求关键词。`,
+        `围绕${target}搜索 3 个真实岗位，记录岗位要求关键词。`,
         '用真实岗位要求验证当前材料是否对应市场需求。',
         '记录岗位名称、重复出现的能力词、任务描述和证据缺口。',
         '完成 1 份岗位要求对照表。',
@@ -472,10 +473,10 @@ function buildActionPlan(stage: Stage, profile: Profile, jdFit?: JdFitReport): A
       actionPlanItem(
         '30 天内',
         jdFit?.deliveryDecision === '建议优先投递'
-          ? '小批量投递 15-20 个岗位，记录 JD 要求、投递版本、反馈和面试问题。'
+          ? '小批量投递 15-20 个岗位，记录岗位要求、投递版本、反馈和面试问题。'
           : '优先补一段与岗位相关的校内项目、短期实践或作品集，再小批量试投要求较贴近的岗位。',
         '用真实反馈验证当前简历版本和岗位方向。',
-        '每次记录岗位名称、JD 关键词、投递版本、反馈结果和下一步修改点。',
+        '每次记录岗位名称、岗位关键词、投递版本、反馈结果和下一步修改点。',
         '完成 1 份岗位池表格和简历版本记录。',
         '用于迭代简历关键词和投递方向。'
       ),
@@ -566,10 +567,11 @@ class DemoCareerService implements AiCareerService {
   }): Promise<DigQuestionSet> {
     const target = input.profile.targetRole || '目标岗位';
     const content = snippet(input.asset.content || input.asset.gapAdvice || input.asset.title);
+    const jdHint = input.jdText.trim() ? `岗位要求里提到“${snippet(input.jdText, 36)}”，` : '';
     const userVisibleQuestions = [
-      `结合你想探索的${target}，你这段${input.asset.title}里提到“${content}”，你自己实际完成的动作是哪 1-2 个？`,
-      `这段经历有没有可核实的规模、频次或周期，例如人数、社群数量、每周次数、持续多久？`,
-      `如果面试时被问到困难，你能想到一个真实问题和你的处理方式吗？`
+      `${jdHint}结合你想探索的${target}，你这段${input.asset.title}里提到“${content}”，你自己实际完成的动作是哪 1-2 个？`,
+      `${jdHint}这段经历有没有可核实的规模、频次、工具或交付物，例如人数、社群数量、每周次数、作品链接、表格或内容成品？`,
+      `${jdHint}如果面试时围绕这个岗位要求追问，你能想到一个真实问题和你的处理方式吗？`
     ];
 
     return {

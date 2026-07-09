@@ -28,7 +28,7 @@ export function buildActionPlanText(report: DiagnosisReport) {
 }
 
 export function buildReportMarkdown(report: DiagnosisReport) {
-  const modeLabel = report.mode === 'jd' ? '有 JD 岗位诊断' : '无 JD 方向探索';
+  const modeLabel = report.mode === 'jd' ? '有岗位要求路线' : '无岗位要求方向探索';
   const parts = [
     `# 求职诊断报告\n\n- **报告模式：** ${modeLabel}\n- **报告类型：** ${report.isBasic ? '基础版兜底报告' : '深度诊断报告'}`,
     section('报告摘要', [report.summary]),
@@ -37,13 +37,13 @@ export function buildReportMarkdown(report: DiagnosisReport) {
       report.highlights.flatMap((item) => [
         `### ${item.sourceExperience}`,
         bullet('体现能力', item.capability),
-        bullet(report.mode === 'jd' ? '对应 JD 要求' : '可迁移方向/能力场景', item.jdRequirement),
+        bullet(report.mode === 'jd' ? '对应岗位要求' : '可迁移方向/能力场景', item.jdRequirement),
         bullet('为什么是真实亮点', item.whyNotFlattery),
         bullet('专业表达', item.professionalExpression)
       ])
     ),
     report.jdFit
-      ? section('JD 匹配分析', [
+      ? section('岗位要求匹配分析', [
           bullet('投递判断', report.jdFit.deliveryDecision),
           bullet('判断依据', report.jdFit.deliveryReason),
           bullet('最强证据', report.jdFit.strongestEvidence),

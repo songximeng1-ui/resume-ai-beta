@@ -96,7 +96,8 @@ export type AssetKind =
   | 'campus'
   | 'partTime'
   | 'awards'
-  | 'skills';
+  | 'skills'
+  | 'portfolio';
 
 export interface Profile {
   education: string;
@@ -330,7 +331,8 @@ export const assetTitles: Record<AssetKind, string> = {
   campus: '校园经历',
   partTime: '兼职经历',
   awards: '荣誉证书',
-  skills: '技能作品'
+  skills: '技能作品',
+  portfolio: '作品集'
 };
 
 export const profileLabels: Record<keyof Profile, string> = {
@@ -356,4 +358,4 @@ export const emptyFieldStatuses: Record<keyof Profile, FieldStatus> = fieldKeys.
   {} as Record<keyof Profile, FieldStatus>
 );
 
-export const diggableAssetIds: AssetKind[] = ['internship', 'project', 'campus', 'partTime', 'awards'];
+export const diggableAssetIds: AssetKind[] = ['internship', 'project', 'campus', 'partTime', 'awards', 'skills', 'portfolio'];

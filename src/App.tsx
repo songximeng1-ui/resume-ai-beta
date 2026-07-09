@@ -80,7 +80,7 @@ function getAiLoadingMessage(task: AiLoadingTask) {
     case 'dig':
       return 'AI 正在生成动态追问，真实 AI 调用可能需要等待较长时间，请不要关闭页面。';
     case 'jd-fit':
-      return 'AI 正在拆解 JD 并匹配你的经历，真实 AI 调用可能需要等待较长时间，请不要关闭页面。';
+      return 'AI 正在拆解岗位要求并匹配你的经历，真实 AI 调用可能需要等待较长时间，请不要关闭页面。';
     case 'report':
       return 'AI 正在分段生成诊断报告，内容较多，真实 AI 调用可能需要等待较长时间。若失败，可以直接再次点击当前按钮重试。';
     default:
@@ -95,7 +95,7 @@ function getAiWaitEstimate(task: Exclude<AiLoadingTask, null>) {
     case 'dig':
       return '预计需要 10-20 秒。AI 会基于当前经历生成追问，期间请不要关闭页面。';
     case 'jd-fit':
-      return '预计需要 20-60 秒。AI 会拆解 JD 并匹配你的真实经历，期间请不要关闭页面。';
+      return '预计需要 20-60 秒。AI 会拆解岗位要求并匹配你的真实经历，期间请不要关闭页面。';
     case 'report':
       return '预计需要 1-3 分钟。AI 会分段生成诊断报告，期间请不要关闭页面。';
   }
@@ -215,7 +215,7 @@ function BetaAccessPage({ onAuthorized }: { onAuthorized: (betaAccessCode: strin
 
       <aside className="privacy-band">
         <strong>隐私与脱敏提醒</strong>
-        <p>请先删除姓名、手机号、邮箱、身份证号、家庭住址等敏感信息，再粘贴简历或 JD。</p>
+        <p>请先删除姓名、手机号、邮箱、身份证号、家庭住址等敏感信息，再粘贴简历或岗位要求。</p>
         <p>不要上传与求职诊断无关的隐私、证件、银行卡或账号密码。</p>
         <p>工具只帮助重构真实经历表达，严格禁止伪造经历、虚构项目或夸大职责。</p>
       </aside>
@@ -393,7 +393,7 @@ function App() {
     assets: '03 经历资产',
     dig: '04 动态追问',
     direction: '05 方向诊断',
-    match: '05 JD 证据',
+    match: '05 岗位证据',
     result: '06 诊断报告'
   }[step];
 
@@ -487,7 +487,7 @@ function App() {
       return;
     }
     if (mode === 'jd' && !jdText.trim()) {
-      setTruthError('请先补充目标岗位 JD。系统需要先理解岗位要求，再结合你的经历生成追问。');
+      setTruthError('请先补充目标岗位要求。系统需要先理解岗位要求，再结合你的经历生成追问。');
       return;
     }
     const nextAssets = assets.length ? assets : createAssetCardsFromProfile(profile, aiStatus?.configured ? 'real' : 'demo');
@@ -605,10 +605,11 @@ function App() {
         : '这段可以先跳过。后续报告会优先使用你已经补充的信息。';
     if (digIndex < diggableAssets.length - 1) {
       await moveDig(digIndex + 1);
+      setDigEncouragement(encouragement);
     } else {
-      continueAfterDig(nextAssets);
+      setDigEncouragement(encouragement);
+      await continueAfterDig(nextAssets);
     }
-    setDigEncouragement(encouragement);
   };
 
   const skipCurrentDig = async () => {
@@ -636,7 +637,7 @@ function App() {
     }
   };
 
-  const generateReport = async (reportAssets = assets) => {
+  const generateReport = async (reportAssets = assets, fromDig = false) => {
     if (!stage) {
       return;
     }
@@ -656,18 +657,25 @@ function App() {
       if (error instanceof ReportTaskError) {
         setReportTask(error.task);
         setAiStatusError(error.task.message);
+        if (fromDig) {
+          setDigEncouragement(error.task.message);
+        }
         return;
       }
-      setAiStatusError(formatAiError(error));
+      const message = formatAiError(error);
+      setAiStatusError(message);
+      if (fromDig) {
+        setDigEncouragement(message);
+      }
     } finally {
       setIsBusy(false);
       setAiLoadingTask(null);
     }
   };
 
-  const continueAfterDig = (nextAssets = assets) => {
+  const continueAfterDig = async (nextAssets = assets) => {
     if (mode === 'jd') {
-      setStep('match');
+      await generateReport(nextAssets, true);
       return;
     }
     setStep('direction');
@@ -831,6 +839,7 @@ function App() {
           onSkip={skipCurrentDig}
           onBack={() => setStep('assets')}
           onContinue={() => continueAfterDig()}
+          reportLoadingMessage={reportLoadingMessage}
         />
       ) : null}
 
@@ -918,7 +927,7 @@ function InputPage({
   const basicPlaceholder = (key: keyof Profile) => {
     if (key === 'schoolName') return '例如：杭州应用技术学院';
     if (key === 'city') return '不确定可以先空着';
-    if (key === 'targetRole') return '无 JD 模式可以先不填，系统会根据经历给方向建议';
+    if (key === 'targetRole') return '无岗位要求路线可以先不填，系统会根据经历给方向建议';
     return undefined;
   };
 
@@ -969,16 +978,16 @@ function InputPage({
 
       {mode === 'jd' ? (
         <label className="field" htmlFor="jdTextInput">
-          <span>粘贴目标岗位 JD</span>
+          <span>粘贴目标岗位要求</span>
           <textarea
-            aria-label="粘贴目标岗位 JD"
+            aria-label="粘贴目标岗位要求"
             id="jdTextInput"
             value={jdText}
             onChange={(event) => onJdTextChange(event.target.value)}
             rows={6}
-            placeholder="把目标岗位 JD、职责和任职要求粘贴到这里。后续追问会先理解岗位要求，再结合你的真实经历生成问题。"
+            placeholder="把招聘软件里的岗位职责、任职要求或岗位描述粘贴到这里。后续追问会先理解岗位要求，再结合你的真实经历生成问题。"
           />
-          <p className="helper-text">有 JD 模式会先基于岗位要求和你的经历生成追问；页面不会展示内部追问方法。</p>
+          <p className="helper-text">有岗位要求路线会先基于岗位要求和你的经历生成追问；页面不会展示内部追问方法。</p>
         </label>
       ) : null}
 
@@ -1200,6 +1209,7 @@ function DigPage({
   mode,
   isBusy,
   loadingMessage,
+  reportLoadingMessage,
   assets,
   currentIndex,
   currentAsset,
@@ -1218,6 +1228,7 @@ function DigPage({
   mode: Mode | null;
   isBusy: boolean;
   loadingMessage: string;
+  reportLoadingMessage: string;
   assets: AssetCard[];
   currentIndex: number;
   currentAsset: AssetCard | undefined;
@@ -1233,14 +1244,14 @@ function DigPage({
   onContinue: () => void;
 }) {
   const isLastAsset = currentIndex >= assets.length - 1;
-  const saveLabel = isLastAsset ? (mode === 'jd' ? '进入 JD 证据匹配' : '生成经历方向诊断') : '保存并继续';
+  const saveLabel = isLastAsset ? (mode === 'jd' ? '生成完整报告' : '生成经历方向诊断') : '保存并继续';
 
   return (
     <section className="flow-section">
       <div className="section-heading">
         <p className="eyebrow">每次只问 1-3 个具体问题</p>
         <h1>动态经历挖掘</h1>
-        <p>AI 会围绕你确认的经历，每段问 1-3 个问题，帮你找到可以写进简历或面试回答的真实细节。</p>
+        <p>{mode === 'jd' ? 'AI 会结合岗位要求和你确认的经历，每段问 1-3 个问题，帮你找到最值得补充的真实细节。' : 'AI 会围绕你确认的经历，每段问 1-3 个问题，帮你找到可以写进简历或面试回答的真实细节。'}</p>
         <p className="intro-note">这一步不是考你，而是帮你把原本说不清的经历拆开。</p>
       </div>
 
@@ -1266,7 +1277,7 @@ function DigPage({
 
           <div className="question-list">
             <h2>AI 想进一步确认</h2>
-            <AiTaskNotice estimate={getAiWaitEstimate('dig')} loadingMessage={loadingMessage} />
+            <AiTaskNotice estimate={getAiWaitEstimate(reportLoadingMessage ? 'report' : 'dig')} loadingMessage={reportLoadingMessage || loadingMessage} />
             {(questionSet?.userVisibleQuestions ?? []).map((question) => (
               <p key={question}>{question}</p>
             ))}
@@ -1461,7 +1472,7 @@ function DirectionPage({
   return (
     <section className="flow-section">
       <div className="section-heading">
-        <p className="eyebrow">无 JD 经历盘点</p>
+        <p className="eyebrow">无岗位要求经历盘点</p>
         <h1>经历方向诊断</h1>
         <p>根据你已确认和补充的经历，AI 会先判断哪些岗位方向更值得探索，再给出补强建议。</p>
         <p className="context-note">这里不是替你决定人生方向，而是帮你从已有材料里找更合理的起点。</p>
@@ -1574,8 +1585,8 @@ function MatchPage({
   return (
     <section className="flow-section">
       <div className="section-heading">
-        <p className="eyebrow">先输入 JD → AI 分析 → 证据化判断</p>
-        <h1>JD 证据匹配</h1>
+        <p className="eyebrow">先输入岗位要求 → AI 分析 → 证据化判断</p>
+        <h1>岗位要求证据匹配</h1>
         <p>把岗位要求拆成证据，看你的真实经历能对应哪些要求、缺口在哪里、简历和面试要怎么准备。</p>
         <p className="context-note">判断只是投递建议，不是录取预测。</p>
       </div>
@@ -1604,7 +1615,7 @@ function MatchPage({
       </div>
       <AiTaskNotice estimate={getAiWaitEstimate('jd-fit')} loadingMessage={jdFitLoadingMessage} />
       <ErrorNotice message={errorMessage} />
-      {jdFit ? <p className="context-note">已生成 JD 证据矩阵，请先查看投递判断和主要缺口。</p> : null}
+      {jdFit ? <p className="context-note">已生成岗位要求证据矩阵，请先查看投递判断和主要缺口。</p> : null}
 
       {jdFit ? (
         <EvidenceMatrix report={jdFit}>
@@ -1624,7 +1635,7 @@ function EvidenceMatrix({ report, children, showVerdict = true }: { report: JdFi
     <section className="result-block">
       <div className="matrix-heading">
         <div>
-          <h2>JD 证据矩阵</h2>
+          <h2>岗位要求证据矩阵</h2>
           <p>系统不会给分数，而是逐条看岗位要求和真实经历之间有没有证据。</p>
         </div>
         <SourceBadge source={report.source} />
@@ -1668,7 +1679,7 @@ function EvidenceMatrix({ report, children, showVerdict = true }: { report: JdFi
 const helpfulPartOptions = [
   '亮点分析',
   '可探索岗位方向',
-  'JD 匹配分析',
+  '岗位要求匹配分析',
   '简历改写建议',
   '面试追问与回答准备',
   '下一步行动计划',
@@ -1681,7 +1692,7 @@ const weakPartOptions = [
   '无',
   '亮点分析',
   '可探索岗位方向',
-  'JD 匹配分析',
+  '岗位要求匹配分析',
   '简历改写建议',
   '面试追问与回答准备',
   '下一步行动计划',
@@ -2227,7 +2238,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
     return (
       <section className="flow-section result-section">
         <div className="section-heading">
-          <p className="eyebrow">V0.4 有 JD 岗位诊断</p>
+          <p className="eyebrow">V0.6 有岗位要求路线</p>
           <h1>岗位要求匹配分析</h1>
           <p>这份报告基于你确认的真实经历和目标岗位描述生成。判断只是投递建议，不是录取预测。</p>
           <SourceBadge source={report.source} />
@@ -2252,7 +2263,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
             {report.highlights.map((item) => (
               <article className="insight-card" data-testid="highlight-card" key={item.professionalExpression}>
                 <p><strong>来自经历：</strong>{item.sourceExperience}</p>
-                <p><strong>对应 JD 要求：</strong>{item.jdRequirement}</p>
+                <p><strong>对应岗位要求：</strong>{item.jdRequirement}</p>
                 <p><strong>体现能力：</strong>{item.capability}</p>
                 <p><strong>为什么是真实亮点：</strong>{item.whyNotFlattery}</p>
                 <p><strong>专业表达：</strong>{item.professionalExpression}</p>
@@ -2271,7 +2282,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
               <article className="rewrite-card" data-testid="rewrite-card" key={item.optimized}>
                 <p><strong>原始表达：</strong>{item.original}</p>
                 <p><strong>可直接使用版：</strong>{item.optimized}</p>
-                <p><strong>匹配的 JD 要求：</strong>{item.jdRequirement}</p>
+                <p><strong>匹配的岗位要求：</strong>{item.jdRequirement}</p>
                 <p><strong>为什么这样改：</strong>{item.reason}</p>
                 <p><strong>面试可能追问：</strong>{item.interviewProbe}</p>
                 <p><strong>使用提醒：</strong>{item.risk}</p>
@@ -2372,7 +2383,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
     return (
       <section className="flow-section result-section">
         <div className="section-heading">
-          <p className="eyebrow">V0.4 无 JD 方向探索</p>
+          <p className="eyebrow">V0.6 无岗位要求路线</p>
           <h1>经历诊断报告</h1>
           <p>这份报告基于你确认的真实经历生成。它不是替你决定人生方向，而是帮你看清当前筹码、可探索方向和下一步补强路径。</p>
           <SourceBadge source={report.source} />
@@ -2582,7 +2593,7 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         <article className="verdict-panel">
           <span>建议</span>
           <strong>{report.jdFit?.deliveryDecision || '待判断'}</strong>
-          <p>{report.jdFit?.deliveryReason || '当前报告未生成 JD 投递判断。'}</p>
+          <p>{report.jdFit?.deliveryReason || '当前报告未生成岗位投递判断。'}</p>
           <p>{report.jdFit?.strongestEvidence || ''}</p>
           <p>{report.jdFit?.mainGap || ''}</p>
           <p>{report.jdFit?.nextStepAdvice || ''}</p>
