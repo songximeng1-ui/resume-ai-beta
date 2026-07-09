@@ -261,9 +261,14 @@ export function buildAiUsage(response: unknown, options: { model: string; task: 
     return null;
   }
 
-  const inputTokens = readNumber(readErrorField(usage, 'input_tokens') ?? readErrorField(usage, 'inputTokens'));
-  const outputTokens = readNumber(readErrorField(usage, 'output_tokens') ?? readErrorField(usage, 'outputTokens'));
-  const totalTokens = readNumber(readErrorField(usage, 'total_tokens') ?? readErrorField(usage, 'totalTokens')) || inputTokens + outputTokens;
+  const inputTokens = readNumber(
+    readErrorField(usage, 'input_tokens') ?? readErrorField(usage, 'inputTokens') ?? readErrorField(usage, 'prompt_tokens')
+  );
+  const outputTokens = readNumber(
+    readErrorField(usage, 'output_tokens') ?? readErrorField(usage, 'outputTokens') ?? readErrorField(usage, 'completion_tokens')
+  );
+  const totalTokens =
+    readNumber(readErrorField(usage, 'total_tokens') ?? readErrorField(usage, 'totalTokens')) || inputTokens + outputTokens;
 
   return {
     model: options.model,

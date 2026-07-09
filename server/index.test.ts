@@ -156,7 +156,30 @@ function validInventoryReport() {
   };
 }
 
-const originalEnv = { ...process.env };
+const dedicatedProviderEnvKeys = [
+  'AI_PRIMARY_PROVIDER',
+  'AI_PRIMARY_API_KEY',
+  'AI_PRIMARY_BASE_URL',
+  'AI_PRIMARY_MODEL',
+  'AI_BACKUP_PROVIDER',
+  'AI_BACKUP_API_KEY',
+  'AI_BACKUP_BASE_URL',
+  'AI_BACKUP_MODEL',
+  'AI_EXTRACTOR_PROVIDER',
+  'AI_EXTRACTOR_API_KEY',
+  'AI_EXTRACTOR_BASE_URL',
+  'AI_EXTRACTOR_MODEL'
+];
+
+function withoutDedicatedProviderEnv(env: NodeJS.ProcessEnv) {
+  const next = { ...env };
+  for (const key of dedicatedProviderEnvKeys) {
+    delete next[key];
+  }
+  return next;
+}
+
+const originalEnv = withoutDedicatedProviderEnv(process.env);
 
 beforeEach(() => {
   process.env = { ...originalEnv };

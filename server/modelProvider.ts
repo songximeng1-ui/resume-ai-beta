@@ -114,6 +114,84 @@ function extractOutputText(response: OpenAIResponse) {
   });
 }
 
+function extractChatOutputText(response: unknown) {
+  const choices = response && typeof response === 'object' ? (response as { choices?: unknown }).choices : undefined;
+  if (!Array.isArray(choices)) {
+    throw new AiServiceError({
+      code: 'empty_response',
+      message: 'AI returned an empty response.',
+      detail: 'chat provider returned no choices',
+      retryable: true
+    });
+  }
+
+  for (const choice of choices) {
+    if (!choice || typeof choice !== 'object') continue;
+    const message = (choice as { message?: unknown }).message;
+    if (!message || typeof message !== 'object') continue;
+    const content = (message as { content?: unknown }).content;
+    if (typeof content === 'string' && content.trim()) return content;
+    if (Array.isArray(content)) {
+      const text = content
+        .map((part) => (part && typeof part === 'object' && 'text' in part ? String((part as { text?: unknown }).text || '') : ''))
+        .join('')
+        .trim();
+      if (text) return text;
+    }
+  }
+
+  throw new AiServiceError({
+    code: 'empty_response',
+    message: 'AI returned an empty response.',
+    detail: 'chat provider returned empty message content',
+    retryable: true
+  });
+}
+
+function providerUsesResponsesApi(provider: string) {
+  return provider.trim().toLowerCase() === 'openai';
+}
+
+async function callResponsesJson<T>(client: OpenAI, config: ProviderRoleConfig, options: Omit<JsonCallOptions<T>, 'model'>) {
+  const response = await client.responses.create({
+    model: config.model,
+    instructions: careerCoachSystemPrompt,
+    input: options.prompt,
+    text: {
+      format: {
+        type: 'json_schema',
+        name: options.schemaName,
+        schema: options.jsonSchema,
+        strict: true
+      }
+    }
+  });
+
+  return {
+    text: extractOutputText(response),
+    usage: buildAiUsage(response, { model: config.model, task: options.task })
+  };
+}
+
+async function callChatJson<T>(client: OpenAI, config: ProviderRoleConfig, options: Omit<JsonCallOptions<T>, 'model'>) {
+  const response = await client.chat.completions.create({
+    model: config.model,
+    messages: [
+      {
+        role: 'system',
+        content: `${careerCoachSystemPrompt}\n\n你必须只返回一个合法 JSON 对象，不要输出 Markdown、解释或额外文字。`
+      },
+      { role: 'user', content: options.prompt }
+    ],
+    response_format: { type: 'json_object' }
+  });
+
+  return {
+    text: extractChatOutputText(response),
+    usage: buildAiUsage(response, { model: config.model, task: options.task })
+  };
+}
+
 export async function callProviderRoleJson<T>(
   role: ProviderRole,
   options: Omit<JsonCallOptions<T>, 'model'>
@@ -140,24 +218,13 @@ export async function callProviderRoleJson<T>(
               undiciFetch(input as never, { ...(init as object), dispatcher: proxyAgent } as never) as unknown as Promise<Response>)
           : undefined
       });
-      const response = await client.responses.create({
-        model: config.model,
-        instructions: careerCoachSystemPrompt,
-        input: options.prompt,
-        text: {
-          format: {
-            type: 'json_schema',
-            name: options.schemaName,
-            schema: options.jsonSchema,
-            strict: true
-          }
-        }
-      });
+      const response = providerUsesResponsesApi(config.provider)
+        ? await callResponsesJson(client, config, options)
+        : await callChatJson(client, config, options);
 
-      const text = extractOutputText(response);
       let parsed: unknown;
       try {
-        parsed = JSON.parse(text);
+        parsed = JSON.parse(response.text);
       } catch (error) {
         throw new AiServiceError({
           code: 'invalid_json',
@@ -170,7 +237,7 @@ export async function callProviderRoleJson<T>(
       try {
         return {
           data: options.validate(parsed),
-          usage: buildAiUsage(response, { model: config.model, task: options.task })
+          usage: response.usage
         };
       } catch (error) {
         throw new AiServiceError({

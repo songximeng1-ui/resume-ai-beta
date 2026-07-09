@@ -2,11 +2,17 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { toClientAiError } from './openaiClient.ts';
 
 const responsesCreate = vi.fn();
+const chatCompletionsCreate = vi.fn();
 
 vi.mock('openai', () => ({
   default: class MockOpenAI {
     responses = {
       create: responsesCreate
+    };
+    chat = {
+      completions: {
+        create: chatCompletionsCreate
+      }
     };
   }
 }));
@@ -44,6 +50,7 @@ afterEach(() => {
     delete process.env[key];
   }
   responsesCreate.mockReset();
+  chatCompletionsCreate.mockReset();
 });
 
 test('resolves role-specific provider config without exposing secrets', async () => {
@@ -125,6 +132,88 @@ test('role-specific provider key requires its matching role model instead of Ope
   });
 });
 
+test('role-specific non-OpenAI provider uses chat completions for JSON calls', async () => {
+  const { callProviderRoleJson } = await import('./modelProvider.ts');
+  process.env.AI_BACKUP_PROVIDER = 'qwen';
+  process.env.AI_BACKUP_API_KEY = 'sk-qwen-secret';
+  process.env.AI_BACKUP_BASE_URL = 'https://dashscope.example/compatible-mode/v1';
+  process.env.AI_BACKUP_MODEL = 'qwen-plus';
+
+  chatCompletionsCreate.mockResolvedValueOnce({
+    choices: [{ message: { content: '{"source":"real","value":"ok"}' } }],
+    usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 }
+  });
+
+  const result = await callProviderRoleJson('backup', {
+    task: 'provider-smoke',
+    schemaName: 'ProviderSmoke',
+    jsonSchema: {
+      type: 'object',
+      additionalProperties: false
+    },
+    prompt: 'return json',
+    validate: (value) => value as { source: string; value: string },
+    maxAttempts: 1
+  });
+
+  expect(result).toMatchObject({
+    data: { source: 'real', value: 'ok' },
+    usage: {
+      model: 'qwen-plus',
+      task: 'provider-smoke',
+      inputTokens: 3,
+      outputTokens: 2,
+      totalTokens: 5
+    }
+  });
+  expect(chatCompletionsCreate).toHaveBeenCalledWith(
+    expect.objectContaining({
+      model: 'qwen-plus',
+      response_format: { type: 'json_object' },
+      messages: expect.arrayContaining([expect.objectContaining({ role: 'user', content: 'return json' })])
+    })
+  );
+  expect(responsesCreate).not.toHaveBeenCalled();
+});
+
+test('OpenAI fallback provider keeps using responses JSON schema calls', async () => {
+  const { callProviderRoleJson } = await import('./modelProvider.ts');
+  process.env.OPENAI_API_KEY = 'sk-openai-dev';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-report-dev';
+
+  responsesCreate.mockResolvedValueOnce({
+    output_text: '{"source":"real","value":"ok"}',
+    output: [],
+    usage: { input_tokens: 4, output_tokens: 3, total_tokens: 7 }
+  });
+
+  const result = await callProviderRoleJson('primary', {
+    task: 'provider-smoke',
+    schemaName: 'ProviderSmoke',
+    jsonSchema: {
+      type: 'object',
+      additionalProperties: false
+    },
+    prompt: 'return json',
+    validate: (value) => value,
+    maxAttempts: 1
+  });
+
+  expect(result.data).toEqual({ source: 'real', value: 'ok' });
+  expect(responsesCreate).toHaveBeenCalledWith(
+    expect.objectContaining({
+      model: 'gpt-report-dev',
+      text: expect.objectContaining({
+        format: expect.objectContaining({
+          type: 'json_schema',
+          name: 'ProviderSmoke'
+        })
+      })
+    })
+  );
+  expect(chatCompletionsCreate).not.toHaveBeenCalled();
+});
+
 test('provider role errors expose a role-safe label instead of provider config details', async () => {
   const { callProviderRoleJson } = await import('./modelProvider.ts');
   process.env.AI_PRIMARY_PROVIDER = 'deepseek';
@@ -132,7 +221,7 @@ test('provider role errors expose a role-safe label instead of provider config d
   process.env.AI_PRIMARY_BASE_URL = 'https://api.deepseek.example/v1';
   process.env.AI_PRIMARY_MODEL = 'deepseek-chat';
 
-  responsesCreate.mockRejectedValueOnce(Object.assign(new Error('rate limit'), { status: 429 }));
+  chatCompletionsCreate.mockRejectedValueOnce(Object.assign(new Error('rate limit'), { status: 429 }));
 
   const error = await callProviderRoleJson('primary', {
     task: 'report',
