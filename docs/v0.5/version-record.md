@@ -1,5 +1,45 @@
 # V0.5 版本记录
 
+## 2026-07-09：report-directions 无 JD 最小模块 smoke 通过
+
+改动类型：提示词、报告模块 schema 归一化、测试、真实 AI 验证、文档。
+
+本次只验证无 JD 模式报告模块里的 `report-directions` 最小 smoke，未调用 `/api/ai/report`，未跑完整报告。
+
+修复：
+
+- `report-directions` 上下文新增 `sourceExperienceCandidates`，用于让 chat provider 逐字绑定已确认来源经历。
+- `report-directions` prompt 明确 `evidence` 必须从 `sourceExperienceCandidates` 中逐字复制，不能概括、改写或自造来源。
+- prompt 明确无 JD 模式不能输出 `JD fit matrix`、`matchLevel`、`deliveryDecision`、`interviewRisk` 或面试题。
+- 对 chat provider 常见结构漂移增加窄口径归一化：`level` 可从 `priority` 兜底，`directionName` 可从 `name` 兜底，`name` 可从 `directionName` 兜底，`why` / `next` 可从 `whyExplore` / `sevenDayValidation` 兜底，`inventory.directionOptions` 可拆回模块结构。
+
+真实模块 smoke：
+
+- DeepSeek direct `report-directions`：成功，用时约 7.79 秒，返回 3 个可探索岗位方向。
+- Direct 每个方向返回 5 个可搜索岗位名称，均绑定已确认来源经历，并包含当前缺口和 7 天验证动作。
+- Direct 未输出“最适合 / 不适合 / 强烈推荐”等绝对化判断，未伪装成 JD 匹配，未输出 JD fit matrix 或面试题。
+- 强制 primary base URL 失败后 fallback 到 Qwen `report-directions`：成功，用时约 11.39 秒，返回 2 个可探索岗位方向。
+- Fallback 每个方向返回 5 个可搜索岗位名称，均绑定已确认来源经历，并包含当前缺口和 7 天验证动作。
+- Fallback 未输出“最适合 / 不适合 / 强烈推荐”等绝对化判断，未伪装成 JD 匹配，未输出 JD fit matrix 或面试题。
+
+失败排查：
+
+- 初始 smoke 暴露 `schema_validation`，失败字段包括 `directionOptions.0.level`、`directionOptions.0.name`、`directionOptions.0.directionName`。
+- Qwen fallback 曾将结果包在 `inventory.directionOptions` 下，已通过模块 schema 归一化收口。
+- Fallback 曾出现来源绑定不稳，已通过 `sourceExperienceCandidates` 和 prompt 逐字复制约束收口。
+- 最终 direct 和 fallback 均成功，无网络、超时、鉴权、额度、模型、schema 或解析错误残留。
+
+边界：
+
+- 本次没有调用 `/api/ai/report`。
+- 本次没有跑完整报告。
+- 本次没有新增环境变量；`.env.example` 暂无必要更新。
+
+验证结果：
+
+- `npm.cmd test`：通过，10 个测试文件，148 个测试通过。
+- `npm.cmd run build`：通过。
+
 ## 2026-07-09：report-action-plan 最小模块 smoke 通过
 
 改动类型：提示词、报告模块 schema 归一化、测试、真实 AI 验证、文档。

@@ -427,7 +427,7 @@ function validateV04ActionPlanCoverage(actionPlan: ActionPlanReport): void {
 
 function validateDirectionOption(value: unknown, index: number): DirectionOption {
   if (!isRecord(value)) throw new Error(`directionOptions.${index} must be an object`);
-  const level = assertString(value.level, `directionOptions.${index}.level`) as DirectionOption['level'];
+  const level = assertString(value.level || value.priority, `directionOptions.${index}.level`) as DirectionOption['level'];
   if (!directionPriorities.includes(level)) {
     throw new Error(`directionOptions.${index}.level must be one of the V0.4 exploration priorities`);
   }
@@ -445,17 +445,17 @@ function validateDirectionOption(value: unknown, index: number): DirectionOption
   }
   const keywords = assertArray(value.keywords, `directionOptions.${index}.keywords`, (item) => assertString(item, 'keyword'));
   return {
-    directionName: assertString(value.directionName, `directionOptions.${index}.directionName`),
-    name: assertString(value.name, `directionOptions.${index}.name`),
+    directionName: assertString(value.directionName || value.name, `directionOptions.${index}.directionName`),
+    name: assertString(value.name || value.directionName, `directionOptions.${index}.name`),
     level,
     priority,
     searchableJobNames,
-    whyExplore: assertString(value.whyExplore, `directionOptions.${index}.whyExplore`),
-    why: assertString(value.why, `directionOptions.${index}.why`),
+    whyExplore: assertString(value.whyExplore || value.why, `directionOptions.${index}.whyExplore`),
+    why: assertString(value.why || value.whyExplore, `directionOptions.${index}.why`),
     evidence: assertString(value.evidence, `directionOptions.${index}.evidence`),
     gap: assertString(value.gap, `directionOptions.${index}.gap`),
-    sevenDayValidation: assertString(value.sevenDayValidation, `directionOptions.${index}.sevenDayValidation`),
-    next: assertString(value.next, `directionOptions.${index}.next`),
+    sevenDayValidation: assertString(value.sevenDayValidation || value.next, `directionOptions.${index}.sevenDayValidation`),
+    next: assertString(value.next || value.sevenDayValidation, `directionOptions.${index}.next`),
     keywords
   };
 }
@@ -523,7 +523,8 @@ export function validateReportHighlightsModule(value: unknown): ReportHighlights
 
 export function validateReportDirectionsModule(value: unknown): ReportDirectionsModule {
   if (!isRecord(value)) throw new Error('ReportDirectionsModule must be an object');
-  const directionOptions = assertArray(value.directionOptions, 'directionOptions', validateDirectionOption);
+  const inventoryDirections = isRecord(value.inventory) ? value.inventory.directionOptions : undefined;
+  const directionOptions = assertArray(value.directionOptions || inventoryDirections, 'directionOptions', validateDirectionOption);
   if (directionOptions.length < 2 || directionOptions.length > 3) throw new Error('directionOptions must contain 2-3 items');
   return {
     source: assertRealSource(value.source || 'real', 'source'),

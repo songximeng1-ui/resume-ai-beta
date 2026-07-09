@@ -2385,6 +2385,122 @@ test('direction schema requires V0.4 exploration fields', () => {
   ).toThrow(/directionName|searchableJobNames|whyExplore|sevenDayValidation|priority|level/);
 });
 
+test('direction schema fills level from priority for chat providers', () => {
+  const direction = {
+    directionName: '用户运营 / 社群运营',
+    name: '用户运营 / 社群运营',
+    priority: '优先探索',
+    searchableJobNames: ['用户运营助理', '社群运营助理', '内容运营助理'],
+    whyExplore: '基于已确认社群维护和反馈记录经历，可先探索用户运营方向。',
+    why: '基于已确认社群维护和反馈记录经历，可先探索用户运营方向。',
+    evidence: '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。',
+    gap: '缺少活动复盘材料和反馈整理样例。',
+    sevenDayValidation: '7 天内搜索 10 条真实用户运营 JD，并整理共性要求。',
+    next: '7 天内搜索真实 JD 并补齐经历证据。',
+    keywords: ['用户运营', '社群运营', '内容运营']
+  };
+
+  const result = validateReportDirectionsModule({
+    source: 'real',
+    directionOptions: [direction, { ...direction, directionName: '内容运营助理', name: '内容运营助理', priority: '可以尝试' }]
+  });
+
+  expect(result.directionOptions.map((item) => item.level)).toEqual(['优先探索', '可以尝试']);
+});
+
+test('direction schema unwraps inventory.directionOptions from chat providers', () => {
+  const direction = {
+    directionName: '用户运营 / 社群运营',
+    name: '用户运营 / 社群运营',
+    level: '优先探索',
+    priority: '优先探索',
+    searchableJobNames: ['用户运营助理', '社群运营助理', '内容运营助理'],
+    whyExplore: '基于已确认社群维护和反馈记录经历，可先探索用户运营方向。',
+    why: '基于已确认社群维护和反馈记录经历，可先探索用户运营方向。',
+    evidence: '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。',
+    gap: '缺少活动复盘材料和反馈整理样例。',
+    sevenDayValidation: '7 天内搜索 10 条真实用户运营 JD，并整理共性要求。',
+    next: '7 天内搜索真实 JD 并补齐经历证据。',
+    keywords: ['用户运营', '社群运营', '内容运营']
+  };
+
+  const result = validateReportDirectionsModule({
+    source: 'real',
+    inventory: {
+      directionOptions: [direction, { ...direction, directionName: '内容运营助理', name: '内容运营助理', priority: '可以尝试', level: '可以尝试' }]
+    }
+  });
+
+  expect(result.directionOptions).toHaveLength(2);
+});
+
+test('direction schema fills compatible display fields from V0.5 direction fields', () => {
+  const direction = {
+    directionName: '用户运营 / 社群运营',
+    priority: '优先探索',
+    searchableJobNames: ['用户运营助理', '社群运营助理', '内容运营助理'],
+    whyExplore: '基于已确认社群维护和反馈记录经历，可先探索用户运营方向。',
+    evidence: '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。',
+    gap: '缺少活动复盘材料和反馈整理样例。',
+    sevenDayValidation: '7 天内搜索 10 条真实用户运营 JD，并整理共性要求。',
+    keywords: ['用户运营', '社群运营', '内容运营']
+  };
+
+  const result = validateReportDirectionsModule({
+    source: 'real',
+    directionOptions: [direction, { ...direction, directionName: '内容运营助理', priority: '可以尝试' }]
+  });
+
+  expect(result.directionOptions[0]).toMatchObject({
+    name: '用户运营 / 社群运营',
+    why: '基于已确认社群维护和反馈记录经历，可先探索用户运营方向。',
+    next: '7 天内搜索 10 条真实用户运营 JD，并整理共性要求。'
+  });
+});
+
+test('direction schema fills directionName from name for chat providers', () => {
+  const direction = {
+    name: '用户运营 / 社群运营',
+    priority: '优先探索',
+    searchableJobNames: ['用户运营助理', '社群运营助理', '内容运营助理'],
+    whyExplore: '基于已确认社群维护和反馈记录经历，可先探索用户运营方向。',
+    evidence: '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。',
+    gap: '缺少活动复盘材料和反馈整理样例。',
+    sevenDayValidation: '7 天内搜索 10 条真实用户运营 JD，并整理共性要求。',
+    keywords: ['用户运营', '社群运营', '内容运营']
+  };
+
+  const result = validateReportDirectionsModule({
+    source: 'real',
+    directionOptions: [direction, { ...direction, name: '内容运营助理', priority: '可以尝试' }]
+  });
+
+  expect(result.directionOptions.map((item) => item.directionName)).toEqual(['用户运营 / 社群运营', '内容运营助理']);
+});
+
+test('report directions prompt and context require copyable source evidence for chat providers', () => {
+  const payload = {
+    mode: 'inventory',
+    profile: {},
+    assets: [
+      {
+        id: 'internship',
+        title: '教育机构新媒体运营实习',
+        content: '2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。'
+      }
+    ],
+    jdText: ''
+  };
+  const prompt = reportModulePrompt(payload, 'report-directions');
+  const context = buildCompactReportContext(payload, 'report-directions') as { sourceExperienceCandidates?: string[] };
+
+  expect(prompt).toContain('evidence 的值必须从上下文 sourceExperienceCandidates 数组中逐字复制');
+  expect(prompt).toContain('无 JD 模式，不能输出 JD fit matrix、matchLevel、deliveryDecision、interviewRisk 或面试题');
+  expect(context.sourceExperienceCandidates).toEqual([
+    '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。'
+  ]);
+});
+
 test('career prompts include V0.4 role, safety red lines, and mode-specific instructions', () => {
   const jdPrompt = reportPrompt({ mode: 'jd', profile: {}, jdText: '用户运营 JD' });
   const inventoryPrompt = reportPrompt({ mode: 'inventory', profile: {}, jdText: '' });
