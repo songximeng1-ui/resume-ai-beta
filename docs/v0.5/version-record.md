@@ -1,5 +1,51 @@
 # V0.5 版本记录
 
+## 2026-07-09：report-interview-question 有 JD 最小模块 smoke 通过
+
+改动类型：提示词、报告模块上下文、测试、真实 AI 验证、文档。
+
+本次只验证有 JD 模式报告模块里的 `report-interview-question` 最小 smoke，未调用 `/api/ai/report`，未跑完整报告。
+
+修复：
+
+- `report-interview-question` 上下文新增 `sourceExperienceCandidates`，用于让 chat provider 逐字绑定已确认来源经历。
+- prompt 明确顶层 JSON 只能包含 `source`、`interview`。
+- `interview` 必须包含 `question`、`whyAsk`、`answerAngle`、`concern`、`sampleAnswer`、`doNotExaggerate`。
+- `question` 必须关联用户 JD 要求，并包含至少一个 JD 原文关键词。
+- `answerAngle` 必须绑定已确认来源经历，或明确写“当前证据不足”。
+- 可使用的真实经历必须从 `sourceExperienceCandidates` 中逐字复制；没有可绑定来源时写“当前证据不足”。
+- `sampleAnswer` 只能写占位式表达，不能输出可直接照抄的完整答案。
+- prompt 明确不要引导用户伪造数据、夸大角色或包装不存在成果。
+
+真实模块 smoke：
+
+- DeepSeek direct `report-interview-question`：成功，用时约 3.89 秒，返回 1 个面试追问结构。
+- Direct 面试问题关联用户 JD 要求；回答思路绑定已确认来源经历或明确当前证据不足。
+- Direct 包含面试问题、HR 为什么可能会问、关联岗位要求、可使用的真实经历、回答思路、占位式表达、注意边界。
+- Direct 未输出可直接照抄的虚构完整答案，未引导伪造数据、夸大角色或包装不存在成果。
+- 强制 primary base URL 失败后 fallback 到 Qwen `report-interview-question`：成功，用时约 10.09 秒，返回 1 个面试追问结构。
+- Fallback 面试问题关联用户 JD 要求；回答思路绑定已确认来源经历或明确当前证据不足。
+- Fallback 包含面试问题、HR 为什么可能会问、关联岗位要求、可使用的真实经历、回答思路、占位式表达、注意边界。
+- Fallback 未输出可直接照抄的虚构完整答案，未引导伪造数据、夸大角色或包装不存在成果。
+
+失败排查：
+
+- 初始 smoke 中 DeepSeek direct 成功，Qwen fallback 结构成功但来源绑定/证据不足标注不稳，失败字段为 `interview.answerAngle`。
+- 后续 smoke 曾出现一次 DeepSeek direct `invalid_json`，复跑后 direct 正常返回可验证结构，归类为 chat JSON 偶发解析漂移。
+- Direct 后续曾出现 `question` 未显式包含 JD 原文关键词；已通过 prompt 要求 `question` 字段包含 JD 原文关键词收口。
+- 最终 direct 和 fallback 均成功，无网络、超时、鉴权、额度、模型、schema 或解析错误残留。
+
+边界：
+
+- 本次没有调用 `/api/ai/report`。
+- 本次没有跑完整报告。
+- 本次没有新增环境变量；`.env.example` 暂无必要更新。
+
+验证结果：
+
+- `npm.cmd test`：通过，10 个测试文件，151 个测试通过。
+- `npm.cmd run build`：通过。
+
 ## 2026-07-09：report-jd-fit-summary 有 JD 最小模块 smoke 通过
 
 改动类型：提示词、报告模块 schema 归一化、测试、真实 AI 验证、文档。

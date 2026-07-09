@@ -2438,6 +2438,36 @@ test('report jd fit summary prompt spells out JD-only contract for chat provider
   ]);
 });
 
+test('report interview question prompt requires JD-linked source-bound placeholder answer', () => {
+  const payload = {
+    mode: 'jd',
+    profile: {},
+    assets: [
+      {
+        id: 'internship',
+        title: '教育机构新媒体运营实习',
+        content: '2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。'
+      }
+    ],
+    jdText: '用户运营实习生：社群维护、用户反馈、活动复盘。',
+    interviewIndex: 1
+  };
+  const prompt = reportModulePrompt(payload, 'report-interview-question');
+  const context = buildCompactReportContext(payload, 'report-interview-question') as { sourceExperienceCandidates?: string[] };
+
+  expect(prompt).toContain('顶层 JSON 对象只能包含 source、interview');
+  expect(prompt).toContain('interview 必须包含 question、whyAsk、answerAngle、concern、sampleAnswer、doNotExaggerate');
+  expect(prompt).toContain('question 必须关联用户 JD 要求');
+  expect(prompt).toContain('question 字段必须包含至少一个 JD 原文关键词');
+  expect(prompt).toContain('answerAngle 必须绑定已确认来源经历，或明确写“当前证据不足”');
+  expect(prompt).toContain('可使用的真实经历必须从 sourceExperienceCandidates 中逐字复制');
+  expect(prompt).toContain('sampleAnswer 只能写占位式表达，不能输出可直接照抄的完整答案');
+  expect(prompt).toContain('不要引导用户伪造数据、夸大角色或包装不存在成果');
+  expect(context.sourceExperienceCandidates).toEqual([
+    '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。'
+  ]);
+});
+
 test('direction schema fills level from priority for chat providers', () => {
   const direction = {
     directionName: '用户运营 / 社群运营',

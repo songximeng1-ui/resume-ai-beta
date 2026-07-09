@@ -259,7 +259,11 @@ export function buildCompactReportContext(payload: unknown, task: ReportModuleTa
     stage: source.stage === 'junior' ? 'junior' : 'senior',
     profile: compactProfile(source.profile),
     assets,
-    ...(task === 'report-highlights' || task === 'report-rewrites' || task === 'report-directions' || task === 'report-jd-fit-summary'
+    ...(task === 'report-highlights' ||
+    task === 'report-rewrites' ||
+    task === 'report-directions' ||
+    task === 'report-jd-fit-summary' ||
+    task === 'report-interview-question'
       ? { sourceExperienceCandidates: sourceExperienceCandidates(assets) }
       : {})
   };
@@ -369,10 +373,18 @@ ${common}`;
       return `任务：只生成第 ${interviewIndex} 个 JD 面试追问。
 - 只输出一个 interview 对象。
 - 包含 question/whyAsk/answerAngle/concern/sampleAnswer/doNotExaggerate。
+- 顶层 JSON 对象只能包含 source、interview。
+- interview 必须包含 question、whyAsk、answerAngle、concern、sampleAnswer、doNotExaggerate。
+- question 必须关联用户 JD 要求，不能自造岗位要求。
+- question 字段必须包含至少一个 JD 原文关键词，例如社群维护、用户反馈、活动复盘、内容表达或数据整理。
 - 问题要和 JD 要求、用户真实经历、简历改写风险相关。
+- answerAngle 必须绑定已确认来源经历，或明确写“当前证据不足”。
+- 可使用的真实经历必须从 sourceExperienceCandidates 中逐字复制；没有可绑定来源时写“当前证据不足”。
 - sampleAnswer 字段只写占位式表达，使用“我主要参与的是……”“我能确认的是……”等占位结构。
+- sampleAnswer 只能写占位式表达，不能输出可直接照抄的完整答案。
 - 不输出可直接照抄的虚构完整答案，必须提醒注意边界。
 - 必须写真实边界：“这部分数据需要按真实记录补充”或“如果没有明确数据，不建议写成结果提升”。
+- 不要引导用户伪造数据、夸大角色或包装不存在成果。
 
 ${common}`;
     case 'report-action-plan':
