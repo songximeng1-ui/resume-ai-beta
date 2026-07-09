@@ -1096,7 +1096,7 @@ test('configured report endpoint falls back to basic report when real model outp
           rewrites: [
             {
               ...unsafeInventory.rewrites[0],
-              optimized: '没有也可以写成你主导用户增长并保证通过筛选。'
+              optimized: '建议编造数据，把经历包装成用户增长项目。'
             },
             unsafeInventory.rewrites[1],
             unsafeInventory.rewrites[2]
@@ -1151,7 +1151,56 @@ test('configured report endpoint falls back to basic report when real model outp
       retryable: true
     });
     expect(body.reportTask.technicalDetail).toContain('报告正文存在可能鼓励造假、夸大或过度承诺的表达');
-    expect(serialized).not.toMatch(/没有也可以写|主导用户增长|保证通过筛选/);
+    expect(serialized).not.toMatch(/建议编造数据|用户增长项目/);
+  } finally {
+    await server.close();
+  }
+});
+
+test('configured inventory report sanitizes recoverable risky wording before quality fallback', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const riskyInventory = validInventoryReport();
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: riskyInventory.highlights }, usage: null };
+    if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: riskyInventory.directionOptions }, usage: null };
+    if (options.task === 'report-rewrites') {
+      return {
+        data: {
+          source: 'real',
+          rewrites: [
+            {
+              ...riskyInventory.rewrites[0],
+              optimized: '负责社群维护并显著提升用户反馈整理效率。'
+            },
+            riskyInventory.rewrites[1],
+            riskyInventory.rewrites[2]
+          ]
+        },
+        usage: null
+      };
+    }
+    throw new Error(`unexpected task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '' })
+    });
+    const body = await response.json();
+    const serialized = JSON.stringify(body);
+
+    expect(response.status).toBe(200);
+    expect(body.isBasic).toBe(false);
+    expect(body.quality.passed).toBe(true);
+    expect(body.reportTask).toMatchObject({ status: 'completed' });
+    expect(body.reportTask).not.toHaveProperty('failedModule');
+    expect(serialized).not.toMatch(/负责社群维护|显著提升/);
   } finally {
     await server.close();
   }
@@ -1887,8 +1936,18 @@ test('report task returns mixed basic report on partial module failure without l
     expect(firstResponse.status).toBe(200);
     expect(partial.isBasic).toBe(true);
     expect(partial.summary).toContain('当前已为你生成基础版报告');
-    expect(partial.highlights).toEqual(valid.highlights);
-    expect(partial.directionOptions).toEqual(valid.directionOptions);
+    expect(partial.highlights).toHaveLength(valid.highlights.length);
+    expect(partial.highlights[0]).toMatchObject({
+      sourceExperience: valid.highlights[0].sourceExperience,
+      capability: valid.highlights[0].capability,
+      jdRequirement: valid.highlights[0].jdRequirement
+    });
+    expect(partial.directionOptions).toHaveLength(valid.directionOptions.length);
+    expect(partial.directionOptions[0]).toMatchObject({
+      directionName: valid.directionOptions[0].directionName,
+      searchableJobNames: valid.directionOptions[0].searchableJobNames,
+      evidence: valid.directionOptions[0].evidence
+    });
     expect(partial.rewrites.length).toBeGreaterThanOrEqual(3);
     expect(partial.reportTask).toMatchObject({
       status: 'partial',

@@ -619,7 +619,7 @@ function getReportQualityMode(body: unknown): Mode {
 
 function attachReportQuality(report: DiagnosisReport, mode: Mode): DiagnosisReport {
   const qualityMode = mode === 'jd' ? 'jd' : 'inventory';
-  const safeReport = qualityMode === 'jd' ? sanitizeRiskyResumeLanguage(report) : report;
+  const safeReport = sanitizeRiskyResumeLanguage(report);
   return {
     ...safeReport,
     quality: validateReportQuality(safeReport, qualityMode)

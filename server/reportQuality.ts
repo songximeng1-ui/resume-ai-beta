@@ -366,10 +366,6 @@ export function sanitizeRiskyInterview(interview: InterviewPrep): InterviewPrep 
 }
 
 export function sanitizeRiskyResumeLanguage(report: DiagnosisReport): DiagnosisReport {
-  if (report.mode !== 'jd') {
-    return report;
-  }
-
   const sanitized: DiagnosisReport = {
     ...report,
     summary: sanitizeClaimText(report.summary || ''),

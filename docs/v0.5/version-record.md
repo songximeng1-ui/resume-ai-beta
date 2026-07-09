@@ -1,5 +1,48 @@
 # V0.5 版本记录
 
+## 2026-07-09：无 JD 完整报告 smoke 首次触发基础版兜底，已收口质量清洗链路
+
+改动类型：后端质量链路、测试、真实 AI 验证、文档。
+
+本次按要求只跑 1 次 `/api/ai/report` 无 JD 完整报告 smoke，未跑有 JD 流程。
+
+真实完整报告 smoke：
+
+- DeepSeek primary + Qwen backup provider 链路配置存在，接口请求体为 `mode=inventory`，未传 JD。
+- `/api/ai/report` HTTP 200，总耗时约 20.78 秒。
+- 返回包含 `highlights`、`directionOptions`、`rewrites`、`actionPlan`、`reportTask`。
+- 返回 2 条 highlights、2 个 directionOptions、3 条 rewrites、6 条 actionPlan。
+- 未返回 JD fit matrix，未返回 interviews。
+- 最终响应 `quality.passed=true`。
+- 但本次真实 smoke 未满足 `isBasic=false`：实际进入基础版兜底，`reportTask.status=partial`，`failedModule=assembledReport`。
+
+失败分类：
+
+- 失败步骤：最终深度报告组装后的质量检查。
+- 模块：`assembledReport`。
+- 错误类型：质量 blocker 触发后的基础版兜底，不是 HTTP 错误。
+- 是否触发 Qwen fallback：客户端安全响应不暴露 provider 角色；本次未观察到明确 Qwen fallback 接手信号。
+- 是否进入基础版兜底：是。
+
+修复：
+
+- 发现无 JD 深度报告此前没有进入 `sanitizeRiskyResumeLanguage`，当 chat provider 在 rewrites / directions / action plan 中输出可保守清洗的“负责、显著提升、保证”等措辞时，会被最终质量检查 blocker 打回基础版。
+- 已将最终质量检查前的保守语言清洗扩展到无 JD 深度报告。
+- 新增回归测试：无 JD 深度报告遇到可恢复的夸大措辞时应清洗并保留深度版 `isBasic=false`。
+- 保留严重风险兜底：若模型输出“建议编造数据、包装成不存在项目”等不可接受内容，仍进入基础版兜底。
+
+边界：
+
+- 本次严格只跑了 1 次无 JD 完整报告。
+- 本次没有跑有 JD 流程。
+- 本次没有追加第二次真实完整报告复测；后续如需确认修复后的真实链路，应单独发起下一轮无 JD 完整报告 smoke。
+- 本次没有新增环境变量；`.env.example` 暂无必要更新。
+
+验证结果：
+
+- `npm.cmd test`：通过，10 个测试文件，153 个测试通过。
+- `npm.cmd run build`：通过。
+
 ## 2026-07-09：report-interview-question 有 JD 最小模块 smoke 复核通过
 
 改动类型：提示词、报告模块上下文、报告模块 schema 归一化、测试、真实 AI 验证、文档。
