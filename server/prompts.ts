@@ -368,9 +368,21 @@ ${common}`;
       return `任务：生成 summary/actionPlan/safetyNotes/resumeText/platformFields/previewLines。
 - actionPlan 固定 7 天内、14 天内、30 天内，每个阶段至少 2 条。
 - 每条行动包含 what/why/how/completionStandard/jobSearchValue，并兼容填充 action/deliverable/resumeUsage/targetAbility。
+- 顶层 JSON 对象只能包含 source、summary、actionPlan、safetyNotes、resumeText、platformFields、previewLines。
+- actionPlan 必须是对象，且只能包含 source、plans、confidenceSummary。
+- plans 必须是扁平数组，不能输出 7days/14days/30days 或 7天内/14天内/30天内 这类分组对象。
+- period 只能逐字使用：7 天内、14 天内、30 天内；每个 period 至少 2 条行动。
+- 每条 plan 都必须重复填写 period，不能只靠数组顺序或阶段分组表达。
+- plans 总数至少 6 条，且必须同时覆盖 7 天内、14 天内、30 天内。
+- 每条行动必须包含 what、why、how、completionStandard、jobSearchValue、action、deliverable、resumeUsage、targetAbility。
+- what 写要做什么；why 写为什么做；how 写怎么做；completionStandard 写完成标准；jobSearchValue 写对求职有什么帮助。
 - confidenceSummary 基于事实修复信心，不承诺结果。
 - resumeText/platformFields/previewLines 使用克制真实表达。
+- safetyNotes、resumeText、platformFields、previewLines 都必须是数组。
 - safetyNotes 写不伪造、不编造、不承诺 offer、只基于真实经历。
+- 禁止输出保证进面、保证 offer、一定成功、必过、确保通过等承诺。
+- 禁止要求用户伪造数据、夸大经历或包装不存在的成果。
+- 即使用否定句也不要出现“保证进面、保证 offer、一定成功、必过、确保通过、伪造数据、夸大经历、包装不存在的成果”这些字样。
 
 ${common}`;
   }

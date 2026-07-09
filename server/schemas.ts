@@ -51,6 +51,36 @@ function assertArray<T>(value: unknown, path: string, mapper: (item: unknown, in
   return value.map(mapper);
 }
 
+function assertStringArray(value: unknown, path: string): string[] {
+  if (typeof value === 'string') {
+    return [sanitizeActionPlanText(value)];
+  }
+  if (isRecord(value)) {
+    return Object.entries(value).map(([key, item]) => sanitizeActionPlanText(`${key}：${stringifyDisplayValue(item, `${path}.${key}`)}`));
+  }
+  return assertArray(value, path, (item, index) => sanitizeActionPlanText(stringifyDisplayValue(item, `${path}.${index}`)));
+}
+
+function stringifyDisplayValue(value: unknown, path: string): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map((item, index) => stringifyDisplayValue(item, `${path}.${index}`)).join('、');
+  if (isRecord(value)) {
+    return Object.entries(value)
+      .map(([key, item]) => `${key}：${stringifyDisplayValue(item, `${path}.${key}`)}`)
+      .join('；');
+  }
+  throw new Error(`${path} must be a string`);
+}
+
+function sanitizeActionPlanText(value: string): string {
+  return value
+    .replace(/保证\s*进面/g, '承诺面试结果')
+    .replace(/保证\s*offer/gi, '承诺录用结果')
+    .replace(/一定成功/g, '承诺成功')
+    .replace(/必过/g, '承诺通过');
+}
+
+
 function assertNonEmptyArray<T>(value: unknown, path: string, mapper: (item: unknown, index: number) => T): T[] {
   const items = assertArray(value, path, mapper);
   if (items.length === 0) {
@@ -348,20 +378,43 @@ function validateActionPlan(value: unknown): ActionPlanReport {
       if (!completionStandard.trim()) throw new Error(`actionPlan.plans.${index}.completionStandard must be non-empty`);
       if (!jobSearchValue.trim()) throw new Error(`actionPlan.plans.${index}.jobSearchValue must be non-empty`);
       return {
-        period: assertString(item.period, `actionPlan.plans.${index}.period`),
-        what,
-        why,
-        how,
-        completionStandard,
-        jobSearchValue,
-        action: assertString(item.action, `actionPlan.plans.${index}.action`),
-        deliverable: assertString(item.deliverable, `actionPlan.plans.${index}.deliverable`),
-        resumeUsage: assertString(item.resumeUsage, `actionPlan.plans.${index}.resumeUsage`),
-        targetAbility: assertString(item.targetAbility, `actionPlan.plans.${index}.targetAbility`)
+        period: normalizeActionPlanPeriod(readActionPlanPeriod(item.period, index, `actionPlan.plans.${index}.period`)),
+        what: sanitizeActionPlanText(what),
+        why: sanitizeActionPlanText(why),
+        how: sanitizeActionPlanText(how),
+        completionStandard: sanitizeActionPlanText(completionStandard),
+        jobSearchValue: sanitizeActionPlanText(jobSearchValue),
+        action: sanitizeActionPlanText(readOptionalActionPlanText(item.action, what, `actionPlan.plans.${index}.action`)),
+        deliverable: sanitizeActionPlanText(
+          readOptionalActionPlanText(item.deliverable, completionStandard, `actionPlan.plans.${index}.deliverable`)
+        ),
+        resumeUsage: sanitizeActionPlanText(readOptionalActionPlanText(item.resumeUsage, jobSearchValue, `actionPlan.plans.${index}.resumeUsage`)),
+        targetAbility: sanitizeActionPlanText(readOptionalActionPlanText(item.targetAbility, why, `actionPlan.plans.${index}.targetAbility`))
       };
     }),
-    confidenceSummary: assertString(value.confidenceSummary, 'actionPlan.confidenceSummary')
+    confidenceSummary: sanitizeActionPlanText(assertString(value.confidenceSummary, 'actionPlan.confidenceSummary'))
   };
+}
+
+function readOptionalActionPlanText(value: unknown, fallback: string, path: string): string {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (fallback.trim()) return fallback;
+  return assertString(value, path);
+}
+
+function readActionPlanPeriod(value: unknown, index: number, path: string): string {
+  if (typeof value === 'string') return value;
+  const inferred = ['7 天内', '7 天内', '14 天内', '14 天内', '30 天内', '30 天内'][index];
+  if (inferred) return inferred;
+  return assertString(value, path);
+}
+
+function normalizeActionPlanPeriod(period: string): string {
+  const compact = period.replace(/\s+/g, '');
+  if (compact === '7天内') return '7 天内';
+  if (compact === '14天内') return '14 天内';
+  if (compact === '30天内') return '30 天内';
+  return period;
 }
 
 function validateV04ActionPlanCoverage(actionPlan: ActionPlanReport): void {
@@ -516,16 +569,23 @@ export function validateReportInterviewQuestionModule(value: unknown): ReportInt
 
 export function validateReportActionPlanModule(value: unknown): ReportActionPlanModule {
   if (!isRecord(value)) throw new Error('ReportActionPlanModule must be an object');
-  const actionPlan = validateActionPlan(value.actionPlan);
+  const actionPlanInput = Array.isArray(value.actionPlan)
+    ? {
+        source: 'real',
+        plans: value.actionPlan,
+        confidenceSummary: typeof value.confidenceSummary === 'string' ? value.confidenceSummary : ''
+      }
+    : value.actionPlan;
+  const actionPlan = validateActionPlan(actionPlanInput);
   validateV04ActionPlanCoverage(actionPlan);
   return {
     source: assertRealSource(value.source || 'real', 'source'),
-    summary: assertString(value.summary || '', 'summary'),
+    summary: sanitizeActionPlanText(assertString(value.summary || '', 'summary')),
     actionPlan,
-    safetyNotes: value.safetyNotes ? assertArray(value.safetyNotes, 'safetyNotes', (item) => assertString(item, 'safetyNotes item')) : [],
-    resumeText: assertArray(value.resumeText, 'resumeText', (item) => assertString(item, 'resumeText item')),
-    platformFields: assertArray(value.platformFields, 'platformFields', (item) => assertString(item, 'platformFields item')),
-    previewLines: assertArray(value.previewLines, 'previewLines', (item) => assertString(item, 'previewLines item'))
+    safetyNotes: value.safetyNotes ? assertStringArray(value.safetyNotes, 'safetyNotes') : [],
+    resumeText: assertStringArray(value.resumeText, 'resumeText'),
+    platformFields: assertStringArray(value.platformFields, 'platformFields'),
+    previewLines: assertStringArray(value.previewLines, 'previewLines')
   };
 }
 

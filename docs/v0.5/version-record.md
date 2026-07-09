@@ -1,5 +1,49 @@
 # V0.5 版本记录
 
+## 2026-07-09：report-action-plan 最小模块 smoke 通过
+
+改动类型：提示词、报告模块 schema 归一化、测试、真实 AI 验证、文档。
+
+本次只验证报告模块里的 `report-action-plan` 最小 smoke，未调用 `/api/ai/report`，未跑完整报告。
+
+修复：
+
+- `report-action-plan` prompt 明确顶层 JSON 只能包含 `source`、`summary`、`actionPlan`、`safetyNotes`、`resumeText`、`platformFields`、`previewLines`。
+- `actionPlan` 必须是对象，且只能包含 `source`、`plans`、`confidenceSummary`；`plans` 必须是扁平数组，不能按 `7days` / `14days` / `30days` 或 `7天内` / `14天内` / `30天内` 分组。
+- `period` 只能使用 `7 天内`、`14 天内`、`30 天内`，并要求每个阶段至少 2 条行动、总数至少 6 条。
+- 每条行动必须包含 `what`、`why`、`how`、`completionStandard`、`jobSearchValue`，并兼容填充 `action`、`deliverable`、`resumeUsage`、`targetAbility`。
+- `safetyNotes`、`resumeText`、`platformFields`、`previewLines` 明确要求为数组。
+- 对 chat provider 常见结构漂移增加窄口径归一化：紧凑 period 标签归一为 V0.4 标准值；数组式 `actionPlan` 包回对象；展示字段的字符串、对象、对象数组转为字符串数组；缺失的兼容展示字段从已必填行动字段兜底。
+- 对 `保证进面`、`保证 offer`、`保证offer`、`一定成功`、`必过` 做安全词替换，避免用户端输出承诺式表达。
+
+真实模块 smoke：
+
+- DeepSeek direct `report-action-plan`：成功，用时约 22.70 秒，返回 6 条行动计划。
+- Direct 返回 `7 天内` / `14 天内` / `30 天内` 三个阶段，每阶段各 2 条行动；每条行动都包含要做什么、为什么做、怎么做、完成标准、对求职有什么帮助。
+- Direct 安全扫描通过：未输出保证进面、保证 offer、一定成功等承诺语义；未要求用户伪造数据、夸大经历或包装不存在的成果。
+- 强制 primary base URL 失败后 fallback 到 Qwen `report-action-plan`：成功，用时约 33.98 秒，返回 6 条行动计划。
+- Fallback 返回 `7 天内` / `14 天内` / `30 天内` 三个阶段，每阶段各 2 条行动；每条行动都包含要做什么、为什么做、怎么做、完成标准、对求职有什么帮助。
+- Fallback 安全扫描通过：未输出保证进面、保证 offer、一定成功等承诺语义；未要求用户伪造数据、夸大经历或包装不存在的成果。
+
+失败排查：
+
+- 初始 smoke 暴露 `schema_validation`，失败字段集中在 `actionPlan.plans`：模型将计划按阶段分组，或省略每条 plan 的 `period`。
+- 后续 smoke 暴露 `actionPlan.plans.0.period`、`platformFields`、`platformFields item`、`actionPlan.plans.1.resumeUsage` 等字段漂移。
+- 曾出现一次 DeepSeek direct `invalid_json`，复调诊断显示同模块可返回可验证 JSON，归类为 chat JSON 偶发解析漂移。
+- 已通过 prompt 字段约束、阶段标签归一化、展示字段归一化、兼容字段兜底和安全词替换收口。
+- 最终 direct 和 fallback 均成功，无网络、超时、鉴权、额度、模型、schema 或解析错误残留。
+
+边界：
+
+- 本次没有调用 `/api/ai/report`。
+- 本次没有跑完整报告。
+- 本次没有新增环境变量；`.env.example` 暂无必要更新。
+
+验证结果：
+
+- `npm.cmd test`：通过，10 个测试文件，143 个测试通过。
+- `npm.cmd run build`：通过。
+
 ## 2026-07-09：report-rewrites 最小模块 smoke 通过
 
 改动类型：提示词、报告模块上下文、测试、真实 AI 验证、文档。

@@ -652,6 +652,22 @@ test('report rewrites context gives chat providers copyable source experience ca
   ]);
 });
 
+test('report action plan prompt spells out flat plans contract for chat providers', () => {
+  const prompt = reportModulePrompt({ mode: 'jd', profile: {}, assets: [], jdText: '用户运营实习生' }, 'report-action-plan');
+
+  expect(prompt).toContain('顶层 JSON 对象只能包含 source、summary、actionPlan、safetyNotes、resumeText、platformFields、previewLines');
+  expect(prompt).toContain('actionPlan 必须是对象，且只能包含 source、plans、confidenceSummary');
+  expect(prompt).toContain('plans 必须是扁平数组，不能输出 7days/14days/30days 或 7天内/14天内/30天内 这类分组对象');
+  expect(prompt).toContain('period 只能逐字使用：7 天内、14 天内、30 天内');
+  expect(prompt).toContain('每条 plan 都必须重复填写 period，不能只靠数组顺序或阶段分组表达');
+  expect(prompt).toContain('每个 period 至少 2 条行动');
+  expect(prompt).toContain('plans 总数至少 6 条，且必须同时覆盖 7 天内、14 天内、30 天内');
+  expect(prompt).toContain('每条行动必须包含 what、why、how、completionStandard、jobSearchValue');
+  expect(prompt).toContain('safetyNotes、resumeText、platformFields、previewLines 都必须是数组');
+  expect(prompt).toContain('禁止要求用户伪造数据、夸大经历或包装不存在的成果');
+  expect(prompt).toContain('即使用否定句也不要出现“保证进面、保证 offer、一定成功、必过、确保通过、伪造数据、夸大经历、包装不存在的成果”这些字样');
+});
+
 test('role provider structure-resume falls back from primary to backup', async () => {
   delete process.env.OPENAI_API_KEY;
   process.env.AI_PRIMARY_API_KEY = 'primary-key';
@@ -2112,6 +2128,241 @@ test('action plan schema requires V0.4 actionable fields and period coverage', (
       previewLines: ['可先验证用户运营。']
     })
   ).toThrow(/what|7 天内|14 天内|30 天内/);
+});
+
+test('action plan schema normalizes compact period labels from chat providers', () => {
+  const plan = (period: string, index: number) => ({
+    period,
+    what: `整理第 ${index} 条真实经历证据`,
+    why: '让简历表达有依据',
+    how: '回看原始记录并写下可核实材料',
+    completionStandard: '形成 1 条可核实证据',
+    jobSearchValue: '用于支持投递前的简历优化',
+    action: '整理真实经历证据',
+    deliverable: '1 条证据记录',
+    resumeUsage: '用于简历表达',
+    targetAbility: '经历复盘'
+  });
+
+  const result = validateReportActionPlanModule({
+    source: 'real',
+    summary: '行动计划',
+    actionPlan: {
+      source: 'real',
+      plans: [plan('7天内', 1), plan('7天内', 2), plan('14天内', 3), plan('14天内', 4), plan('30天内', 5), plan('30天内', 6)],
+      confidenceSummary: '先补齐真实证据，再投递。'
+    },
+    safetyNotes: ['只基于真实经历。'],
+    resumeText: ['协助整理内容素材。'],
+    platformFields: ['用户运营'],
+    previewLines: ['先验证用户运营方向。']
+  });
+
+  expect(result.actionPlan.plans.map((item) => item.period)).toEqual(['7 天内', '7 天内', '14 天内', '14 天内', '30 天内', '30 天内']);
+});
+
+test('action plan schema normalizes scalar display fields from chat providers', () => {
+  const plan = (period: string, index: number) => ({
+    period,
+    what: `整理第 ${index} 条真实经历证据`,
+    why: '让简历表达有依据',
+    how: '回看原始记录并写下可核实材料',
+    completionStandard: '形成 1 条可核实证据',
+    jobSearchValue: '用于支持投递前的简历优化',
+    action: '整理真实经历证据',
+    deliverable: '1 条证据记录',
+    resumeUsage: '用于简历表达',
+    targetAbility: '经历复盘'
+  });
+
+  const result = validateReportActionPlanModule({
+    source: 'real',
+    summary: '行动计划',
+    actionPlan: {
+      source: 'real',
+      plans: [plan('7 天内', 1), plan('7 天内', 2), plan('14 天内', 3), plan('14 天内', 4), plan('30 天内', 5), plan('30 天内', 6)],
+      confidenceSummary: '先补齐真实证据，再投递。'
+    },
+    safetyNotes: '只基于真实经历。',
+    resumeText: '协助整理内容素材。',
+    platformFields: '用户运营',
+    previewLines: '先验证用户运营方向。'
+  });
+
+  expect(result.safetyNotes).toEqual(['只基于真实经历。']);
+  expect(result.resumeText).toEqual(['协助整理内容素材。']);
+  expect(result.platformFields).toEqual(['用户运营']);
+  expect(result.previewLines).toEqual(['先验证用户运营方向。']);
+});
+
+test('action plan schema normalizes array actionPlan and object display fields from chat providers', () => {
+  const plan = (period: string, index: number) => ({
+    period,
+    what: `整理第 ${index} 条真实经历证据`,
+    why: '让简历表达有依据',
+    how: '回看原始记录并写下可核实材料',
+    completionStandard: '形成 1 条可核实证据',
+    jobSearchValue: '用于支持投递前的简历优化',
+    action: '整理真实经历证据',
+    deliverable: '1 条证据记录',
+    resumeUsage: '用于简历表达',
+    targetAbility: '经历复盘'
+  });
+
+  const result = validateReportActionPlanModule({
+    source: 'real',
+    summary: '行动计划',
+    confidenceSummary: '先补齐真实证据，再投递。',
+    actionPlan: [plan('7 天内', 1), plan('7 天内', 2), plan('14 天内', 3), plan('14 天内', 4), plan('30 天内', 5), plan('30 天内', 6)],
+    safetyNotes: ['只基于真实经历。'],
+    resumeText: ['协助整理内容素材。'],
+    platformFields: {
+      目标职位: '用户运营',
+      核心优势: '社群维护',
+      待补充: '复盘依据'
+    },
+    previewLines: ['先验证用户运营方向。']
+  });
+
+  expect(result.actionPlan.confidenceSummary).toBe('先补齐真实证据，再投递。');
+  expect(result.actionPlan.plans).toHaveLength(6);
+  expect(result.platformFields).toEqual(['目标职位：用户运营', '核心优势：社群维护', '待补充：复盘依据']);
+});
+
+test('action plan schema infers ordered periods and stringifies nested display fields from chat providers', () => {
+  const plan = (index: number) => ({
+    what: `整理第 ${index} 条真实经历证据`,
+    why: '让简历表达有依据',
+    how: '回看原始记录并写下可核实材料',
+    completionStandard: '形成 1 条可核实证据',
+    jobSearchValue: '用于支持投递前的简历优化',
+    action: '整理真实经历证据',
+    deliverable: '1 条证据记录',
+    resumeUsage: '用于简历表达',
+    targetAbility: '经历复盘'
+  });
+
+  const result = validateReportActionPlanModule({
+    source: 'real',
+    summary: '行动计划',
+    actionPlan: {
+      source: 'real',
+      plans: [plan(1), plan(2), plan(3), plan(4), plan(5), plan(6)],
+      confidenceSummary: '先补齐真实证据，再投递。'
+    },
+    safetyNotes: ['只基于真实经历。'],
+    resumeText: ['协助整理内容素材。'],
+    platformFields: {
+      skills: ['社群维护', '反馈整理'],
+      profile: {
+        target: '用户运营',
+        evidence: '待补充复盘依据'
+      }
+    },
+    previewLines: ['先验证用户运营方向。']
+  });
+
+  expect(result.actionPlan.plans.map((item) => item.period)).toEqual(['7 天内', '7 天内', '14 天内', '14 天内', '30 天内', '30 天内']);
+  expect(result.platformFields).toEqual(['skills：社群维护、反馈整理', 'profile：target：用户运营；evidence：待补充复盘依据']);
+});
+
+test('action plan schema stringifies object items inside display arrays from chat providers', () => {
+  const plan = (period: string, index: number) => ({
+    period,
+    what: `整理第 ${index} 条真实经历证据`,
+    why: '让简历表达有依据',
+    how: '回看原始记录并写下可核实材料',
+    completionStandard: '形成 1 条可核实证据',
+    jobSearchValue: '用于支持投递前的简历优化',
+    action: '整理真实经历证据',
+    deliverable: '1 条证据记录',
+    resumeUsage: '用于简历表达',
+    targetAbility: '经历复盘'
+  });
+
+  const result = validateReportActionPlanModule({
+    source: 'real',
+    summary: '行动计划',
+    actionPlan: {
+      source: 'real',
+      plans: [plan('7 天内', 1), plan('7 天内', 2), plan('14 天内', 3), plan('14 天内', 4), plan('30 天内', 5), plan('30 天内', 6)],
+      confidenceSummary: '先补齐真实证据，再投递。'
+    },
+    safetyNotes: ['只基于真实经历。'],
+    resumeText: ['协助整理内容素材。'],
+    platformFields: ['用户运营', { skill: '社群维护', evidence: '待补充复盘依据' }],
+    previewLines: ['先验证用户运营方向。']
+  });
+
+  expect(result.platformFields).toEqual(['用户运营', 'skill：社群维护；evidence：待补充复盘依据']);
+});
+
+test('action plan schema fills compatible display fields from required action fields', () => {
+  const plan = (period: string, index: number) => ({
+    period,
+    what: `整理第 ${index} 条真实经历证据`,
+    why: '让简历表达有依据',
+    how: '回看原始记录并写下可核实材料',
+    completionStandard: '形成 1 条可核实证据',
+    jobSearchValue: '用于支持投递前的简历优化'
+  });
+
+  const result = validateReportActionPlanModule({
+    source: 'real',
+    summary: '行动计划',
+    actionPlan: {
+      source: 'real',
+      plans: [plan('7 天内', 1), plan('7 天内', 2), plan('14 天内', 3), plan('14 天内', 4), plan('30 天内', 5), plan('30 天内', 6)],
+      confidenceSummary: '先补齐真实证据，再投递。'
+    },
+    safetyNotes: ['只基于真实经历。'],
+    resumeText: ['协助整理内容素材。'],
+    platformFields: ['用户运营'],
+    previewLines: ['先验证用户运营方向。']
+  });
+
+  expect(result.actionPlan.plans[0]).toMatchObject({
+    action: '整理第 1 条真实经历证据',
+    deliverable: '形成 1 条可核实证据',
+    resumeUsage: '用于支持投递前的简历优化',
+    targetAbility: '让简历表达有依据'
+  });
+});
+
+test('action plan schema removes promise phrases from chat provider text', () => {
+  const plan = (period: string, index: number) => ({
+    period,
+    what: `整理第 ${index} 条真实经历证据`,
+    why: '避免保证进面或保证offer式表达',
+    how: '回看原始记录并写下可核实材料',
+    completionStandard: '形成 1 条可核实证据，不写一定成功',
+    jobSearchValue: '用于支持投递前的简历优化，不承诺必过',
+    action: '整理真实经历证据',
+    deliverable: '1 条证据记录',
+    resumeUsage: '用于简历表达',
+    targetAbility: '经历复盘'
+  });
+
+  const result = validateReportActionPlanModule({
+    source: 'real',
+    summary: '行动计划不保证进面',
+    actionPlan: {
+      source: 'real',
+      plans: [plan('7 天内', 1), plan('7 天内', 2), plan('14 天内', 3), plan('14 天内', 4), plan('30 天内', 5), plan('30 天内', 6)],
+      confidenceSummary: '不保证offer，只补齐真实证据。'
+    },
+    safetyNotes: ['不写保证进面、保证 offer、一定成功、必过。'],
+    resumeText: ['协助整理内容素材。'],
+    platformFields: ['用户运营'],
+    previewLines: ['先验证用户运营方向。']
+  });
+
+  const text = JSON.stringify(result);
+  expect(text).not.toContain('保证进面');
+  expect(text).not.toContain('保证 offer');
+  expect(text).not.toContain('保证offer');
+  expect(text).not.toContain('一定成功');
+  expect(text).not.toContain('必过');
 });
 
 test('direction schema requires V0.4 exploration fields', () => {
