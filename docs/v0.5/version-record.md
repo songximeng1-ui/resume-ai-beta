@@ -1,5 +1,33 @@
 # V0.5 版本记录
 
+## 2026-07-09：有 JD 完整报告 smoke 通过
+
+改动类型：真实 AI 验证、文档。
+
+本次验证 DeepSeek primary + Qwen fallback provider 链路下的 `/api/ai/report` 有 JD 完整报告，严格只跑 1 次完整报告，未跑无 JD 流程，未追加第二次复跑。
+
+真实完整报告 smoke：
+
+- `/api/ai/report` 有 JD 完整报告 HTTP 200，总耗时约 47.17 秒。
+- 返回 `isBasic=false`，为深度报告。
+- 返回 `quality.passed=true`。
+- 返回包含 `highlights`、`jdFit`、`rewrites`、`interviews`、`actionPlan`、`reportTask`。
+- 返回 2 条 highlights、5 条 JD fit matrix、3 条 rewrites、5 个 interviews、6 条 actionPlan。
+- `reportTask.status=completed`，完成模块为 `highlights`、`jdFit`、`rewrites`、`interviews`、`actionPlan`、`assembledReport`。
+- 未返回无 JD `directionOptions`。
+- JD fit matrix 的岗位要求均来自用户 JD，证据均绑定已确认来源经历或明确标注当前证据不足。
+
+失败诊断：
+
+- 本次未失败，未进入基础版兜底。
+- `failedModule` / `technicalDetail` / quality blockers / safetyFindings 均无失败残留。
+
+边界：
+
+- 本次只跑有 JD 完整报告。
+- 本次没有跑无 JD 流程。
+- 本次没有新增环境变量；`.env.example` 暂无必要更新。
+
 ## 2026-07-09：无 JD 完整报告 smoke 复测恢复深度报告
 
 改动类型：真实 AI 验证、文档。
