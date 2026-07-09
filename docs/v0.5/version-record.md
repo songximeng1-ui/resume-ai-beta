@@ -1,5 +1,40 @@
 # V0.5 版本记录
 
+## 2026-07-09：report-rewrites 最小模块 smoke 通过
+
+改动类型：提示词、报告模块上下文、测试、真实 AI 验证、文档。
+
+本次只验证报告模块里的 `report-rewrites` 最小 smoke，未调用 `/api/ai/report`，未跑完整报告。
+
+修复：
+
+- `report-rewrites` prompt 明确顶层 JSON 只能包含 `source`、`rewrites`。
+- 每条 rewrite 必须包含 V0.4 改写字段和兼容展示字段。
+- `relatedExperience` 必须从 `sourceExperienceCandidates` 逐字复制，避免模型只返回 `internship` / `project` 这类内部 id。
+- `directVersion` / `optimized` 只能重写用户已提供事实，禁止新增用户未提供的数量、人数、频率、主管、分类、结论或业务结果。
+- `versionAfterSupplement` 只能写需要用户补充哪些依据，不能输出带虚构事实的完整简历句。
+- 禁止把“参与、协助、整理”写成“主导、负责、独立完成”，并禁止“显著提升、大幅增长、保证进面、保证 offer”等夸大或承诺表达。
+
+真实模块 smoke：
+
+- DeepSeek direct `report-rewrites`：成功，用时约 11.12 秒，返回 3 条改写建议。
+- Direct 返回的 3 条改写均逐字绑定来源经历；改写正文未新增用户未提供事实，未把参与/协助/整理写成主导/负责/独立完成，未输出夸大或承诺表达。
+- 强制 primary base URL 失败后 fallback 到 Qwen `report-rewrites`：成功，用时约 23.84 秒，返回 3 条改写建议。
+- Fallback 返回的 3 条改写均逐字绑定来源经历；改写正文未新增用户未提供事实，未把参与/协助/整理写成主导/负责/独立完成，未输出夸大或承诺表达。
+
+失败排查：
+
+- 初始 smoke 结构成功但质量不达标：`relatedExperience` 只返回 `internship` / `project`，并出现未提供的数量、主管、分类或增长类表达。
+- 后续 fallback 曾出现 `schema_validation`，失败字段为 `rewrites.0.originalIssue`。
+- 已通过 prompt 字段约束、来源候选、`originalIssue` 兜底规则和改写正文安全边界收口。
+- 最终 direct 和 fallback 均成功，无网络、超时、鉴权、额度、模型、schema 或解析错误残留。
+
+边界：
+
+- 本次没有调用 `/api/ai/report`。
+- 本次没有跑完整报告。
+- 本次没有新增环境变量；`.env.example` 暂无必要更新。
+
 ## 2026-07-09：report-highlights 最小模块 smoke 通过
 
 改动类型：提示词、报告模块上下文、测试、真实 AI 验证、文档。

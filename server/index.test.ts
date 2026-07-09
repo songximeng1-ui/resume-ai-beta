@@ -613,6 +613,45 @@ test('report highlights context gives chat providers copyable source experience 
   ]);
 });
 
+test('report rewrites prompt spells out source binding and no-fabrication contract for chat providers', () => {
+  const prompt = reportModulePrompt({ mode: 'jd', profile: {}, assets: [], jdText: '用户运营实习生' }, 'report-rewrites');
+
+  expect(prompt).toContain('顶层 JSON 对象只能包含 source、rewrites');
+  expect(prompt).toContain('每个 rewrite 必须包含 relatedExperience、originalIssue、capability、directVersion、versionAfterSupplement、usageReminder');
+  expect(prompt).toContain('relatedExperience 的值只能从上下文 sourceExperienceCandidates 数组中逐字复制');
+  expect(prompt).toContain('originalIssue 不确定时也必须填写');
+  expect(prompt).toContain('禁止新增用户未提供的数量、人数、频率、主管、分类、结论或业务结果');
+  expect(prompt).toContain('versionAfterSupplement 只能写需要用户补充哪些依据');
+});
+
+test('report rewrites context gives chat providers copyable source experience candidates', () => {
+  const context = buildCompactReportContext(
+    {
+      mode: 'jd',
+      profile: {},
+      assets: [
+        {
+          id: 'internship',
+          title: '教育机构新媒体运营实习',
+          content: '2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。'
+        },
+        {
+          id: 'project',
+          title: '校园二手交易调研项目',
+          content: '设计问卷，用 Excel 整理调研结果，并完成课堂展示。'
+        }
+      ],
+      jdText: '用户运营实习生'
+    },
+    'report-rewrites'
+  ) as { sourceExperienceCandidates?: string[] };
+
+  expect(context.sourceExperienceCandidates).toEqual([
+    '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。',
+    '校园二手交易调研项目：设计问卷，用 Excel 整理调研结果，并完成课堂展示。'
+  ]);
+});
+
 test('role provider structure-resume falls back from primary to backup', async () => {
   delete process.env.OPENAI_API_KEY;
   process.env.AI_PRIMARY_API_KEY = 'primary-key';
@@ -2180,7 +2219,7 @@ test('compact report context summarizes inputs for split report modules without 
   expect(prompt).toContain('用户运营');
   expect(prompt).toContain('教育机构实习');
   expect(prompt).toContain('协助');
-  expect(prompt.length).toBeLessThan(2600);
+  expect(prompt.length).toBeLessThan(3200);
 });
 
 test('JD prompts explicitly constrain risky resume and interview language', () => {

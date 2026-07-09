@@ -259,7 +259,7 @@ export function buildCompactReportContext(payload: unknown, task: ReportModuleTa
     stage: source.stage === 'junior' ? 'junior' : 'senior',
     profile: compactProfile(source.profile),
     assets,
-    ...(task === 'report-highlights' ? { sourceExperienceCandidates: sourceExperienceCandidates(assets) } : {})
+    ...(task === 'report-highlights' || task === 'report-rewrites' ? { sourceExperienceCandidates: sourceExperienceCandidates(assets) } : {})
   };
   const jd = mode === 'jd' ? { jdText: compactText(source.jdText, 420), jdFit: compactJdFit(source.jdFit) } : {};
 
@@ -322,9 +322,16 @@ ${common}`;
       return `任务：生成 rewrites。
 - 至少 3 条可复制但克制的简历改写建议。
 - 每条含 relatedExperience/originalIssue/capability/directVersion/versionAfterSupplement/usageReminder。
+- 顶层 JSON 对象只能包含 source、rewrites。
+- 每个 rewrite 必须包含 relatedExperience、originalIssue、capability、directVersion、versionAfterSupplement、usageReminder、original、optimized、reason、jdRequirement、risk、interviewProbe。
+- originalIssue 不确定时也必须填写“原表达信息不足，需补充依据”，不能省略该字段。
+- relatedExperience 的值只能从上下文 sourceExperienceCandidates 数组中逐字复制，不能写 internship/project/id，也不能概括、翻译、乱码或自造来源名称。
 - 同时兼容填充 original/optimized/reason/jdRequirement/risk/interviewProbe，optimized=directVersion，risk=usageReminder。
 - 每条简历改写必须包含 risk 和 interviewProbe；不确定信息必须写“待核实/需补充依据”。
-- 禁止把参与写成负责，不能把课程作业包装成企业项目。
+- directVersion/optimized 只能重写用户已提供事实，禁止新增用户未提供的数量、人数、频率、主管、分类、结论或业务结果。
+- versionAfterSupplement 只能写需要用户补充哪些依据，不能输出“若补充依据，可写为...”后的虚构完整简历句。
+- 禁止把“参与、协助、整理”写成“主导、负责、独立完成”；不能把课程作业包装成企业项目。
+- 禁止输出“显著提升、大幅增长、保证进面、保证 offer、必过、确保”等夸大或承诺表达。
 
 ${common}`;
     case 'report-jd-fit-summary':
