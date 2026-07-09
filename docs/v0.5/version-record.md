@@ -1,5 +1,48 @@
 # V0.5 版本记录
 
+## 2026-07-09：report-jd-fit-summary 有 JD 最小模块 smoke 通过
+
+改动类型：提示词、报告模块 schema 归一化、测试、真实 AI 验证、文档。
+
+本次只验证有 JD 模式报告模块里的 `report-jd-fit-summary` 最小 smoke，未调用 `/api/ai/report`，未跑完整报告。
+
+修复：
+
+- `report-jd-fit-summary` prompt 明确顶层 JSON 只能包含 `source`、`jdFit`。
+- `jdFit` 必须包含 `deliveryDecision`、`deliveryReason`、`strongestEvidence`、`mainGap`、`nextStepAdvice`、`matrix`。
+- `matrix.requirement` 必须来自用户 JD 原文或 JD 要求摘要，不能自造岗位要求。
+- `matrix.evidence` 必须从 `sourceExperienceCandidates` 中逐字复制已确认来源经历；没有可绑定来源时写“当前证据不足”。
+- prompt 明确有 JD 模式不能输出无 JD 方向探索内容、`directionOptions`、`searchableJobNames` 或 7 天验证动作。
+- 对 chat provider 常见结构漂移增加窄口径归一化：当模型把 `jdFit` 内部字段直接放在顶层时，模块 schema 会包回 `jdFit` 对象。
+
+真实模块 smoke：
+
+- DeepSeek direct `report-jd-fit-summary`：成功，用时约 6.07 秒，投递判断为“建议优先投递”，返回 5 条岗位要求匹配分析。
+- Direct 每条岗位要求均来自用户 JD；每条匹配分析均绑定已确认来源经历，或明确标注当前证据不足。
+- Direct 匹配程度只使用允许四档：匹配较强、有一定匹配、需要补充证据、当前证据不足。
+- Direct 投递判断只使用允许四档之一；未把证据不足写成用户能力不行；未输出无 JD 方向探索内容。
+- 强制 primary base URL 失败后 fallback 到 Qwen `report-jd-fit-summary`：成功，用时约 18.11 秒，投递判断为“建议优先投递”，返回 5 条岗位要求匹配分析。
+- Fallback 每条岗位要求均来自用户 JD；每条匹配分析均绑定已确认来源经历，或明确标注当前证据不足。
+- Fallback 匹配程度只使用允许四档；投递判断只使用允许四档之一；未把证据不足写成用户能力不行；未输出无 JD 方向探索内容。
+
+失败排查：
+
+- 初始 smoke 暴露 `schema_validation`，原因是 DeepSeek 和 Qwen 均曾把 `deliveryDecision`、`matrix` 等 `jdFit` 内部字段直接放在顶层，缺少 `{ source, jdFit }` 包装。
+- 结构归一化后，质量检查曾暴露部分 `matrix.evidence` 未绑定来源经历或未明确证据不足。
+- 已通过 `sourceExperienceCandidates`、prompt 逐字复制约束和顶层 `jdFit` 包装归一化收口。
+- 最终 direct 和 fallback 均成功，无网络、超时、鉴权、额度、模型、schema 或解析错误残留。
+
+边界：
+
+- 本次没有调用 `/api/ai/report`。
+- 本次没有跑完整报告。
+- 本次没有新增环境变量；`.env.example` 暂无必要更新。
+
+验证结果：
+
+- `npm.cmd test`：通过，10 个测试文件，150 个测试通过。
+- `npm.cmd run build`：通过。
+
 ## 2026-07-09：report-directions 无 JD 最小模块 smoke 通过
 
 改动类型：提示词、报告模块 schema 归一化、测试、真实 AI 验证、文档。

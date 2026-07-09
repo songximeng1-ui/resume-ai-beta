@@ -259,7 +259,7 @@ export function buildCompactReportContext(payload: unknown, task: ReportModuleTa
     stage: source.stage === 'junior' ? 'junior' : 'senior',
     profile: compactProfile(source.profile),
     assets,
-    ...(task === 'report-highlights' || task === 'report-rewrites' || task === 'report-directions'
+    ...(task === 'report-highlights' || task === 'report-rewrites' || task === 'report-directions' || task === 'report-jd-fit-summary'
       ? { sourceExperienceCandidates: sourceExperienceCandidates(assets) }
       : {})
   };
@@ -342,11 +342,18 @@ ${common}`;
       return `任务：生成 jdFit。
 - 仅 JD 模式。
 - 输出 deliveryDecision/deliveryReason/strongestEvidence/mainGap/nextStepAdvice。
+- 顶层 JSON 对象只能包含 source、jdFit。
+- jdFit 必须包含 deliveryDecision、deliveryReason、strongestEvidence、mainGap、nextStepAdvice、matrix。
 - deliveryDecision 只能是：建议优先投递、可以投递，建议先优化简历、可以作为尝试方向、建议先补强后再重点投递。
 - matrix 至少 1 行：requirement/matchLevel/evidence/gap/resumeWriting/interviewRisk。
+- matrix 每行 requirement 必须来自用户 JD 原文或 JD 要求摘要，不能自造岗位要求。
+- evidence 必须绑定已确认来源经历，证据不足时写“当前证据不足”。
+- evidence 的值必须从上下文 sourceExperienceCandidates 数组中逐字复制；如果没有可绑定来源，写“当前证据不足”。
 - matchLevel 只能是：匹配较强、有一定匹配、需要补充证据、当前证据不足。
 - 匹配程度不是对用户能力评价，只看现有材料是否能证明岗位要求。
+- 不要把证据不足写成用户能力不行。
 - resumeWriting 保持协助/参与边界，无依据数据写待核实；禁止夸大成负责、主导、独立完成或承诺结果。
+- 有 JD 模式，不能输出无 JD 方向探索内容、directionOptions、searchableJobNames 或 7 天验证动作。
 
 ${common}`;
     case 'report-interviews':

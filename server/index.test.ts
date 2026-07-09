@@ -8,6 +8,7 @@ import {
   validateDigQuestionSet,
   validateReportActionPlanModule,
   validateReportDirectionsModule,
+  validateReportJdFitSummaryModule,
   validateReportRewritesModule
 } from './schemas.ts';
 import { AiServiceError } from './openaiClient.ts';
@@ -2383,6 +2384,58 @@ test('direction schema requires V0.4 exploration fields', () => {
       directionOptions: [legacyDirection, { ...legacyDirection, name: '新媒体运营助理', level: '主投' }]
     })
   ).toThrow(/directionName|searchableJobNames|whyExplore|sevenDayValidation|priority|level/);
+});
+
+test('jd fit summary schema wraps top-level jdFit fields from chat providers', () => {
+  const result = validateReportJdFitSummaryModule({
+    source: 'real',
+    deliveryDecision: '可以投递，建议先优化简历',
+    deliveryReason: '社群维护和反馈整理有一定匹配，但活动复盘证据需要补充。',
+    strongestEvidence: '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。',
+    mainGap: '缺少活动复盘结论和数据口径。',
+    nextStepAdvice: '先补充活动复盘材料再投递。',
+    matrix: [
+      {
+        requirement: '协助维护用户社群',
+        matchLevel: '有一定匹配',
+        evidence: '教育机构新媒体运营实习：2 个月内维护 3 个学生社群。',
+        gap: '缺少社群活跃度记录。',
+        resumeWriting: '可写协助维护学生社群。',
+        interviewRisk: '可能追问具体维护动作。'
+      }
+    ]
+  });
+
+  expect(result.jdFit.deliveryDecision).toBe('可以投递，建议先优化简历');
+  expect(result.jdFit.matrix).toHaveLength(1);
+});
+
+test('report jd fit summary prompt spells out JD-only contract for chat providers', () => {
+  const payload = {
+    mode: 'jd',
+    profile: {},
+    assets: [
+      {
+        id: 'internship',
+        title: '教育机构新媒体运营实习',
+        content: '2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。'
+      }
+    ],
+    jdText: '用户运营实习生：社群维护、用户反馈、活动复盘。'
+  };
+  const prompt = reportModulePrompt(payload, 'report-jd-fit-summary');
+  const context = buildCompactReportContext(payload, 'report-jd-fit-summary') as { sourceExperienceCandidates?: string[] };
+
+  expect(prompt).toContain('顶层 JSON 对象只能包含 source、jdFit');
+  expect(prompt).toContain('jdFit 必须包含 deliveryDecision、deliveryReason、strongestEvidence、mainGap、nextStepAdvice、matrix');
+  expect(prompt).toContain('matrix 每行 requirement 必须来自用户 JD 原文或 JD 要求摘要');
+  expect(prompt).toContain('evidence 必须绑定已确认来源经历，证据不足时写“当前证据不足”');
+  expect(prompt).toContain('evidence 的值必须从上下文 sourceExperienceCandidates 数组中逐字复制');
+  expect(prompt).toContain('不要把证据不足写成用户能力不行');
+  expect(prompt).toContain('有 JD 模式，不能输出无 JD 方向探索内容、directionOptions、searchableJobNames 或 7 天验证动作');
+  expect(context.sourceExperienceCandidates).toEqual([
+    '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。'
+  ]);
 });
 
 test('direction schema fills level from priority for chat providers', () => {

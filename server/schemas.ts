@@ -544,9 +544,10 @@ export function validateReportRewritesModule(value: unknown): ReportRewritesModu
 
 export function validateReportJdFitSummaryModule(value: unknown): ReportJdFitSummaryModule {
   if (!isRecord(value)) throw new Error('ReportJdFitSummaryModule must be an object');
+  const jdFitInput = isRecord(value.jdFit) ? value.jdFit : Array.isArray(value.matrix) ? value : value.jdFit;
   return {
     source: assertRealSource(value.source || 'real', 'source'),
-    jdFit: validateJdFitReport(value.jdFit)
+    jdFit: validateJdFitReport(jdFitInput)
   };
 }
 
