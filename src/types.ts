@@ -286,10 +286,19 @@ export interface DiagnosisReport {
 
 export interface ReportFeedback {
   helpScore: number | null;
+  credibilityScore: number | null;
+  hasObviousInaccuracy: string;
   helpfulParts: string[];
+  weakParts: string[];
+  weakPartDetail: string;
+  weakOtherDetail: string;
+  misjudgedFeedback: string;
+  copyableContent: string;
+  nextVersionSuggestion: string;
   inaccurateFeedback: string;
   actionIntent: string;
   willingnessToPay: string;
+  willingToContinueTesting: string;
   anonymousConsent: boolean;
 }
 

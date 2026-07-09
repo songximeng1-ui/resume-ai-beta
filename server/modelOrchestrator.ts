@@ -29,11 +29,19 @@ export interface RoleJsonCallResult<T> {
   data: T;
   usage: AiUsage | null;
   role: 'primary' | 'backup';
+  providerAttempts?: RoleJsonProviderAttempt[];
 }
 
 const LONG_JD_CHARS = 5000;
 const LONG_USER_MATERIAL_CHARS = 8000;
 const TASK_PACKAGE_SAFE_CHARS = 16000;
+
+export interface RoleJsonProviderAttempt {
+  role: 'primary' | 'backup';
+  task: string;
+  status: 'success' | 'failed';
+  failureCode?: string;
+}
 
 export function defaultModelRoles(): Record<ModelRole, ModelRoleConfig> {
   return {
@@ -126,15 +134,24 @@ export async function callJsonWithPrimaryBackup<T>(
 export async function callRoleJsonWithPrimaryBackup<T>(
   options: RoleJsonTaskOptions<T>
 ): Promise<RoleJsonCallResult<T>> {
+  const attempts: RoleJsonProviderAttempt[] = [];
   try {
     const primary = unwrapRuntimeResult(await callProviderRoleJson('primary', options));
-    return { ...primary, role: 'primary' };
+    attempts.push({ role: 'primary', task: options.task, status: 'success' });
+    return { ...primary, role: 'primary', providerAttempts: attempts };
   } catch (error) {
     if (!shouldUseBackup(error)) {
       throw error;
     }
+    attempts.push({ role: 'primary', task: options.task, status: 'failed', failureCode: classifyAiError(error).code });
   }
 
-  const backup = unwrapRuntimeResult(await callProviderRoleJson('backup', options));
-  return { ...backup, role: 'backup' };
+  try {
+    const backup = unwrapRuntimeResult(await callProviderRoleJson('backup', options));
+    attempts.push({ role: 'backup', task: options.task, status: 'success' });
+    return { ...backup, role: 'backup', providerAttempts: attempts };
+  } catch (error) {
+    attempts.push({ role: 'backup', task: options.task, status: 'failed', failureCode: classifyAiError(error).code });
+    throw error;
+  }
 }

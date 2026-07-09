@@ -30,6 +30,7 @@ import {
   ReportTaskError,
   verifyBetaAccessCode
 } from './services/aiService';
+import { buildActionPlanText, buildReportMarkdown, buildReportText } from './reportExport';
 
 const STORAGE_KEY = 'job-map-v2-confirmed-session';
 const FEEDBACK_STORAGE_KEY = 'job-map-v0.3-feedback';
@@ -1665,15 +1666,30 @@ function EvidenceMatrix({ report, children, showVerdict = true }: { report: JdFi
 }
 
 const helpfulPartOptions = [
-  '发现了我没意识到的亮点',
-  '简历改写更清楚',
-  '岗位/JD 匹配判断有帮助',
-  '面试问题和准备边界有帮助',
+  '亮点分析',
+  '可探索岗位方向',
+  'JD 匹配分析',
+  '简历改写建议',
+  '面试追问与回答准备',
+  '下一步行动计划',
+  '整体报告结构',
   '补强计划具体可执行',
-  '语气让我没那么焦虑'
+  '其他'
 ];
 
-const payOptions = ['暂不愿付费', '9.9 元以内', '19.9-29.9 元', '49.9-99 元', '100 元以上，需要人工复核或更多服务'];
+const weakPartOptions = [
+  '无',
+  '亮点分析',
+  '可探索岗位方向',
+  'JD 匹配分析',
+  '简历改写建议',
+  '面试追问与回答准备',
+  '下一步行动计划',
+  '整体报告结构',
+  '其他，请说明'
+];
+
+const payOptions = ['不能', '5-10 元', '10-30 元', '30 元以上'];
 const scoreOptions = [
   { score: 1, symbol: '↓', label: '没有帮助', tone: 'score-1' },
   { score: 2, symbol: '↘', label: '帮助较少', tone: 'score-2' },
@@ -1681,13 +1697,29 @@ const scoreOptions = [
   { score: 4, symbol: '↗', label: '比较有帮助', tone: 'score-4' },
   { score: 5, symbol: '★', label: '非常有帮助', tone: 'score-5' }
 ];
+const credibilityScoreOptions = [
+  { score: 1, symbol: '↓', label: '不可信', tone: 'score-1' },
+  { score: 2, symbol: '↘', label: '可信度较低', tone: 'score-2' },
+  { score: 3, symbol: '–', label: '部分可信', tone: 'score-3' },
+  { score: 4, symbol: '↗', label: '比较可信', tone: 'score-4' },
+  { score: 5, symbol: '★', label: '非常可信', tone: 'score-5' }
+];
 
 const emptyFeedback: ReportFeedback = {
   helpScore: null,
+  credibilityScore: null,
+  hasObviousInaccuracy: '',
   helpfulParts: [],
+  weakParts: [],
+  weakPartDetail: '',
+  weakOtherDetail: '',
+  misjudgedFeedback: '',
+  copyableContent: '',
+  nextVersionSuggestion: '',
   inaccurateFeedback: '',
   actionIntent: '',
   willingnessToPay: '',
+  willingToContinueTesting: '',
   anonymousConsent: false
 };
 
@@ -1711,6 +1743,24 @@ function FeedbackSection({ mode }: { mode: Mode | null }) {
         ? current.helpfulParts.filter((item) => item !== part)
         : [...current.helpfulParts, part]
     }));
+  };
+
+  const toggleWeakPart = (part: string) => {
+    setFeedback((current) => {
+      if (part === '无') {
+        return {
+          ...current,
+          weakParts: current.weakParts.includes('无') ? [] : ['无'],
+          weakPartDetail: current.weakParts.includes('无') ? current.weakPartDetail : '',
+          weakOtherDetail: current.weakParts.includes('无') ? current.weakOtherDetail : ''
+        };
+      }
+      const withoutNone = current.weakParts.filter((item) => item !== '无');
+      return {
+        ...current,
+        weakParts: withoutNone.includes(part) ? withoutNone.filter((item) => item !== part) : [...withoutNone, part]
+      };
+    });
   };
 
   const submitFeedback = () => {
@@ -1759,6 +1809,42 @@ function FeedbackSection({ mode }: { mode: Mode | null }) {
       </fieldset>
 
       <fieldset className="form-section">
+        <legend>这份报告可信吗？</legend>
+        <div className="score-grid">
+          {credibilityScoreOptions.map((option) => (
+            <button
+              aria-pressed={feedback.credibilityScore === option.score}
+              className={`score-card ${option.tone} ${feedback.credibilityScore === option.score ? 'selected' : ''}`}
+              key={option.score}
+              type="button"
+              onClick={() => setFeedback((current) => ({ ...current, credibilityScore: option.score }))}
+            >
+              <span className="score-symbol">{option.symbol}</span>
+              <strong>{option.score} 分</strong>
+              <span>{option.label}</span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="form-section">
+        <legend>你是否发现明显不准的地方？</legend>
+        <div className="field-grid single">
+          {['是，有明显不准', '否，没有明显不准'].map((option) => (
+            <label className="truth-check" key={option}>
+              <input
+                type="radio"
+                name="hasObviousInaccuracy"
+                checked={feedback.hasObviousInaccuracy === (option.startsWith('是') ? '是' : '否')}
+                onChange={() => setFeedback((current) => ({ ...current, hasObviousInaccuracy: option.startsWith('是') ? '是' : '否' }))}
+              />
+              <span>{option}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="form-section">
         <legend>哪一部分最有帮助？（可多选）</legend>
         <div className="field-grid single">
           {helpfulPartOptions.map((part) => (
@@ -1770,6 +1856,44 @@ function FeedbackSection({ mode }: { mode: Mode | null }) {
         </div>
       </fieldset>
 
+      <fieldset className="form-section">
+        <legend>哪个模块最没用、不准或帮助较小？（可多选）</legend>
+        <div className="field-grid single">
+          {weakPartOptions.map((part) => (
+            <label className="truth-check" key={part}>
+              <input type="checkbox" checked={feedback.weakParts.includes(part)} onChange={() => toggleWeakPart(part)} />
+              <span>{part}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      {feedback.weakParts.some((part) => part !== '无' && part !== '其他，请说明') ? (
+        <label className="field" htmlFor="weakPartDetail">
+          <span>你觉得这个模块哪里不准或没帮助？</span>
+          <textarea
+            id="weakPartDetail"
+            value={feedback.weakPartDetail}
+            onChange={(event) => setFeedback((current) => ({ ...current, weakPartDetail: event.target.value }))}
+            rows={3}
+            placeholder="可以写具体模块、句子或建议。"
+          />
+        </label>
+      ) : null}
+
+      {feedback.weakParts.includes('其他，请说明') ? (
+        <label className="field" htmlFor="weakOtherDetail">
+          <span>其他模块说明</span>
+          <textarea
+            id="weakOtherDetail"
+            value={feedback.weakOtherDetail}
+            onChange={(event) => setFeedback((current) => ({ ...current, weakOtherDetail: event.target.value }))}
+            rows={3}
+            placeholder="请说明你觉得帮助较小的部分。"
+          />
+        </label>
+      ) : null}
+
       <label className="field" htmlFor="inaccurateFeedback">
         <span>哪一部分不准确、没帮助，或者不像你的真实情况？</span>
         <textarea
@@ -1778,6 +1902,39 @@ function FeedbackSection({ mode }: { mode: Mode | null }) {
           onChange={(event) => setFeedback((current) => ({ ...current, inaccurateFeedback: event.target.value }))}
           rows={4}
           placeholder="例如：岗位方向不准、改写太夸张、面试回答不像我、补强计划不现实……"
+        />
+      </label>
+
+      <label className="field" htmlFor="misjudgedFeedback">
+        <span>有没有让你觉得被误判的地方？</span>
+        <textarea
+          id="misjudgedFeedback"
+          value={feedback.misjudgedFeedback}
+          onChange={(event) => setFeedback((current) => ({ ...current, misjudgedFeedback: event.target.value }))}
+          rows={3}
+          placeholder="例如：目标方向判断偏了、经历理解错了、建议不符合真实情况。"
+        />
+      </label>
+
+      <label className="field" htmlFor="copyableContent">
+        <span>有没有你愿意直接复制使用的内容？</span>
+        <textarea
+          id="copyableContent"
+          value={feedback.copyableContent}
+          onChange={(event) => setFeedback((current) => ({ ...current, copyableContent: event.target.value }))}
+          rows={3}
+          placeholder="可以写简历改写句、行动计划、面试准备片段等。"
+        />
+      </label>
+
+      <label className="field" htmlFor="nextVersionSuggestion">
+        <span>你最希望它下一版改什么？</span>
+        <textarea
+          id="nextVersionSuggestion"
+          value={feedback.nextVersionSuggestion}
+          onChange={(event) => setFeedback((current) => ({ ...current, nextVersionSuggestion: event.target.value }))}
+          rows={3}
+          placeholder="例如：更短、更准、更像人工顾问、增加导出等。"
         />
       </label>
 
@@ -1809,6 +1966,23 @@ function FeedbackSection({ mode }: { mode: Mode | null }) {
                 name="willingnessToPay"
                 checked={feedback.willingnessToPay === option}
                 onChange={() => setFeedback((current) => ({ ...current, willingnessToPay: option }))}
+              />
+              <span>{option}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="form-section">
+        <legend>是否愿意继续帮忙测试？</legend>
+        <div className="field-grid single">
+          {['是，愿意继续测试', '否，暂时不用'].map((option) => (
+            <label className="truth-check" key={option}>
+              <input
+                type="radio"
+                name="willingToContinueTesting"
+                checked={feedback.willingToContinueTesting === (option.startsWith('是') ? '是' : '否')}
+                onChange={() => setFeedback((current) => ({ ...current, willingToContinueTesting: option.startsWith('是') ? '是' : '否' }))}
               />
               <span>{option}</span>
             </label>
@@ -1902,6 +2076,43 @@ function CopyButton({ text, children }: { text: string; children: ReactNode }) {
     <button className="tiny-button" type="button" onClick={copy}>
       {copied ? '已复制' : children}
     </button>
+  );
+}
+
+function ExportMarkdownButton({ report }: { report: DiagnosisReport }) {
+  const [exported, setExported] = useState(false);
+
+  const exportMarkdown = () => {
+    const markdown = buildReportMarkdown(report);
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `job-map-report-${new Date().toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setExported(true);
+  };
+
+  return (
+    <button className="tiny-button" type="button" onClick={exportMarkdown}>
+      {exported ? '已导出 Markdown' : '导出 Markdown'}
+    </button>
+  );
+}
+
+function ReportExportActions({ report }: { report: DiagnosisReport }) {
+  return (
+    <section className="result-block" aria-label="报告复制和导出">
+      <h2>报告复制和导出</h2>
+      <div className="action-row">
+        <CopyButton text={buildReportText(report)}>复制整份报告</CopyButton>
+        <CopyButton text={buildActionPlanText(report)}>复制行动计划</CopyButton>
+        <ExportMarkdownButton report={report} />
+      </div>
+    </section>
   );
 }
 
@@ -2132,6 +2343,8 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
           <SafetyNotice />
         </section>
 
+        <ReportExportActions report={report} />
+
         <QualityCheckSection report={report} />
 
         <FeedbackSection mode={mode} />
@@ -2283,6 +2496,8 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
           <SafetyNotice />
         </section>
 
+        <ReportExportActions report={report} />
+
         <QualityCheckSection report={report} />
 
         <FeedbackSection mode={mode} />
@@ -2421,6 +2636,8 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         <strong>隐私与删除</strong>
         <p>本原型只在你勾选真实性确认后保存临时会话数据。你可以随时清除本次分析数据。</p>
       </aside>
+
+      <ReportExportActions report={report} />
 
       <QualityCheckSection report={report} />
 

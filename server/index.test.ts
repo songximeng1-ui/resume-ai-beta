@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { createAiServer, getServerListenConfig } from './index.ts';
+import { createAiServer, getServerListenConfig, getV06TestingRecords, resetV06TestingRecords, summarizeV06TestingRecords } from './index.ts';
 import { buildCompactReportContext, careerCoachSystemPrompt, jdFitPrompt, reportModulePrompt, reportPrompt, structureResumePrompt } from './prompts.ts';
 import {
   diagnosisReportJsonSchema,
@@ -189,6 +189,7 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env = { ...originalEnv };
+  resetV06TestingRecords();
   vi.restoreAllMocks();
 });
 
@@ -1074,6 +1075,76 @@ test('configured report endpoint attaches quality result after model validation'
       score: expect.any(Number),
       blockers: [],
       warnings: expect.any(Array)
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test('v0.6 testing records track provider fallback without exposing provider details to client', async () => {
+  delete process.env.OPENAI_API_KEY;
+  process.env.AI_PRIMARY_API_KEY = 'deepseek-key';
+  process.env.AI_PRIMARY_MODEL = 'deepseek-chat';
+  process.env.AI_BACKUP_API_KEY = 'qwen-key';
+  process.env.AI_BACKUP_MODEL = 'qwen-plus';
+
+  const valid = validInventoryReport();
+  vi.spyOn(modelProvider, 'callProviderRoleJson').mockImplementation(async (role, options) => {
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
+    if (options.task === 'report-directions') {
+      if (role === 'primary') {
+        throw new AiServiceError({
+          code: 'schema_validation',
+          message: 'schema invalid',
+          detail: 'schema invalid',
+          retryable: true,
+          attempts: 1
+        });
+      }
+      return { data: { source: 'real', directionOptions: valid.directionOptions }, usage: null };
+    }
+    if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: valid.rewrites }, usage: null };
+    throw new Error(`unexpected provider task ${role}:${options.task}`);
+  });
+
+  const server = await withServer();
+  try {
+    const { response, body } = await requestReport(server, { mode: 'inventory', jdText: '' });
+
+    expect(response.status).toBe(200);
+    expect(body.isBasic).toBe(false);
+    expect(body.quality.passed).toBe(true);
+    expect(JSON.stringify(body)).not.toMatch(/deepseek|qwen|provider|model|token|baseUrl|schema invalid/i);
+
+    const records = getV06TestingRecords();
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      mode: 'inventory',
+      httpSuccess: true,
+      reachedReportPage: true,
+      isDeepReport: true,
+      qualityPassed: true,
+      qwenFallbackTriggered: true,
+      qwenFallbackSucceeded: true,
+      enteredBasicFallback: false
+    });
+    expect(records[0].providerAttempts).toEqual([
+      { role: 'primary', module: 'report-highlights', status: 'success' },
+      { role: 'primary', module: 'report-directions', status: 'failed', failureType: 'schema' },
+      { role: 'backup', module: 'report-directions', status: 'success' },
+      { role: 'primary', module: 'report-rewrites', status: 'success' }
+    ]);
+
+    expect(summarizeV06TestingRecords()).toMatchObject({
+      totalRuns: 1,
+      technicalAvailabilityRate: 1,
+      deepReportRate: 1,
+      qualityPassRate: 1,
+      deepSeekDirectSuccessRate: 0.6667,
+      qwenFallbackTriggerCount: 1,
+      qwenFallbackSuccessRate: 1,
+      basicFallbackCount: 0,
+      failureTypeCounts: { schema: 1 }
     });
   } finally {
     await server.close();

@@ -14,7 +14,7 @@ import {
   type JsonCallOptions
 } from './openaiClient.ts';
 import { digQuestionsPrompt, jdSummaryPrompt, jdFitPrompt, kimiExtractPrompt, type ReportModuleTask, reportModulePrompt, reportPrompt, structureResumePrompt } from './prompts.ts';
-import { callJsonWithPrimaryBackup, callRoleJsonWithPrimaryBackup, shouldUseExtractor } from './modelOrchestrator.ts';
+import { callJsonWithPrimaryBackup, callRoleJsonWithPrimaryBackup, shouldUseExtractor, type RoleJsonProviderAttempt } from './modelOrchestrator.ts';
 import { callProviderRoleJson } from './modelProvider.ts';
 import {
   sanitizeRiskyInterview,
@@ -642,6 +642,7 @@ function markReportTaskQualityFallback(task: ReportGenerationTask, checked: Diag
   const blockers = checked.quality?.blockers ?? [];
   const warnings = checked.quality?.warnings ?? [];
   const findings = checked.quality?.safetyFindings ?? [];
+  (task as V06TrackedReportTask).v06FailureType = 'quality_blocker';
   task.status = task.completedModules.length ? 'partial' : 'failed';
   task.currentModule = undefined;
   task.failedModule = 'assembledReport';
@@ -687,7 +688,14 @@ function attachUsage<T extends object>(value: T, _usage: AiUsage | null): T {
 }
 
 function sanitizeReportTaskForClient(task: ReportGenerationTask): Omit<ReportGenerationTask, 'usage' | 'moduleUsages' | 'modules'> {
-  const { usage: _usage, moduleUsages: _moduleUsages, modules: _modules, ...rest } = task;
+  const {
+    usage: _usage,
+    moduleUsages: _moduleUsages,
+    modules: _modules,
+    v06ProviderAttempts: _v06ProviderAttempts,
+    v06FailureType: _v06FailureType,
+    ...rest
+  } = task as V06TrackedReportTask;
   return rest;
 }
 
@@ -715,7 +723,167 @@ type ReportModuleResult<T> = {
   data: T;
   usage: AiUsage | null;
   module: AiUsageModule;
+  providerAttempts?: RoleJsonProviderAttempt[];
 };
+
+type V06FailureType = 'timeout' | 'network' | 'auth' | 'quota' | 'model' | 'schema' | 'parse' | 'quality_blocker' | 'unknown';
+
+export type V06ProviderAttemptRecord = {
+  role: 'primary' | 'backup';
+  module: string;
+  status: 'success' | 'failed';
+  failureType?: V06FailureType;
+};
+
+export type V06TestingRecord = {
+  id: string;
+  createdAt: string;
+  mode: Mode;
+  httpSuccess: boolean;
+  reachedReportPage: boolean;
+  isDeepReport: boolean;
+  qualityPassed: boolean;
+  qwenFallbackTriggered: boolean;
+  qwenFallbackSucceeded: boolean;
+  enteredBasicFallback: boolean;
+  failedModule?: ReportModuleKey;
+  failureType?: V06FailureType;
+  providerAttempts: V06ProviderAttemptRecord[];
+};
+
+export type V06TestingSummary = {
+  totalRuns: number;
+  technicalAvailabilityRate: number;
+  deepReportRate: number;
+  qualityPassRate: number;
+  deepSeekDirectSuccessRate: number;
+  qwenFallbackTriggerCount: number;
+  qwenFallbackSuccessRate: number;
+  basicFallbackCount: number;
+  failureTypeCounts: Partial<Record<V06FailureType, number>>;
+};
+
+type V06TrackedReportTask = ReportGenerationTask & {
+  v06ProviderAttempts?: V06ProviderAttemptRecord[];
+  v06FailureType?: V06FailureType;
+};
+
+const v06TestingRecords: V06TestingRecord[] = [];
+
+function roundRate(value: number) {
+  return Number(value.toFixed(4));
+}
+
+function mapAiFailureType(code?: string): V06FailureType {
+  switch (code) {
+    case 'timeout':
+      return 'timeout';
+    case 'network_error':
+    case 'server_error':
+    case 'empty_response':
+      return 'network';
+    case 'auth_error':
+    case 'config_missing':
+      return 'auth';
+    case 'rate_limit':
+      return 'quota';
+    case 'model_error':
+      return 'model';
+    case 'schema_validation':
+      return 'schema';
+    case 'invalid_json':
+      return 'parse';
+    default:
+      return 'unknown';
+  }
+}
+
+function normalizeProviderAttempt(attempt: RoleJsonProviderAttempt): V06ProviderAttemptRecord {
+  return {
+    role: attempt.role,
+    module: attempt.task,
+    status: attempt.status,
+    failureType: attempt.failureCode ? mapAiFailureType(attempt.failureCode) : undefined
+  };
+}
+
+function appendV06ProviderAttempts(task: ReportGenerationTask, attempts: RoleJsonProviderAttempt[] = []) {
+  if (!attempts.length) return;
+  const tracked = task as V06TrackedReportTask;
+  tracked.v06ProviderAttempts = [...(tracked.v06ProviderAttempts || []), ...attempts.map(normalizeProviderAttempt)];
+}
+
+function createV06TestingRecord(input: { mode: Mode; report: DiagnosisReport; task: ReportGenerationTask }): V06TestingRecord {
+  const tracked = input.task as V06TrackedReportTask;
+  const providerAttempts = tracked.v06ProviderAttempts || [];
+  const qwenFallbackTriggered = providerAttempts.some((attempt) => attempt.role === 'backup');
+  const qwenFallbackSucceeded = providerAttempts.some((attempt) => attempt.role === 'backup' && attempt.status === 'success');
+  const qualityPassed = input.report.quality?.passed === true;
+  const enteredBasicFallback = input.report.isBasic === true;
+  const qualityFallback = enteredBasicFallback && tracked.v06FailureType === 'quality_blocker';
+
+  return {
+    id: input.task.id,
+    createdAt: new Date().toISOString(),
+    mode: input.mode,
+    httpSuccess: true,
+    reachedReportPage: true,
+    isDeepReport: input.report.isBasic === false,
+    qualityPassed,
+    qwenFallbackTriggered,
+    qwenFallbackSucceeded,
+    enteredBasicFallback,
+    failedModule: input.task.failedModule,
+    failureType: tracked.v06FailureType || (qualityFallback ? 'quality_blocker' : undefined),
+    providerAttempts
+  };
+}
+
+function recordV06TestingRun(input: { mode: Mode; report: DiagnosisReport; task: ReportGenerationTask }) {
+  v06TestingRecords.push(createV06TestingRecord(input));
+}
+
+export function getV06TestingRecords(): V06TestingRecord[] {
+  return v06TestingRecords.map((record) => ({
+    ...record,
+    providerAttempts: record.providerAttempts.map((attempt) => ({ ...attempt }))
+  }));
+}
+
+export function resetV06TestingRecords() {
+  v06TestingRecords.length = 0;
+}
+
+export function summarizeV06TestingRecords(records: V06TestingRecord[] = v06TestingRecords): V06TestingSummary {
+  const totalRuns = records.length;
+  const primaryAttempts = records.flatMap((record) => record.providerAttempts.filter((attempt) => attempt.role === 'primary'));
+  const primarySuccesses = primaryAttempts.filter((attempt) => attempt.status === 'success').length;
+  const fallbackRuns = records.filter((record) => record.qwenFallbackTriggered);
+  const failureTypeCounts: Partial<Record<V06FailureType, number>> = {};
+
+  for (const record of records) {
+    const failureTypes = new Set<V06FailureType>();
+    if (record.failureType) failureTypes.add(record.failureType);
+    for (const attempt of record.providerAttempts) {
+      if (attempt.failureType) failureTypes.add(attempt.failureType);
+    }
+    for (const failureType of failureTypes) {
+      failureTypeCounts[failureType] = (failureTypeCounts[failureType] || 0) + 1;
+    }
+  }
+
+  return {
+    totalRuns,
+    technicalAvailabilityRate: totalRuns ? roundRate(records.filter((record) => record.httpSuccess && record.reachedReportPage).length / totalRuns) : 0,
+    deepReportRate: totalRuns ? roundRate(records.filter((record) => record.isDeepReport).length / totalRuns) : 0,
+    qualityPassRate: totalRuns ? roundRate(records.filter((record) => record.qualityPassed).length / totalRuns) : 0,
+    deepSeekDirectSuccessRate: primaryAttempts.length ? roundRate(primarySuccesses / primaryAttempts.length) : 0,
+    qwenFallbackTriggerCount: fallbackRuns.length,
+    qwenFallbackSuccessRate: fallbackRuns.length ? roundRate(fallbackRuns.filter((record) => record.qwenFallbackSucceeded).length / fallbackRuns.length) : 0,
+    basicFallbackCount: records.filter((record) => record.enteredBasicFallback).length,
+    failureTypeCounts
+  };
+}
 
 function emptyUsageTotals(): AiUsageTotals {
   return {
@@ -873,7 +1041,8 @@ async function callReportModule<T>(
     return {
       data: validateReportModule(options.task, options.validate, result.data),
       usage: result.usage,
-      module: usageModule(options.task, modelTier, result.usage)
+      module: usageModule(options.task, modelTier, result.usage),
+      providerAttempts: result.providerAttempts
     };
   }
 
@@ -1150,6 +1319,7 @@ function sanitizeJdTaskModuleData<T>(task: ReportGenerationTask, key: ReportModu
 
 function markReportModuleDone<T>(task: ReportGenerationTask, key: ReportModuleKey, result: ReportModuleResult<T>) {
   const safeData = sanitizeJdTaskModuleData(task, key, result.data);
+  appendV06ProviderAttempts(task, result.providerAttempts);
   task.modules[key] = safeData;
   if (!task.completedModules.includes(key)) {
     task.completedModules.push(key);
@@ -1181,6 +1351,7 @@ function markAssembledReportDone(task: ReportGenerationTask, report: DiagnosisRe
 
 function markReportTaskFailed(task: ReportGenerationTask, key: ReportModuleKey, error: unknown) {
   const classified = classifyAiError(error);
+  (task as V06TrackedReportTask).v06FailureType = mapAiFailureType(classified.code);
   task.status = task.completedModules.length ? 'partial' : 'failed';
   task.currentModule = undefined;
   task.failedModule = key;
@@ -1739,6 +1910,7 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
         return;
       }
       const safeReport = ensureClientSafeReportForTask(result.data, qualityMode, req.body, result.task);
+      recordV06TestingRun({ mode: qualityMode, report: safeReport, task: result.task });
       res.json({
         ...attachUsage(safeReport, result.usage),
         reportTask: sanitizeReportTaskForClient(result.task)
