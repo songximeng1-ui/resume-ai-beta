@@ -14,6 +14,7 @@
 - 强制 primary base URL 失败后 fallback 到 Qwen `/api/ai/jd-fit`：成功，用时约 30.72 秒。
 - Fallback 路径可推断内部 `jd-summary` 步骤通过；接口响应返回最终 JD fit，不直接暴露 JD summary。
 - Fallback 路径返回 `source=real`，投递判断为“可以投递，建议先优化简历”，生成 5 条 JD fit matrix。
+- 响应不直接暴露 JD summary；本次只记录其内部步骤可推断通过，以及最终 JD fit matrix 和投递判断。
 
 失败分类结果：
 
