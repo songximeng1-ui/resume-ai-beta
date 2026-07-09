@@ -576,6 +576,43 @@ test('structure resume prompt spells out the exact top-level contract for chat p
   expect(prompt).toContain('assets 必须是数组');
 });
 
+test('report highlights prompt spells out the exact highlight item contract for chat providers', () => {
+  const prompt = reportModulePrompt({ mode: 'jd', profile: {}, assets: [], jdText: '用户运营实习生' }, 'report-highlights');
+
+  expect(prompt).toContain('顶层 JSON 对象只能包含 source、highlights');
+  expect(prompt).toContain('每个 highlight 必须包含 sourceExperience、capability、jdRequirement、whyNotFlattery、professionalExpression');
+  expect(prompt).toContain('sourceExperience 必须引用上下文 assets 中的 title 或 content 原文片段');
+  expect(prompt).toContain('sourceExperience 的值只能从上下文 sourceExperienceCandidates 数组中逐字复制');
+});
+
+test('report highlights context gives chat providers copyable source experience candidates', () => {
+  const context = buildCompactReportContext(
+    {
+      mode: 'jd',
+      profile: {},
+      assets: [
+        {
+          id: 'internship',
+          title: '教育机构新媒体运营实习',
+          content: '2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。'
+        },
+        {
+          id: 'project',
+          title: '校园二手交易调研项目',
+          content: '设计问卷，用 Excel 整理调研结果，并完成课堂展示。'
+        }
+      ],
+      jdText: '用户运营实习生'
+    },
+    'report-highlights'
+  ) as { sourceExperienceCandidates?: string[] };
+
+  expect(context.sourceExperienceCandidates).toEqual([
+    '教育机构新媒体运营实习：2 个月内维护 3 个学生社群，整理公众号推文素材，并记录用户反馈。',
+    '校园二手交易调研项目：设计问卷，用 Excel 整理调研结果，并完成课堂展示。'
+  ]);
+});
+
 test('role provider structure-resume falls back from primary to backup', async () => {
   delete process.env.OPENAI_API_KEY;
   process.env.AI_PRIMARY_API_KEY = 'primary-key';

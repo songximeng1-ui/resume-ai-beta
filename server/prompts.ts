@@ -224,6 +224,12 @@ function compactAssets(value: unknown) {
     }));
 }
 
+function sourceExperienceCandidates(assets: ReturnType<typeof compactAssets>) {
+  return assets
+    .filter((asset) => asset.title.trim() && asset.content.trim())
+    .map((asset) => `${asset.title}：${asset.content}`);
+}
+
 function compactJdFit(value: unknown) {
   if (!isRecord(value)) return null;
   const matrix = Array.isArray(value.matrix) ? value.matrix.filter(isRecord).slice(0, 3) : [];
@@ -247,11 +253,13 @@ function compactJdFit(value: unknown) {
 export function buildCompactReportContext(payload: unknown, task: ReportModuleTask) {
   const source = isRecord(payload) ? payload : {};
   const mode = source.mode === 'inventory' ? 'inventory' : 'jd';
+  const assets = compactAssets(source.assets);
   const base = {
     mode,
     stage: source.stage === 'junior' ? 'junior' : 'senior',
     profile: compactProfile(source.profile),
-    assets: compactAssets(source.assets)
+    assets,
+    ...(task === 'report-highlights' ? { sourceExperienceCandidates: sourceExperienceCandidates(assets) } : {})
   };
   const jd = mode === 'jd' ? { jdText: compactText(source.jdText, 420), jdFit: compactJdFit(source.jdFit) } : {};
 
@@ -291,6 +299,12 @@ ${JSON.stringify(context)}
       return `任务：生成 highlights。
 - 至少 2 个真实隐藏亮点。
 - 每项写来源经历、能力、岗位/JD 要求、非空泛理由、专业表达。
+- 顶层 JSON 对象只能包含 source、highlights。
+- 每个 highlight 必须包含 sourceExperience、capability、jdRequirement、whyNotFlattery、professionalExpression。
+- sourceExperience 必须引用上下文 assets 中的 title 或 content 原文片段，不要写“用户未详细描述”“2段经历”等泛化描述。
+- sourceExperience 的值只能从上下文 sourceExperienceCandidates 数组中逐字复制，不能改写、概括、翻译、乱码或自造来源名称。
+- whyNotFlattery 必须说明为什么这不是空泛夸奖，而是由来源经历能支撑的真实亮点。
+- professionalExpression 必须是克制的岗位语言，不新增事实。
 - ${mode === 'inventory' ? '无 JD：jdRequirement 写探索方向能力，不假装有 JD。' : '有 JD：jdRequirement 结合目标 JD。'}
 
 ${common}`;

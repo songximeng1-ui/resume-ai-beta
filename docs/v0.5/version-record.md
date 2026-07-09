@@ -1,5 +1,36 @@
 # V0.5 版本记录
 
+## 2026-07-09：report-highlights 最小模块 smoke 通过
+
+改动类型：提示词、报告模块上下文、测试、真实 AI 验证、文档。
+
+本次只验证报告模块里的 `report-highlights` 最小 smoke，未调用 `/api/ai/report`，未跑完整报告。
+
+修复：
+
+- `report-highlights` prompt 明确顶层 JSON 只能包含 `source`、`highlights`。
+- 每个 highlight 必须包含 `sourceExperience`、`capability`、`jdRequirement`、`whyNotFlattery`、`professionalExpression`。
+- `sourceExperience` 必须从 `sourceExperienceCandidates` 逐字复制，避免模型输出“2 段经历”“用户未详细描述”等泛化来源。
+- `buildCompactReportContext` 仅对 `report-highlights` 增加 `sourceExperienceCandidates`，候选来自已确认资产的 `title` 和 `content`。
+
+真实模块 smoke：
+
+- DeepSeek direct `report-highlights`：成功，用时约 2.93 秒，返回 2 条 highlights。
+- Direct 返回的 2 条 highlights 均绑定来源经历，`sourceExperience` 分别逐字引用教育机构新媒体运营实习和校园二手交易调研项目。
+- 强制 primary base URL 失败后 fallback 到 Qwen `report-highlights`：成功，用时约 6.93 秒，返回 2 条 highlights。
+- Fallback 返回的 2 条 highlights 均绑定来源经历，`sourceExperience` 同样逐字引用两段来源经历。
+
+失败排查：
+
+- 初始 smoke 曾出现 `schema_validation`，原因是模型返回的 highlight 缺少 `whyNotFlattery` 字段。
+- 后续 smoke 曾出现来源绑定不稳和临时脚本中文乱码；已通过 prompt 字段约束、来源候选和 UTF-8 临时脚本复测收口。
+- 最终 direct 和 fallback 均成功，无网络、超时、鉴权、额度、模型、schema 或解析错误残留。
+
+边界：
+
+- 本次没有调用 `/api/ai/report`。
+- 本次没有新增环境变量；`.env.example` 暂无必要更新。
+
 ## 2026-07-09：JD fit 小范围业务 smoke 通过
 
 改动类型：真实 AI 验证、文档。
