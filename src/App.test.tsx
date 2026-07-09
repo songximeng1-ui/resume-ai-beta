@@ -953,7 +953,7 @@ test('有 JD 模式输出证据矩阵和 V0.4 完整诊断报告', async () => {
   expect(screen.getByRole('button', { name: /1 分.*没有帮助/ })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /5 分.*非常有帮助/ })).toBeInTheDocument();
   expect(screen.getByText('★')).toBeInTheDocument();
-});
+}, 10000);
 
 test('JD 证据匹配页空 JD 不分析，短 JD 显示提示', async () => {
   const user = await startV2();

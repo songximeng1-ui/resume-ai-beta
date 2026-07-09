@@ -25,11 +25,21 @@
 - 初始 smoke 曾出现 `schema_validation`，原因是模型返回的 highlight 缺少 `whyNotFlattery` 字段。
 - 后续 smoke 曾出现来源绑定不稳和临时脚本中文乱码；已通过 prompt 字段约束、来源候选和 UTF-8 临时脚本复测收口。
 - 最终 direct 和 fallback 均成功，无网络、超时、鉴权、额度、模型、schema 或解析错误残留。
+- 收口验证时发现既有前端有 JD 完整流程测试稳定接近默认 5 秒 timeout；已仅为该长流程测试补充 10 秒 timeout，不改变产品逻辑。
 
 边界：
 
 - 本次没有调用 `/api/ai/report`。
+- 本次没有跑完整报告。
 - 本次没有新增环境变量；`.env.example` 暂无必要更新。
+- 收口复核时 `git status` 干净、`git diff` 为空，未发现 `.env` 内容、真实 API Key 或 `sk-` 形式密钥泄露。
+
+验证结果：
+
+- `npm.cmd test -- server/index.test.ts -t "report highlights prompt|report highlights context"`：通过，2 个目标测试通过。
+- `npm.cmd test -- src/App.test.tsx -t "有 JD 模式输出证据矩阵和 V0.4 完整诊断报告"`：通过，1 个目标测试通过。
+- `npm.cmd test`：通过。
+- `npm.cmd run build`：通过。
 
 ## 2026-07-09：JD fit 小范围业务 smoke 通过
 
