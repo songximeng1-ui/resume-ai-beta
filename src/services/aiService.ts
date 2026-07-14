@@ -92,15 +92,15 @@ function apiUrl(path: string) {
 
 export function getAiConfigMessage(status?: AiStatus | null, error?: string) {
   if (error) {
-    return '真实 AI 调用失败：请检查 API Key、模型名或网络连接。';
+    return '当前 AI 连接暂时不可用，可以稍后再试或联系测试负责人。';
   }
   if (status?.configured) {
     return '已连接真实 AI。';
   }
   if (status && !status.configured) {
-    return '当前为演示模式：请配置 OPENAI_API_KEY。请配置 AI API Key 后使用真实诊断。当前仅展示明确标注的演示结果。';
+    return '当前为演示模式：真实 AI 暂未连接。当前仅展示明确标注的演示结果。';
   }
-  return '正在检查 AI 连接状态。请配置 AI API Key 后使用真实诊断。当前仅展示明确标注的演示结果。';
+  return '正在检查 AI 连接状态。当前仅展示明确标注的演示结果。';
 }
 
 function clean(value: string) {

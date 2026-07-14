@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { getInitialRoutePlan, isV07Route, isV07Step, migrateLegacySession } from './v07Foundation';
-import type { PersistedState } from './types';
+import { getInitialRoutePlan, isV07Route, isV07Step, migrateLegacySession, toggleV07LeastHelpfulPart } from './v07Foundation';
+import type { PersistedState, V07FeedbackSubmission } from './types';
 
 const legacyBase: PersistedState = {
   step: 'start',
@@ -109,5 +109,28 @@ describe('V0.7 public foundation helpers', () => {
       evidenceRequired: expect.any(String)
     });
     expect(plan.tasks.every((task) => task.estimatedMinutes > 0)).toBe(true);
+  });
+
+  test('V0.7 feedback least helpful parts keep none mutually exclusive', () => {
+    const typedSubmission: V07FeedbackSubmission = {
+      route: 'has_direction_resume_not_ready',
+      taskHelpfulScore: 4,
+      taskFinished: 'partly',
+      actionClarity: 'partly_clear',
+      contentCredibilityScore: 5,
+      realityIssueText: '',
+      leastHelpfulParts: ['none'],
+      actionWillingness: '愿意继续做明天任务',
+      paymentAcceptance: '10-30 元',
+      continueTesting: 'yes',
+      createdAt: '2026-07-14T00:00:00.000Z'
+    };
+
+    expect(typedSubmission.leastHelpfulParts).toEqual(['none']);
+    expect(toggleV07LeastHelpfulPart(['task_unclear', 'too_long'], 'none')).toEqual(['none']);
+    expect(toggleV07LeastHelpfulPart(['none'], 'task_unclear')).toEqual(['task_unclear']);
+    expect(toggleV07LeastHelpfulPart(['task_unclear'], 'too_long')).toEqual(['task_unclear', 'too_long']);
+    expect(toggleV07LeastHelpfulPart(['task_unclear', 'too_long'], 'task_unclear')).toEqual(['too_long']);
+    expect(toggleV07LeastHelpfulPart(['task_unclear'], 'task_unclear')).toEqual([]);
   });
 });

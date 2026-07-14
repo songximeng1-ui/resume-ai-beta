@@ -105,9 +105,8 @@ interface RestoredSession {
 }
 
 function formatAiError(error: unknown) {
-  const message = error instanceof Error ? error.message : '';
-  const retryHint = '可以直接再次点击当前按钮重试。';
-  return message ? `真实 AI 调用失败：${message} ${retryHint}` : `真实 AI 调用失败：请检查 API Key、模型名、网络或代理配置。${retryHint}`;
+  void error;
+  return '当前 AI 生成失败，可以直接重试一次。如果多次失败，请稍后再试或联系测试负责人。';
 }
 
 function getAiLoadingMessage(task: AiLoadingTask) {
@@ -161,7 +160,6 @@ function ReportTaskProgress({ task, isBusy, onContinue }: { task: ReportGenerati
       {task.failedModule ? <p>失败模块：{task.failedModule}</p> : null}
       <p>{task.isRetrying || task.status === 'retrying' ? '当前正在重试或续跑。' : '如遇失败，可以继续生成剩余部分。'}</p>
       <p className="context-note">{task.estimate || '预计仍需等待一会儿，请不要关闭页面。'}</p>
-      {task.technicalDetail ? <p className="helper-text">技术详情：{task.technicalDetail}</p> : null}
       {!isDone && task.retryable ? (
         <button className="primary-button" type="button" onClick={onContinue} disabled={isBusy}>
           {isBusy ? '继续生成中...' : '继续生成剩余部分'}

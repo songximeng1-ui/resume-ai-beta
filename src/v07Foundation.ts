@@ -1,4 +1,4 @@
-import type { Mode, PersistedState, Step, V07DailyTask, V07JobRoute, V07PersistedState, V07PlanState, V07Step } from './types';
+import type { Mode, PersistedState, Step, V07DailyTask, V07JobRoute, V07LeastHelpfulPart, V07PersistedState, V07PlanState, V07Step } from './types';
 
 export const v07Routes: V07JobRoute[] = [
   'no_direction',
@@ -24,6 +24,17 @@ export function isV07Route(value: unknown): value is V07JobRoute {
 
 export function isV07Step(value: unknown): value is V07Step {
   return typeof value === 'string' && (v07Steps as string[]).includes(value);
+}
+
+export function toggleV07LeastHelpfulPart(current: V07LeastHelpfulPart[], part: V07LeastHelpfulPart): V07LeastHelpfulPart[] {
+  if (part === 'none') {
+    return current.includes('none') ? [] : ['none'];
+  }
+
+  const withoutNone = current.filter((item) => item !== 'none');
+  return withoutNone.includes(part)
+    ? withoutNone.filter((item) => item !== part)
+    : [...withoutNone, part];
 }
 
 export function getLegacyModeForRoute(route: V07JobRoute): Mode {

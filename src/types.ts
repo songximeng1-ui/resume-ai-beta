@@ -384,6 +384,15 @@ export interface V07PersistedState {
   legacy?: PersistedState;
 }
 
+export type V07LeastHelpfulPart =
+  | 'none'
+  | 'task_unclear'
+  | 'rewrite_unusable'
+  | 'too_long'
+  | 'not_realistic'
+  | 'route_mismatch'
+  | 'other';
+
 export interface V07FeedbackSubmission {
   route: V07JobRoute;
   day?: number;
@@ -392,7 +401,7 @@ export interface V07FeedbackSubmission {
   actionClarity: 'clear' | 'partly_clear' | 'unclear' | null;
   contentCredibilityScore: number | null;
   realityIssueText: string;
-  leastHelpfulParts: string[];
+  leastHelpfulParts: V07LeastHelpfulPart[];
   actionWillingness: string;
   paymentAcceptance: string;
   continueTesting: 'yes' | 'no' | 'unsure';
