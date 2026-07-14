@@ -18,6 +18,7 @@ import {
   type Step,
   type V07JobRoute,
   type V07PersistedState,
+  type V07TaskRecord,
   type V07PlanState,
   assetTitles,
   diggableAssetIds,
@@ -69,7 +70,8 @@ const initialV07State: V07PersistedState = {
   version: 'v0.7',
   route: null,
   step: 'route',
-  plan: null
+  plan: null,
+  records: []
 };
 
 const v07RouteOptions: {
@@ -176,6 +178,31 @@ function normalizeLegacyState(value: unknown): PersistedState {
   return { ...initialState, ...(value as Partial<PersistedState>) };
 }
 
+function normalizeV07TaskRecords(value: unknown): V07TaskRecord[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is V07TaskRecord => {
+    if (!item || typeof item !== 'object') {
+      return false;
+    }
+    const record = item as Partial<V07TaskRecord>;
+    return (
+      isV07Route(record.route) &&
+      typeof record.day === 'number' &&
+      typeof record.taskTitle === 'string' &&
+      typeof record.taskType === 'string' &&
+      ['done', 'partly', 'not_done'].includes(String(record.completionStatus)) &&
+      typeof record.outputText === 'string' &&
+      typeof record.evidenceText === 'string' &&
+      typeof record.reflectionText === 'string' &&
+      typeof record.nextAdjustment === 'string' &&
+      typeof record.createdAt === 'string'
+    );
+  });
+}
+
 function readPersistedSession(): RestoredSession {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -200,6 +227,7 @@ function readPersistedSession(): RestoredSession {
           route,
           step,
           plan,
+          records: normalizeV07TaskRecords(parsed.records),
           legacy
         },
         legacy: { ...legacy, step: getLegacyStepForV07Step(step) }
@@ -387,6 +415,7 @@ function App() {
   const [betaAuthorized, setBetaAuthorized] = useState(restoredBetaAccess.authorized);
   const [route, setRoute] = useState<V07JobRoute | null>(restored.v07.route);
   const [plan, setPlan] = useState<V07PlanState | null>(restored.v07.plan);
+  const [records, setRecords] = useState<V07TaskRecord[]>(restored.v07.records || []);
   const [step, setStep] = useState<Step>(restored.legacy.step);
   const [stage, setStage] = useState<Stage | null>(restored.legacy.stage);
   const [mode, setMode] = useState<Mode | null>(restored.legacy.mode);
@@ -460,10 +489,11 @@ function App() {
       route,
       step: getV07StepForLegacyStep(step),
       plan,
+      records,
       legacy
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [assets, fieldStatuses, jdFit, jdText, mode, plan, profile, report, reportTask, resumeText, route, stage, step, truthConfirmed]);
+  }, [assets, fieldStatuses, jdFit, jdText, mode, plan, profile, records, report, reportTask, resumeText, route, stage, step, truthConfirmed]);
 
   const diggableAssets = useMemo(() => diggableAssetIds.map((id) => assets.find((asset) => asset.id === id && canEnterDig(asset))).filter(Boolean) as AssetCard[], [assets]);
   const currentDigAsset = diggableAssets[Math.min(digIndex, Math.max(diggableAssets.length - 1, 0))];
@@ -489,6 +519,7 @@ function App() {
     setMode(null);
     setRoute(null);
     setPlan(null);
+    setRecords([]);
     setProfile(emptyProfile);
     setFieldStatuses(emptyFieldStatuses);
     setResumeText('');
@@ -931,7 +962,18 @@ function App() {
         />
       ) : null}
 
-      {betaAuthorized && step === 'result' && report ? <ResultPage report={report} mode={mode} onBack={() => setStep(mode === 'jd' ? 'match' : 'direction')} onClear={resetAll} /> : null}
+      {betaAuthorized && step === 'result' && report ? (
+        <ResultPage
+          report={report}
+          mode={mode}
+          route={route}
+          plan={plan}
+          records={records}
+          onSaveRecord={(record) => setRecords((current) => [...current, record])}
+          onBack={() => setStep(mode === 'jd' ? 'match' : 'direction')}
+          onClear={resetAll}
+        />
+      ) : null}
     </main>
   );
 }
@@ -2291,7 +2333,183 @@ function buildInventoryReportDirections(report: DiagnosisReport): DirectionSugge
   return suggestions.slice(0, 3);
 }
 
-function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport; mode: Mode | null; onBack: () => void; onClear: () => void }) {
+const completionStatusLabels: Record<V07TaskRecord['completionStatus'], string> = {
+  done: '已完成',
+  partly: '完成一部分',
+  not_done: '还没完成'
+};
+
+function V07ResumeRoutePanel({
+  plan,
+  records,
+  onSaveRecord
+}: {
+  plan: V07PlanState | null;
+  records: V07TaskRecord[];
+  onSaveRecord: (record: V07TaskRecord) => void;
+}) {
+  const routeTasks = plan?.route === 'has_direction_resume_not_ready' ? plan.tasks.slice(0, 3) : [];
+  const todayTask = routeTasks.find((task) => task.status === 'today') || routeTasks[0];
+  const [completionStatus, setCompletionStatus] = useState<V07TaskRecord['completionStatus']>('done');
+  const [outputText, setOutputText] = useState('');
+  const [evidenceText, setEvidenceText] = useState('');
+  const [reflectionText, setReflectionText] = useState('');
+  const [nextAdjustment, setNextAdjustment] = useState('');
+  const [message, setMessage] = useState('');
+
+  if (!todayTask) {
+    return null;
+  }
+
+  const routeRecords = records.filter((record) => record.route === 'has_direction_resume_not_ready');
+
+  const submitRecord = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSaveRecord({
+      route: 'has_direction_resume_not_ready',
+      day: todayTask.day,
+      taskTitle: todayTask.title,
+      taskType: todayTask.taskType,
+      completionStatus,
+      outputText: outputText.trim(),
+      evidenceText: evidenceText.trim(),
+      reflectionText: reflectionText.trim(),
+      nextAdjustment: nextAdjustment.trim(),
+      createdAt: new Date().toISOString()
+    });
+    setMessage('已保存今日记录。');
+    setOutputText('');
+    setEvidenceText('');
+    setReflectionText('');
+    setNextAdjustment('');
+  };
+
+  return (
+    <section className="result-block" aria-labelledby="v07-resume-route-title">
+      <p className="eyebrow">21 天陪跑 · 有方向但简历还没准备好</p>
+      <h2 id="v07-resume-route-title">V0.7 简历准备路线</h2>
+
+      <article className="verdict-panel">
+        <p>
+          <span>当前诊断摘要</span>
+          你现在的关键问题不是“没有经历”，而是经历还没有被整理成目标岗位能看懂的证据。先把一段真实经历补清楚，再对照岗位语言改成简历表达。
+        </p>
+        <p>
+          <span>下一步复盘/调整提示</span>
+          今天先看产物是否具体到背景、动作、工具和结果；如果证据不足，下一步先补事实，不急着美化表达。
+        </p>
+      </article>
+
+      <section className="result-block">
+        <h3>今日行动</h3>
+        <article className="plan-card">
+          <p><strong>{todayTask.title}</strong></p>
+          <p><strong>任务类型：</strong>{todayTask.taskType}</p>
+          <p><strong>难度：</strong>{todayTask.difficulty}</p>
+          <p><strong>预计时间：</strong>{todayTask.estimatedMinutes} 分钟</p>
+          <p><strong>产出标准：</strong>{todayTask.expectedOutput}</p>
+          <p><strong>需要证据：</strong>{todayTask.evidenceRequired}</p>
+        </article>
+      </section>
+
+      <section className="result-block">
+        <h3>Day 1-3 任务</h3>
+        <div className="card-list">
+          {routeTasks.map((task) => (
+            <article className="plan-card" key={task.day}>
+              <p><strong>{task.title}</strong></p>
+              <p><strong>难度：</strong>{task.difficulty}</p>
+              <p><strong>预计：</strong>{task.estimatedMinutes} 分钟</p>
+              <p><strong>产出：</strong>{task.expectedOutput}</p>
+              <p><strong>证据：</strong>{task.evidenceRequired}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <form className="form-section" onSubmit={submitRecord}>
+        <h3>今日记录入口</h3>
+        <fieldset className="inline-options">
+          <legend>完成状态</legend>
+          {(['done', 'partly', 'not_done'] as const).map((status) => (
+            <label key={status}>
+              <input
+                type="radio"
+                name="v07CompletionStatus"
+                checked={completionStatus === status}
+                onChange={() => setCompletionStatus(status)}
+              />
+              {completionStatusLabels[status]}
+            </label>
+          ))}
+        </fieldset>
+
+        <label className="field" htmlFor="v07-output-text">
+          <span>今日产物</span>
+          <textarea id="v07-output-text" value={outputText} onChange={(event) => setOutputText(event.target.value)} rows={3} />
+        </label>
+
+        <label className="field" htmlFor="v07-evidence-text">
+          <span>证据来源</span>
+          <textarea id="v07-evidence-text" value={evidenceText} onChange={(event) => setEvidenceText(event.target.value)} rows={2} />
+        </label>
+
+        <label className="field" htmlFor="v07-reflection-text">
+          <span>今日复盘</span>
+          <textarea id="v07-reflection-text" value={reflectionText} onChange={(event) => setReflectionText(event.target.value)} rows={2} />
+        </label>
+
+        <label className="field" htmlFor="v07-next-adjustment">
+          <span>下一步调整</span>
+          <textarea id="v07-next-adjustment" value={nextAdjustment} onChange={(event) => setNextAdjustment(event.target.value)} rows={2} />
+        </label>
+
+        <button className="primary-button" type="submit">保存今日记录</button>
+        {message ? <p className="context-note">{message}</p> : null}
+      </form>
+
+      {routeRecords.length ? (
+        <section className="result-block">
+          <h3>已记录的今日行动</h3>
+          <div className="card-list">
+            {routeRecords.map((record) => (
+              <article className="insight-card" key={`${record.createdAt}-${record.day}`}>
+                <p><strong>{record.taskTitle}</strong></p>
+                <p><strong>完成状态：</strong>{completionStatusLabels[record.completionStatus]}</p>
+                <p><strong>今日产物：</strong>{record.outputText || '暂未填写'}</p>
+                <p><strong>证据来源：</strong>{record.evidenceText || '暂未填写'}</p>
+                <p><strong>今日复盘：</strong>{record.reflectionText || '暂未填写'}</p>
+                <p><strong>下一步调整：</strong>{record.nextAdjustment || '暂未填写'}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <p className="context-note">旧报告内容会作为诊断依据和材料库保留；真正要推进的是今天的行动产物和复盘记录。</p>
+    </section>
+  );
+}
+
+function ResultPage({
+  report,
+  mode,
+  route,
+  plan,
+  records,
+  onSaveRecord,
+  onBack,
+  onClear
+}: {
+  report: DiagnosisReport;
+  mode: Mode | null;
+  route: V07JobRoute | null;
+  plan: V07PlanState | null;
+  records: V07TaskRecord[];
+  onSaveRecord: (record: V07TaskRecord) => void;
+  onBack: () => void;
+  onClear: () => void;
+}) {
   if (mode === 'jd' && report.jdFit) {
     const jdFit = report.jdFit;
     const interviews = report.interviews || [];
@@ -2450,6 +2668,10 @@ function ResultPage({ report, mode, onBack, onClear }: { report: DiagnosisReport
         </div>
 
         <BasicReportNotice show={report.isBasic} />
+
+        {route === 'has_direction_resume_not_ready' ? (
+          <V07ResumeRoutePanel plan={plan} records={records} onSaveRecord={onSaveRecord} />
+        ) : null}
 
         <section className="result-block">
           <h2>报告摘要</h2>

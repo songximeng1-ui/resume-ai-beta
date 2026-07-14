@@ -376,11 +376,25 @@ export interface V07PlanState {
   tasks: V07DailyTask[];
 }
 
+export interface V07TaskRecord {
+  route: V07JobRoute;
+  day: number;
+  taskTitle: string;
+  taskType: V07DailyTask['taskType'];
+  completionStatus: 'done' | 'partly' | 'not_done';
+  outputText: string;
+  evidenceText: string;
+  reflectionText: string;
+  nextAdjustment: string;
+  createdAt: string;
+}
+
 export interface V07PersistedState {
   version: 'v0.7';
   route: V07JobRoute | null;
   step: V07Step;
   plan: V07PlanState | null;
+  records?: V07TaskRecord[];
   legacy?: PersistedState;
 }
 

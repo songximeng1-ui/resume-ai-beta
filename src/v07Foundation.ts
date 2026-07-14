@@ -83,8 +83,50 @@ export function getInitialRoutePlan(route: V07JobRoute): V07PlanState {
     target_job_fit: '拆开 1 个目标岗位要求并标出证据'
   };
 
+  const hasDirectionResumeTasks: V07DailyTask[] = [
+    {
+      day: 1,
+      title: '第 1 天：选 1 段真实经历，补齐背景 / 动作 / 工具 / 结果',
+      route: 'has_direction_resume_not_ready',
+      actionLoopStage: 'diagnosis',
+      taskType: 'rewrite_resume',
+      status: 'today',
+      difficulty: 'stretch',
+      estimatedMinutes: 30,
+      expectedOutput: '一段包含背景、动作、工具或方法、结果的真实经历草稿。',
+      evidenceRequired: '用户自己的实习、项目、校园、兼职或作品经历原文。'
+    },
+    {
+      day: 2,
+      title: '第 2 天：找 1 个目标岗位样本，摘出 3 条常见要求',
+      route: 'has_direction_resume_not_ready',
+      actionLoopStage: 'action',
+      taskType: 'compare_jd',
+      status: 'todo',
+      difficulty: 'stretch',
+      estimatedMinutes: 25,
+      expectedOutput: '1 个真实岗位名称，以及 3 条岗位语言或常见要求。',
+      evidenceRequired: '用户手动粘贴或概括的真实岗位标题、岗位要求或 JD 摘要。'
+    },
+    {
+      day: 3,
+      title: '第 3 天：把 Day 1 经历改成 1 条可投递简历表达',
+      route: 'has_direction_resume_not_ready',
+      actionLoopStage: 'record',
+      taskType: 'rewrite_resume',
+      status: 'todo',
+      difficulty: 'stretch',
+      estimatedMinutes: 30,
+      expectedOutput: '一条可复制到简历里的表达，以及一句不能夸大的边界提醒。',
+      evidenceRequired: 'Day 1 经历草稿、Day 2 岗位要求、用户确认的真实事实。'
+    }
+  ];
+
   const tasks: V07DailyTask[] = Array.from({ length: 21 }, (_, index) => {
     const day = index + 1;
+    if (route === 'has_direction_resume_not_ready' && day <= 3) {
+      return hasDirectionResumeTasks[index];
+    }
     const reviewDay = day % 7 === 0;
     return {
       day,

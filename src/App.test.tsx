@@ -410,6 +410,118 @@ test('V0.7 首页选择简历准备路线后复用旧无 JD 经历盘点能力',
   });
 });
 
+test('简历准备路线结果页提供今日行动记录，并保存恢复 records', async () => {
+  const user = userEvent.setup();
+  window.localStorage.setItem(BETA_STORAGE_KEY, JSON.stringify({ authorized: true, betaAccessCode: 'private-beta' }));
+  window.localStorage.setItem(
+    SESSION_STORAGE_KEY,
+    JSON.stringify({
+      version: 'v0.7',
+      route: 'has_direction_resume_not_ready',
+      step: 'result',
+      plan: {
+        route: 'has_direction_resume_not_ready',
+        currentDay: 1,
+        totalDays: 21,
+        tasks: [
+          {
+            day: 1,
+            title: '第 1 天：选 1 段真实经历，补齐背景 / 动作 / 工具 / 结果',
+            route: 'has_direction_resume_not_ready',
+            actionLoopStage: 'diagnosis',
+            taskType: 'rewrite_resume',
+            status: 'today',
+            difficulty: 'stretch',
+            estimatedMinutes: 30,
+            expectedOutput: '一段包含背景、动作、工具或方法、结果的真实经历草稿。',
+            evidenceRequired: '用户自己的实习、项目、校园、兼职或作品经历原文。'
+          },
+          {
+            day: 2,
+            title: '第 2 天：找 1 个目标岗位样本，摘出 3 条常见要求',
+            route: 'has_direction_resume_not_ready',
+            actionLoopStage: 'action',
+            taskType: 'compare_jd',
+            status: 'todo',
+            difficulty: 'stretch',
+            estimatedMinutes: 25,
+            expectedOutput: '1 个真实岗位名称，以及 3 条岗位语言或常见要求。',
+            evidenceRequired: '用户手动粘贴或概括的真实岗位标题、岗位要求或 JD 摘要。'
+          },
+          {
+            day: 3,
+            title: '第 3 天：把 Day 1 经历改成 1 条可投递简历表达',
+            route: 'has_direction_resume_not_ready',
+            actionLoopStage: 'record',
+            taskType: 'rewrite_resume',
+            status: 'todo',
+            difficulty: 'stretch',
+            estimatedMinutes: 30,
+            expectedOutput: '一条可复制到简历里的表达，以及一句不能夸大的边界提醒。',
+            evidenceRequired: 'Day 1 经历草稿、Day 2 岗位要求、用户确认的真实事实。'
+          }
+        ]
+      },
+      records: [],
+      legacy: {
+        step: 'result',
+        stage: 'senior',
+        mode: 'inventory',
+        profile: baseProfile,
+        fieldStatuses: {},
+        assets: [],
+        truthConfirmed: true,
+        resumeText: '本科 市场营销，目标用户运营。',
+        jdText: '',
+        jdFit: null,
+        report: { ...mockReport(), mode: 'inventory', jdFit: undefined, interviews: undefined, usage: null },
+        reportTask: null
+      }
+    })
+  );
+
+  const { unmount } = render(<App />);
+
+  expect(screen.getByRole('heading', { name: 'V0.7 简历准备路线' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: '今日行动' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Day 1-3 任务' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: '今日记录入口' })).toBeInTheDocument();
+  expect(screen.getAllByText('第 1 天：选 1 段真实经历，补齐背景 / 动作 / 工具 / 结果').length).toBeGreaterThanOrEqual(1);
+  expect(screen.getByText('第 2 天：找 1 个目标岗位样本，摘出 3 条常见要求')).toBeInTheDocument();
+  expect(screen.getByText('第 3 天：把 Day 1 经历改成 1 条可投递简历表达')).toBeInTheDocument();
+  expect(screen.getByText(/旧报告内容会作为诊断依据和材料库保留/)).toBeInTheDocument();
+
+  await user.click(screen.getByRole('radio', { name: '完成一部分' }));
+  await user.type(screen.getByLabelText('今日产物'), '教育机构新媒体运营实习，维护3个学生社群，整理公众号推文素材。');
+  await user.type(screen.getByLabelText('证据来源'), '来自用户确认的实习经历。');
+  await user.type(screen.getByLabelText('今日复盘'), '结果还需要补具体频率。');
+  await user.type(screen.getByLabelText('下一步调整'), '明天对照用户运营岗位语言补表达。');
+  await user.click(screen.getByRole('button', { name: '保存今日记录' }));
+
+  expect(screen.getByText('已保存今日记录。')).toBeInTheDocument();
+  const saved = JSON.parse(window.localStorage.getItem(SESSION_STORAGE_KEY) || '{}');
+  expect(saved.records).toHaveLength(1);
+  expect(saved.records[0]).toMatchObject({
+    route: 'has_direction_resume_not_ready',
+    day: 1,
+    completionStatus: 'partly',
+    outputText: '教育机构新媒体运营实习，维护3个学生社群，整理公众号推文素材。',
+    evidenceText: '来自用户确认的实习经历。',
+    reflectionText: '结果还需要补具体频率。',
+    nextAdjustment: '明天对照用户运营岗位语言补表达。'
+  });
+
+  unmount();
+  render(<App />);
+  expect(screen.getByRole('heading', { name: '已记录的今日行动' })).toBeInTheDocument();
+  expect(screen.getByText(/教育机构新媒体运营实习，维护3个学生社群/)).toBeInTheDocument();
+  expect(screen.getAllByText(/完成一部分/).length).toBeGreaterThanOrEqual(1);
+  expect(screen.getByTestId('app-root')).not.toHaveTextContent(/token|tokens|成本|模型：|gpt-5\.4|provider|API key|base URL|schema|parse|OpenAI|DeepSeek|Qwen|Kimi/i);
+
+  await user.click(screen.getAllByRole('button', { name: '清除本次分析数据' })[0]);
+  await waitFor(() => expect(window.localStorage.getItem(SESSION_STORAGE_KEY)).toBeNull());
+});
+
 test('旧 JD session 会安全迁移到 V0.7 目标岗位判断路线', () => {
   window.localStorage.setItem(BETA_STORAGE_KEY, JSON.stringify({ authorized: true, betaAccessCode: 'private-beta' }));
   window.localStorage.setItem(
