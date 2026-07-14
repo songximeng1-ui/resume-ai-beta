@@ -445,7 +445,7 @@ test('简历准备路线结果页提供今日行动记录，并保存恢复 reco
             status: 'todo',
             difficulty: 'stretch',
             estimatedMinutes: 25,
-            expectedOutput: '1 个真实岗位名称，以及 3 条岗位语言或常见要求。',
+            expectedOutput: '1 个真实岗位名称，以及 3 条岗位语言或常见要求。只找 1 个岗位样本即可，不用找很多。',
             evidenceRequired: '用户手动粘贴或概括的真实岗位标题、岗位要求或 JD 摘要。'
           },
           {
@@ -486,16 +486,19 @@ test('简历准备路线结果页提供今日行动记录，并保存恢复 reco
   expect(screen.getByRole('heading', { name: '今日行动' })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Day 1-3 任务' })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: '今日记录入口' })).toBeInTheDocument();
+  expect(screen.getByText('先不用看完整报告，今天只要完成下面这条记录。')).toBeInTheDocument();
   expect(screen.getAllByText('第 1 天：选 1 段真实经历，补齐背景 / 动作 / 工具 / 结果').length).toBeGreaterThanOrEqual(1);
   expect(screen.getByText('第 2 天：找 1 个目标岗位样本，摘出 3 条常见要求')).toBeInTheDocument();
+  expect(screen.getByText(/只找 1 个岗位样本即可，不用找很多/)).toBeInTheDocument();
   expect(screen.getByText('第 3 天：把 Day 1 经历改成 1 条可投递简历表达')).toBeInTheDocument();
   expect(screen.getByText(/旧报告内容会作为诊断依据和材料库保留/)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: '报告摘要' })).toBeInTheDocument();
 
   await user.click(screen.getByRole('radio', { name: '完成一部分' }));
-  await user.type(screen.getByLabelText('今日产物'), '教育机构新媒体运营实习，维护3个学生社群，整理公众号推文素材。');
-  await user.type(screen.getByLabelText('证据来源'), '来自用户确认的实习经历。');
-  await user.type(screen.getByLabelText('今日复盘'), '结果还需要补具体频率。');
-  await user.type(screen.getByLabelText('下一步调整'), '明天对照用户运营岗位语言补表达。');
+  await user.type(screen.getByLabelText('今天写出来的内容'), '教育机构新媒体运营实习，维护3个学生社群，整理公众号推文素材。');
+  await user.type(screen.getByLabelText('这段内容来自哪段真实经历'), '来自用户确认的实习经历。');
+  await user.type(screen.getByLabelText('哪里还没写清楚'), '结果还需要补具体频率。');
+  await user.type(screen.getByLabelText('明天先补什么'), '明天对照用户运营岗位语言补表达。');
   await user.click(screen.getByRole('button', { name: '保存今日记录' }));
 
   expect(screen.getByText('已保存今日记录。')).toBeInTheDocument();

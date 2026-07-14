@@ -105,7 +105,7 @@ export function getInitialRoutePlan(route: V07JobRoute): V07PlanState {
       status: 'todo',
       difficulty: 'stretch',
       estimatedMinutes: 25,
-      expectedOutput: '1 个真实岗位名称，以及 3 条岗位语言或常见要求。',
+      expectedOutput: '1 个真实岗位名称，以及 3 条岗位语言或常见要求。只找 1 个岗位样本即可，不用找很多。',
       evidenceRequired: '用户手动粘贴或概括的真实岗位标题、岗位要求或 JD 摘要。'
     },
     {

@@ -2429,6 +2429,7 @@ function V07ResumeRoutePanel({
 
       <form className="form-section" onSubmit={submitRecord}>
         <h3>今日记录入口</h3>
+        <p className="context-note">先不用看完整报告，今天只要完成下面这条记录。</p>
         <fieldset className="inline-options">
           <legend>完成状态</legend>
           {(['done', 'partly', 'not_done'] as const).map((status) => (
@@ -2445,22 +2446,22 @@ function V07ResumeRoutePanel({
         </fieldset>
 
         <label className="field" htmlFor="v07-output-text">
-          <span>今日产物</span>
+          <span>今天写出来的内容</span>
           <textarea id="v07-output-text" value={outputText} onChange={(event) => setOutputText(event.target.value)} rows={3} />
         </label>
 
         <label className="field" htmlFor="v07-evidence-text">
-          <span>证据来源</span>
+          <span>这段内容来自哪段真实经历</span>
           <textarea id="v07-evidence-text" value={evidenceText} onChange={(event) => setEvidenceText(event.target.value)} rows={2} />
         </label>
 
         <label className="field" htmlFor="v07-reflection-text">
-          <span>今日复盘</span>
+          <span>哪里还没写清楚</span>
           <textarea id="v07-reflection-text" value={reflectionText} onChange={(event) => setReflectionText(event.target.value)} rows={2} />
         </label>
 
         <label className="field" htmlFor="v07-next-adjustment">
-          <span>下一步调整</span>
+          <span>明天先补什么</span>
           <textarea id="v07-next-adjustment" value={nextAdjustment} onChange={(event) => setNextAdjustment(event.target.value)} rows={2} />
         </label>
 
