@@ -308,6 +308,97 @@ export interface FeedbackSubmission extends ReportFeedback {
   createdAt: string;
 }
 
+export interface PersistedState {
+  step: Step;
+  stage: Stage | null;
+  mode: Mode | null;
+  profile: Profile;
+  fieldStatuses: Record<keyof Profile, FieldStatus>;
+  assets: AssetCard[];
+  truthConfirmed: boolean;
+  resumeText: string;
+  jdText: string;
+  jdFit: JdFitReport | null;
+  report: DiagnosisReport | null;
+  reportTask: ReportGenerationTask | null;
+}
+
+export type V07JobRoute =
+  | 'no_direction'
+  | 'has_direction_resume_not_ready'
+  | 'applying_no_feedback'
+  | 'target_job_fit';
+
+export type V07Step =
+  | 'route'
+  | 'intake'
+  | 'diagnosis'
+  | 'plan'
+  | 'daily_task'
+  | 'record'
+  | 'review'
+  | 'result';
+
+export type V07Audience =
+  | 'first_job_graduate'
+  | 'within_one_year_after_graduation';
+
+export type V07ActionLoopStage =
+  | 'diagnosis'
+  | 'action'
+  | 'record'
+  | 'review'
+  | 'adjust';
+
+export interface V07DailyTask {
+  day: number;
+  title: string;
+  route: V07JobRoute;
+  actionLoopStage: V07ActionLoopStage;
+  taskType:
+    | 'search_job'
+    | 'compare_jd'
+    | 'rewrite_resume'
+    | 'submit_application'
+    | 'record_feedback'
+    | 'review';
+  status: 'locked' | 'today' | 'todo' | 'done' | 'skipped';
+  difficulty: 'comfort' | 'stretch' | 'panic_risk';
+  estimatedMinutes: number;
+  expectedOutput: string;
+  evidenceRequired: string;
+}
+
+export interface V07PlanState {
+  route: V07JobRoute;
+  currentDay: number;
+  totalDays: 21;
+  tasks: V07DailyTask[];
+}
+
+export interface V07PersistedState {
+  version: 'v0.7';
+  route: V07JobRoute | null;
+  step: V07Step;
+  plan: V07PlanState | null;
+  legacy?: PersistedState;
+}
+
+export interface V07FeedbackSubmission {
+  route: V07JobRoute;
+  day?: number;
+  taskHelpfulScore: number | null;
+  taskFinished: 'yes' | 'partly' | 'no';
+  actionClarity: 'clear' | 'partly_clear' | 'unclear' | null;
+  contentCredibilityScore: number | null;
+  realityIssueText: string;
+  leastHelpfulParts: string[];
+  actionWillingness: string;
+  paymentAcceptance: string;
+  continueTesting: 'yes' | 'no' | 'unsure';
+  createdAt: string;
+}
+
 export const emptyProfile: Profile = {
   education: '',
   schoolName: '',

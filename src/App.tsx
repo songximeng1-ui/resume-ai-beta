@@ -10,11 +10,15 @@ import {
   type FieldStatus,
   type JdFitReport,
   type Mode,
+  type PersistedState,
   type Profile,
   type ReportGenerationTask,
   type ReportFeedback,
   type Stage,
   type Step,
+  type V07JobRoute,
+  type V07PersistedState,
+  type V07PlanState,
   assetTitles,
   diggableAssetIds,
   emptyFieldStatuses,
@@ -31,26 +35,20 @@ import {
   verifyBetaAccessCode
 } from './services/aiService';
 import { buildActionPlanText, buildReportMarkdown, buildReportText } from './reportExport';
+import {
+  getInitialRoutePlan,
+  getLegacyModeForRoute,
+  getLegacyStepForV07Step,
+  getV07StepForLegacyStep,
+  isV07Route,
+  isV07Step,
+  migrateLegacySession
+} from './v07Foundation';
 
 const STORAGE_KEY = 'job-map-v2-confirmed-session';
 const FEEDBACK_STORAGE_KEY = 'job-map-v0.3-feedback';
 const BETA_ACCESS_STORAGE_KEY = 'job-map-v0.3-beta-access';
 type AiLoadingTask = 'structure' | 'dig' | 'jd-fit' | 'report' | null;
-
-interface PersistedState {
-  step: Step;
-  stage: Stage | null;
-  mode: Mode | null;
-  profile: Profile;
-  fieldStatuses: Record<keyof Profile, FieldStatus>;
-  assets: AssetCard[];
-  truthConfirmed: boolean;
-  resumeText: string;
-  jdText: string;
-  jdFit: JdFitReport | null;
-  report: DiagnosisReport | null;
-  reportTask: ReportGenerationTask | null;
-}
 
 const initialState: PersistedState = {
   step: 'start',
@@ -66,6 +64,45 @@ const initialState: PersistedState = {
   report: null,
   reportTask: null
 };
+
+const initialV07State: V07PersistedState = {
+  version: 'v0.7',
+  route: null,
+  step: 'route',
+  plan: null
+};
+
+const v07RouteOptions: {
+  route: V07JobRoute;
+  title: string;
+  detail: string;
+}[] = [
+  {
+    route: 'no_direction',
+    title: '我不知道该投什么岗位。',
+    detail: '先找真实岗位样本，只把未经验证的方向叫作可探索方向。'
+  },
+  {
+    route: 'has_direction_resume_not_ready',
+    title: '我大概知道方向，但简历不知道怎么写。',
+    detail: '先整理真实经历，把能写进简历的证据和表达拆清楚。'
+  },
+  {
+    route: 'applying_no_feedback',
+    title: '我投了很多，但没有面试。',
+    detail: '先轻量记录投递、岗位样本和简历版本，再复盘问题。'
+  },
+  {
+    route: 'target_job_fit',
+    title: '我看到一个岗位，想知道能不能投、怎么改。',
+    detail: '粘贴目标 JD，判断当前材料能证明什么、还缺什么。'
+  }
+];
+
+interface RestoredSession {
+  v07: V07PersistedState;
+  legacy: PersistedState;
+}
 
 function formatAiError(error: unknown) {
   const message = error instanceof Error ? error.message : '';
@@ -134,12 +171,48 @@ function ReportTaskProgress({ task, isBusy, onContinue }: { task: ReportGenerati
   );
 }
 
-function readPersistedState(): PersistedState {
+function normalizeLegacyState(value: unknown): PersistedState {
+  if (!value || typeof value !== 'object') {
+    return initialState;
+  }
+  return { ...initialState, ...(value as Partial<PersistedState>) };
+}
+
+function readPersistedSession(): RestoredSession {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...initialState, ...JSON.parse(raw) } : initialState;
+    if (!raw) {
+      return { v07: initialV07State, legacy: initialState };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<V07PersistedState> | Partial<PersistedState>;
+    if ('version' in parsed && parsed.version === 'v0.7') {
+      const route = isV07Route(parsed.route) ? parsed.route : null;
+      const step = isV07Step(parsed.step) ? parsed.step : 'route';
+      const legacy = normalizeLegacyState(parsed.legacy);
+      const plan = route
+        ? parsed.plan && parsed.plan.route === route && parsed.plan.totalDays === 21
+          ? parsed.plan
+          : getInitialRoutePlan(route)
+        : null;
+
+      return {
+        v07: {
+          version: 'v0.7',
+          route,
+          step,
+          plan,
+          legacy
+        },
+        legacy: { ...legacy, step: getLegacyStepForV07Step(step) }
+      };
+    }
+
+    const legacy = normalizeLegacyState(parsed);
+    const v07 = migrateLegacySession(legacy);
+    return { v07, legacy: v07.legacy || legacy };
   } catch {
-    return initialState;
+    return { v07: initialV07State, legacy: initialState };
   }
 }
 
@@ -311,17 +384,19 @@ function Field({
 }
 
 function App() {
-  const restored = useMemo(readPersistedState, []);
+  const restored = useMemo(readPersistedSession, []);
   const restoredBetaAccess = useMemo(readBetaAccessState, []);
   const [betaAuthorized, setBetaAuthorized] = useState(restoredBetaAccess.authorized);
-  const [step, setStep] = useState<Step>(restored.step);
-  const [stage, setStage] = useState<Stage | null>(restored.stage);
-  const [mode, setMode] = useState<Mode | null>(restored.mode);
-  const [profile, setProfile] = useState<Profile>(restored.profile);
-  const [fieldStatuses, setFieldStatuses] = useState<Record<keyof Profile, FieldStatus>>(restored.fieldStatuses);
-  const [resumeText, setResumeText] = useState(restored.resumeText);
-  const [assets, setAssets] = useState<AssetCard[]>(restored.assets);
-  const [truthConfirmed, setTruthConfirmed] = useState(restored.truthConfirmed);
+  const [route, setRoute] = useState<V07JobRoute | null>(restored.v07.route);
+  const [plan, setPlan] = useState<V07PlanState | null>(restored.v07.plan);
+  const [step, setStep] = useState<Step>(restored.legacy.step);
+  const [stage, setStage] = useState<Stage | null>(restored.legacy.stage);
+  const [mode, setMode] = useState<Mode | null>(restored.legacy.mode);
+  const [profile, setProfile] = useState<Profile>(restored.legacy.profile);
+  const [fieldStatuses, setFieldStatuses] = useState<Record<keyof Profile, FieldStatus>>(restored.legacy.fieldStatuses);
+  const [resumeText, setResumeText] = useState(restored.legacy.resumeText);
+  const [assets, setAssets] = useState<AssetCard[]>(restored.legacy.assets);
+  const [truthConfirmed, setTruthConfirmed] = useState(restored.legacy.truthConfirmed);
   const [truthError, setTruthError] = useState('');
   const [structureSource, setStructureSource] = useState<'real' | 'demo' | null>(null);
   const [structureMessage, setStructureMessage] = useState('');
@@ -331,10 +406,10 @@ function App() {
   const [digAnswer, setDigAnswer] = useState('');
   const [digQuestionSet, setDigQuestionSet] = useState<DigQuestionSet | null>(null);
   const [digEncouragement, setDigEncouragement] = useState('');
-  const [jdText, setJdText] = useState(restored.jdText);
-  const [jdFit, setJdFit] = useState<JdFitReport | null>(restored.jdFit);
-  const [report, setReport] = useState<DiagnosisReport | null>(restored.report);
-  const [reportTask, setReportTask] = useState<ReportGenerationTask | null>(restored.reportTask);
+  const [jdText, setJdText] = useState(restored.legacy.jdText);
+  const [jdFit, setJdFit] = useState<JdFitReport | null>(restored.legacy.jdFit);
+  const [report, setReport] = useState<DiagnosisReport | null>(restored.legacy.report);
+  const [reportTask, setReportTask] = useState<ReportGenerationTask | null>(restored.legacy.reportTask);
   const [isBusy, setIsBusy] = useState(false);
   const [aiLoadingTask, setAiLoadingTask] = useState<AiLoadingTask>(null);
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
@@ -364,11 +439,11 @@ function App() {
   }, [aiService, betaAuthorized]);
 
   useEffect(() => {
-    if (!truthConfirmed) {
+    if (!truthConfirmed && !route) {
       window.localStorage.removeItem(STORAGE_KEY);
       return;
     }
-    const payload: PersistedState = {
+    const legacy: PersistedState = {
       step,
       stage,
       mode,
@@ -382,8 +457,15 @@ function App() {
       report,
       reportTask
     };
+    const payload: V07PersistedState = {
+      version: 'v0.7',
+      route,
+      step: getV07StepForLegacyStep(step),
+      plan,
+      legacy
+    };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [assets, fieldStatuses, jdFit, jdText, mode, profile, report, reportTask, resumeText, stage, step, truthConfirmed]);
+  }, [assets, fieldStatuses, jdFit, jdText, mode, plan, profile, report, reportTask, resumeText, route, stage, step, truthConfirmed]);
 
   const diggableAssets = useMemo(() => diggableAssetIds.map((id) => assets.find((asset) => asset.id === id && canEnterDig(asset))).filter(Boolean) as AssetCard[], [assets]);
   const currentDigAsset = diggableAssets[Math.min(digIndex, Math.max(diggableAssets.length - 1, 0))];
@@ -407,6 +489,8 @@ function App() {
     setStep('start');
     setStage(null);
     setMode(null);
+    setRoute(null);
+    setPlan(null);
     setProfile(emptyProfile);
     setFieldStatuses(emptyFieldStatuses);
     setResumeText('');
@@ -453,9 +537,13 @@ function App() {
   };
 
   const startDiagnosis = () => {
-    if (!stage || !mode) {
+    if (!route) {
       return;
     }
+    const nextMode = getLegacyModeForRoute(route);
+    setStage('senior');
+    setMode(nextMode);
+    setPlan((current) => (current?.route === route ? current : getInitialRoutePlan(route)));
     setStep('input');
   };
 
@@ -691,7 +779,7 @@ function App() {
     <main className="app-shell" data-testid="app-root">
       <header className="topbar">
         <div>
-          <p className="eyebrow">求职地图 V0.4</p>
+          <p className="eyebrow">求职地图 V0.7</p>
           <span>{progressLabel}</span>
         </div>
         {step !== 'start' ? (
@@ -708,57 +796,30 @@ function App() {
       {betaAuthorized && step === 'start' ? (
         <section className="flow-section start-section">
           <div className="intro">
-            <p className="eyebrow">温和、可信、清楚的求职诊断工具</p>
-            <h1>普通本科生 AI 求职诊断</h1>
-            <p className="lead">帮你把真实经历翻译成岗位语言，看清能投什么、怎么写、怎么答、下一步补什么。</p>
-            <p className="intro-note">经历普通不等于没有价值，先把真实材料整理清楚。</p>
+            <p className="eyebrow">普通应届生第一份工作 · 21 天行动陪跑</p>
+            <h1>21 天应届生求职陪跑</h1>
+            <p className="lead">先判断你现在卡在哪一步，再把今天能完成、能记录、能复盘的求职行动拆出来。</p>
+            <p className="intro-note">AI 是陪跑教练，不替你做人生决定，也不把求职结果归因为你本人不行。</p>
           </div>
 
-          <section className="choice-group" aria-labelledby="stage-title">
-            <h2 id="stage-title">选择当前阶段</h2>
+          <section className="choice-group" aria-labelledby="route-title">
+            <h2 id="route-title">你现在最卡在哪一步？</h2>
             <div className="choice-grid">
-              <button
-                type="button"
-                aria-label="大三/准应届生"
-                className={stage === 'junior' ? 'choice-card selected' : 'choice-card'}
-                onClick={() => setStage('junior')}
-              >
-                <strong>大三/准应届生</strong>
-                <span>我想提前规划方向，知道接下来该补什么经历。</span>
-              </button>
-              <button
-                type="button"
-                aria-label="大四/应届生"
-                className={stage === 'senior' ? 'choice-card selected' : 'choice-card'}
-                onClick={() => setStage('senior')}
-              >
-                <strong>大四/应届生</strong>
-                <span>我想优化简历，判断岗位匹配，准备投递和面试。</span>
-              </button>
-            </div>
-          </section>
-
-          <section className="choice-group" aria-labelledby="mode-title">
-            <h2 id="mode-title">选择诊断方式</h2>
-            <div className="choice-grid">
-              <button
-                type="button"
-                aria-label="先盘点经历"
-                className={mode === 'inventory' ? 'choice-card selected' : 'choice-card'}
-                onClick={() => setMode('inventory')}
-              >
-                <strong>先盘点经历</strong>
-                <span>还没有明确岗位描述，先看清自己的真实筹码。</span>
-              </button>
-              <button
-                type="button"
-                aria-label="做岗位定制诊断"
-                className={mode === 'jd' ? 'choice-card selected' : 'choice-card'}
-                onClick={() => setMode('jd')}
-              >
-                <strong>做岗位定制诊断</strong>
-                <span>已有目标岗位描述，判断能不能投、怎么写、怎么答。</span>
-              </button>
+              {v07RouteOptions.map((option) => (
+                <button
+                  key={option.route}
+                  type="button"
+                  aria-label={option.title}
+                  className={route === option.route ? 'choice-card selected' : 'choice-card'}
+                  onClick={() => {
+                    setRoute(option.route);
+                    setPlan((current) => (current?.route === option.route ? current : getInitialRoutePlan(option.route)));
+                  }}
+                >
+                  <strong>{option.title}</strong>
+                  <span>{option.detail}</span>
+                </button>
+              ))}
             </div>
           </section>
 
@@ -766,10 +827,11 @@ function App() {
             <strong>隐私与真实性提示</strong>
             <p>不要上传身份证号、家庭住址、银行卡等无关敏感信息。</p>
             <p>系统只帮助你优化真实表达，不帮助伪造经历。</p>
+            <p>不承诺 offer、面试或薪资结果，只帮助你整理事实、拆解行动和复盘调整。</p>
           </aside>
 
-          <button className="primary-button wide-action" type="button" onClick={startDiagnosis} disabled={!stage || !mode}>
-            开始 AI 求职诊断
+          <button className="primary-button wide-action" type="button" onClick={startDiagnosis} disabled={!route}>
+            开始 21 天陪跑
           </button>
         </section>
       ) : null}

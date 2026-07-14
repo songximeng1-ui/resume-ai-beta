@@ -1,0 +1,729 @@
+# V0.7 公共底座分支方案
+
+## 0. 背景与判断
+
+V0.7 开始，产品主线从“一次性求职诊断报告”升级为“21 天应届生求职行动陪跑 MVP”。
+
+这个阶段的核心不是继续堆报告模块，而是建立一个能长期承载四条求职路线的公共底座：
+
+- 还没方向
+- 有方向，但简历还没准备好
+- 已投递/正在投递，但没反馈
+- 有目标岗位，想判断能不能投
+
+根据 V0.7 总纲，四条路线不能同时直接修改公共入口和核心类型。必须先完成公共底座，再让四条路线分支分别开发，最后统一整合。
+
+因此，本分支现在应该先做。
+
+## 1. 公共底座分支目标
+
+本分支目标：
+
+> 建立 V0.7 21 天求职陪跑 MVP 的公共入口、路线识别、核心类型、状态迁移和测试保护网，让后续四条路线可以独立开发，而不再反复修改首页、核心类型和伦理边界。
+
+本分支要解决 5 个问题：
+
+- 用户进入产品后，先判断自己处于哪种求职状态。
+- 产品从“选 stage/mode”升级为“选求职路线”。
+- 旧的 `stage/mode/step` 不直接丢弃，而是迁移成 V0.7 可理解的 route/session 状态。
+- 21 天陪跑所需的基础数据结构先定名，避免后面四个路线分支各起一套命名。
+- 保留 V0.6 已验证的诊断能力，但让它退到路线内部，不再占据首页主结构。
+
+做到什么程度就够：
+
+- 首页能完成四状态分流。
+- 本地 session 能保存 V0.7 route + 计划基础状态。
+- 旧 localStorage 不崩、不白屏，能迁移或降级重开。
+- 测试能保护四状态、迁移、旧功能入口和伦理文案。
+
+## 2. 本次改动性质
+
+本分支属于：
+
+- 产品架构
+- 前端体验
+- 数据结构
+- 测试
+- 少量文档同步
+
+它服务的是 V0.7 主线：从“一次性报告”升级为“21 天求职行动陪跑 MVP”。
+
+## 3. 需要改哪些页面和数据结构
+
+### 3.1 页面层面
+
+建议改这些位置：
+
+### `App.tsx`
+
+- 从当前 `step === 'start'` 的阶段/模式选择，改成 V0.7 首页四状态分流。
+- 保留旧输入、资产卡、追问、报告页组件，但它们暂时作为 route 内部复用模块。
+- 新增 route-aware 的进入逻辑，不再直接用 `stage + mode` 决定流程。
+
+### 首页 Start Page
+
+当前首页是：
+
+- 选择当前阶段
+- 选择诊断方式
+
+V0.7 应改为：
+
+- 你现在卡在哪一步？
+- 四个求职状态入口
+- 真实性、隐私、非 offer 承诺提示
+
+顶部产品名建议从“求职地图 V0.4 / 普通本科生 AI 求职诊断”升级为类似：
+
+> 21 天应届生求职陪跑
+
+### 输入页 Input Page
+
+本分支暂时不大改业务字段。
+
+建议只做底座级兼容：
+
+- 增加“求职困惑 / 当前卡点”的字段入口，或复用 `targetRole` 附近区域承接。
+- JD 字段只在“目标岗位判断路线”出现。
+- 不在本分支重做每条路线的完整输入页。
+
+### 结果页 Result Page
+
+本分支只做入口兼容，不重构报告内容。
+
+旧结果页可以继续保留，作为：
+
+- 目标岗位判断路线中的阶段性诊断结果
+- 简历准备路线中的阶段性诊断结果
+
+后续路线分支再改路线级结果页。
+
+### 3.2 数据结构层面
+
+当前核心类型是：
+
+```ts
+Stage = 'junior' | 'senior'
+Mode = 'inventory' | 'jd'
+Step = 'start' | 'input' | 'assets' | 'dig' | 'direction' | 'match' | 'result'
+```
+
+建议新增 V0.7 类型，不要直接删除旧类型：
+
+```ts
+JobRoute =
+  | 'no_direction'
+  | 'has_direction_resume_not_ready'
+  | 'applying_no_feedback'
+  | 'target_job_fit'
+
+V07Step =
+  | 'route'
+  | 'intake'
+  | 'diagnosis'
+  | 'plan'
+  | 'daily_task'
+  | 'record'
+  | 'review'
+  | 'result'
+
+PlanDayStatus =
+  | 'locked'
+  | 'today'
+  | 'todo'
+  | 'done'
+  | 'skipped'
+
+ActionLoopStage =
+  | 'diagnosis'
+  | 'action'
+  | 'record'
+  | 'review'
+  | 'adjust'
+```
+
+旧 `Mode` 暂时保留，因为后端报告、schema、导出和测试都依赖它。公共底座不要贸然删除。
+
+## 4. 首页四状态分流设计
+
+首页四个入口建议直接对应 V0.7 总纲中的四条路线。
+
+### 4.1 还没方向
+
+用户话术：
+
+> 我不知道该投什么岗位。
+
+route：
+
+```ts
+no_direction
+```
+
+初始重点：
+
+- 真实岗位样本验证
+- 不让 AI 直接推荐职业
+- 帮用户找到现实中可搜索、可投递、可验证的岗位名称
+
+关键边界：
+
+- 只能叫“可探索方向”
+- 不能叫“推荐职业”
+- 不能说“你最适合”
+
+### 4.2 有方向，但简历还没准备好
+
+用户话术：
+
+> 我大概知道方向，但简历不知道怎么写。
+
+route：
+
+```ts
+has_direction_resume_not_ready
+```
+
+初始重点：
+
+- 经历资产整理
+- 简历版本准备
+- 表达改写
+- 今日可执行任务
+
+可复用旧 `inventory` 诊断能力。
+
+### 4.3 已投递/正在投递，但没反馈
+
+用户话术：
+
+> 我投了很多，但没有面试。
+
+route：
+
+```ts
+applying_no_feedback
+```
+
+初始重点：
+
+- 轻量记录投递情况
+- 记录岗位样本
+- 记录简历版本
+- 复盘无反馈可能原因
+- 调整下一步投递策略
+
+关键边界：
+
+- 不做完整 CRM
+- 不做自动投递
+- 不做招聘平台爬虫
+
+### 4.4 有目标岗位，想判断能不能投
+
+用户话术：
+
+> 我看到一个岗位，想知道能不能投、怎么改。
+
+route：
+
+```ts
+target_job_fit
+```
+
+初始重点：
+
+- JD 拆解
+- 经历证据匹配
+- 投递判断
+- 简历修改建议
+- 面试风险提醒
+
+可复用旧 `jd` 诊断能力。
+
+### 4.5 首页交互要求
+
+首页建议使用四张单选卡：
+
+- 卡片标题用用户问题，不用产品术语。
+- 选择后主按钮可点击。
+- 未选择时主按钮 disabled。
+- 主按钮文案从“开始 AI 求职诊断”改为“开始 21 天陪跑”或“开始今天的求职行动”。
+- 首页保留隐私、真实性、非 offer 承诺提示。
+- 首页不再出现“大三/准应届生”主入口，因为 V0.7 只服务普通应届生第一份工作，大三长期规划明确不做。
+
+## 5. 旧的 stage/mode/step 如何迁移
+
+不要直接删除旧状态。建议做一层迁移函数：
+
+```ts
+migratePersistedState(raw): V07PersistedState
+```
+
+### 5.1 mode 迁移
+
+```ts
+mode: 'inventory'
+```
+
+迁移为：
+
+```ts
+route: 'has_direction_resume_not_ready'
+```
+
+理由：
+
+旧无 JD 盘点最接近“有方向但简历还没准备好”或“还没方向”。但旧数据通常没有真实岗位样本验证，所以保守放到简历准备路线。
+
+```ts
+mode: 'jd'
+```
+
+迁移为：
+
+```ts
+route: 'target_job_fit'
+```
+
+理由：
+
+旧有 JD 路线天然对应目标岗位判断。
+
+### 5.2 stage 迁移
+
+```ts
+stage: 'junior'
+```
+
+V0.7 不主服务大三规划，不作为主路径继续展示。
+
+处理建议：
+
+- 不把它继续作为首页主入口。
+- 可迁移为空状态，并提示用户重新选择当前求职状态。
+- 或作为 legacy 信息保存在 `legacy` 字段中。
+
+```ts
+stage: 'senior'
+```
+
+可迁移为 V0.7 目标用户范围内的：
+
+```ts
+audience: 'first_job_graduate'
+```
+
+### 5.3 step 迁移
+
+```ts
+step: 'start'
+```
+
+迁移为：
+
+```ts
+v07Step: 'route'
+```
+
+```ts
+step: 'input'
+```
+
+迁移为：
+
+```ts
+v07Step: 'intake'
+```
+
+```ts
+step: 'assets' | 'dig'
+```
+
+迁移为：
+
+```ts
+v07Step: 'diagnosis'
+```
+
+```ts
+step: 'direction' | 'match' | 'result'
+```
+
+处理建议：
+
+- 可以进入旧结果 / 诊断兼容页。
+- 或提示用户选择“继续上次诊断 / 开始新的 21 天陪跑”。
+
+### 5.4 迁移原则
+
+- 旧数据不能导致白屏。
+- 损坏的 localStorage 不能导致页面崩溃。
+- 不要强行把旧报告包装成完整 21 天计划。
+- 旧报告只能叫“历史诊断结果”或“上次诊断”，不能冒充“21 天陪跑进度”。
+
+## 6. 哪些旧功能保留、隐藏、删除、降级
+
+### 6.1 保留
+
+- 访问码私密内测
+- 简历输入、岗位要求输入
+- 经历资产卡确认
+- 动态追问
+- 有 JD 匹配分析
+- 无 JD 方向探索能力
+- 基础版兜底报告
+- 反馈表中的“无”与负面选项互斥规则
+- 复制 / Markdown 导出
+- 不暴露 provider、模型、token、成本、API key 的安全边界
+
+### 6.2 隐藏或降级
+
+- 首页的“大三/准应届生”选择隐藏。
+- 首页的 `stage/mode` 二段式选择降级为内部兼容字段。
+- “一次性报告”从主目标降级为路线过程中的阶段产物。
+- 旧无 JD “方向探索”不能叫推荐职业，只能叫可探索方向。
+
+### 6.3 暂不删除
+
+暂不删除：
+
+- `Stage`
+- `Mode`
+- `Step`
+- 旧报告 schema
+- 旧测试辅助函数
+
+原因：
+
+后端、导出、报告质量检查都还依赖它们。公共底座阶段删除它们风险太高。
+
+### 6.4 明确删除或停止使用
+
+- 首页主路径里的“大三长期规划”表达。
+- “开始 AI 求职诊断”作为唯一主 CTA。
+- 暗示一次报告解决求职问题的文案。
+
+## 7. 需要新增哪些类型
+
+建议新增一组 V0.7 类型，不污染旧报告类型。
+
+```ts
+export type V07JobRoute =
+  | 'no_direction'
+  | 'has_direction_resume_not_ready'
+  | 'applying_no_feedback'
+  | 'target_job_fit';
+
+export type V07Step =
+  | 'route'
+  | 'intake'
+  | 'diagnosis'
+  | 'plan'
+  | 'daily_task'
+  | 'record'
+  | 'review'
+  | 'result';
+
+export type V07Audience =
+  | 'first_job_graduate'
+  | 'within_one_year_after_graduation';
+
+export type V07ActionLoopStage =
+  | 'diagnosis'
+  | 'action'
+  | 'record'
+  | 'review'
+  | 'adjust';
+
+export interface V07DailyTask {
+  day: number;
+  title: string;
+  route: V07JobRoute;
+  actionLoopStage: V07ActionLoopStage;
+  taskType: 'search_job' | 'compare_jd' | 'rewrite_resume' | 'submit_application' | 'record_feedback' | 'review';
+  status: 'locked' | 'today' | 'todo' | 'done' | 'skipped';
+  difficulty: 'comfort' | 'stretch' | 'panic_risk';
+  estimatedMinutes: number;
+  expectedOutput: string;
+  evidenceRequired: string;
+}
+
+export interface V07PlanState {
+  route: V07JobRoute;
+  currentDay: number;
+  totalDays: 21;
+  tasks: V07DailyTask[];
+}
+
+export interface V07PersistedState {
+  version: 'v0.7';
+  route: V07JobRoute | null;
+  step: V07Step;
+  plan: V07PlanState | null;
+  legacy?: PersistedState;
+}
+```
+
+反馈也要新增 route 维度：
+
+```ts
+export interface V07FeedbackSubmission {
+  route: V07JobRoute;
+  day?: number;
+  taskHelpfulScore: number | null;
+  taskFinished: 'yes' | 'partly' | 'no';
+  actionClarity: number | null;
+  contentCredibilityScore: number | null;
+  realityIssueText: string;
+  leastHelpfulParts: string[];
+  actionWillingness: string;
+  paymentAcceptance: string;
+  continueTesting: 'yes' | 'no' | 'unsure';
+  createdAt: string;
+}
+```
+
+`leastHelpfulParts` 必须支持 `'none'` 选项，且 `'none'` 与其他负面选项互斥。也就是说，用户选择“无”时不能同时选择“任务不清楚”“内容不现实”“路线不适合”等负面项；用户选择任一负面项时，应自动取消“无”。
+
+## 8. 需要新增或修改哪些测试
+
+### 8.1 前端测试
+
+重点测试：
+
+- 未通过访问码时仍停留访问页。
+- 通过访问码后看到 V0.7 首页四状态，而不是旧 stage/mode。
+- 四张路线卡都能选择。
+- 未选择路线时主按钮 disabled。
+- 选择“有目标岗位想判断能不能投”后，能进入需要岗位要求的路径。
+- 选择“有方向但简历还没准备好”后，能复用旧简历 / 经历资产路径。
+- 首页不出现“大三/准应届生”主入口。
+- 首页包含真实性、隐私、非 offer 承诺文案。
+- 从旧 localStorage 的 `mode: 'inventory'` 能迁移或安全降级。
+- 从旧 localStorage 的 `mode: 'jd'` 能迁移到 `target_job_fit`。
+- 损坏的 localStorage 不白屏，回到路线选择。
+- 用户清除数据后，V0.7 session 和旧 session 都被清理。
+
+### 8.2 类型 / 纯函数测试
+
+建议新增：
+
+- `migrateLegacySession()` 的映射测试。
+- `getInitialRoutePlan(route)` 返回 21 天基础结构，并且每个任务包含 `difficulty` 与 `estimatedMinutes`。
+- `isV07Route()` 类型守卫测试。
+- `isV07Step()` 类型守卫测试。
+
+### 8.3 回归测试
+
+必须保留：
+
+- 结果页仍不展示 token、成本、模型、provider。
+- 反馈“无”和其他负面选项仍互斥。
+- 反馈字段能记录行动是否清楚、内容是否现实、是否愿意继续测试。
+- 基础版报告说明仍保守、真实、不伪造。
+
+### 8.4 本分支暂不需要测试
+
+- 21 天全部每日任务质量。
+- 四条路线完整业务闭环。
+- 后端新 API。
+- 支付、账号、后台。
+
+## 9. 完成标准
+
+本公共底座分支完成标准：
+
+- 首页完成四状态分流，且文案符合 V0.7 12 条原则。
+- `src/types.ts` 有统一 V0.7 route、step、plan、feedback 类型。
+- V0.7 每日任务类型包含 `difficulty` 与 `estimatedMinutes`，能支持“拉伸区任务”判断。
+- V0.7 反馈类型包含行动清晰度、现实问题说明、继续测试意愿，并保留“无”与负面选项互斥规则。
+- 旧 `stage/mode/step` 没被粗暴删除，有清晰迁移或兼容策略。
+- 旧有 JD / 无 JD 诊断能力仍可被路线复用。
+- 本地保存使用 V0.7 版本化结构，例如 `version: 'v0.7'`。
+- 清除数据入口有效。
+- 页面不向用户暴露模型、token、成本、provider、原始错误。
+- 测试覆盖首页四状态、迁移、安全边界、旧能力不崩。
+- `npm run build` 通过。
+- `npm test` 通过。
+- 文档记录 V0.7 公共底座边界和后续四条路线依赖关系。
+
+## 10. 本分支明确不做
+
+本分支明确不做：
+
+- 不做四条路线的完整业务页面。
+- 不做完整 21 天每日任务内容库。
+- 不做账号系统。
+- 不做支付系统。
+- 不做后台管理。
+- 不做完整投递 CRM。
+- 不做自动投递。
+- 不做招聘平台爬虫。
+- 不做复杂职业测评。
+- 不做 PDF / Word 精美导出。
+- 不做本地大模型。
+- 不做数据库。
+- 不把“可探索方向”包装成“推荐职业”。
+- 不承诺 offer、面试、薪资结果。
+- 不重构整个 `App.tsx` 到多文件架构，除非后续实现时发现已经严重阻碍测试。
+
+公共底座的价值是让后续分支不互相踩，不是一次性做完 V0.7。
+
+## 11. 后续四条路线分支如何依赖这个公共底座
+
+### 11.1 有方向但简历未准备路线
+
+建议分支名：
+
+```text
+v0.7-route-has-direction-resume
+```
+
+依赖：
+
+```ts
+V07JobRoute = 'has_direction_resume_not_ready'
+```
+
+目标：
+
+- 把真实经历整理成简历可用材料。
+- 生成简历版本。
+- 给出每日改写和补证据任务。
+
+可复用：
+
+- 旧 `inventory` 诊断能力。
+- 经历资产卡。
+- 简历改写建议。
+
+这是最贴近现有无 JD 盘点能力的一条路线，适合作为 V0.7 陪跑闭环第一条落地路线。
+
+### 11.2 目标岗位判断路线
+
+建议分支名：
+
+```text
+v0.7-route-target-job-fit
+```
+
+依赖：
+
+```ts
+V07JobRoute = 'target_job_fit'
+```
+
+目标：
+
+- 有目标岗位，判断能不能投。
+- 拆解 JD。
+- 匹配经历证据。
+- 给出今天的投递前行动。
+
+可复用：
+
+- 旧 `jd` 诊断能力。
+- 岗位要求匹配分析。
+- 简历改写建议。
+- 面试风险提醒。
+
+### 11.3 已投递/正在投递但没反馈轻量版
+
+建议分支名：
+
+```text
+v0.7-route-applying-no-feedback
+```
+
+依赖：
+
+```ts
+V07JobRoute = 'applying_no_feedback'
+```
+
+目标：
+
+- 轻量记录投递岗位。
+- 记录简历版本。
+- 记录是否有反馈。
+- 复盘可能问题。
+- 调整下一步投递策略。
+
+边界：
+
+- 不做完整 CRM。
+- 不做自动投递。
+- 不做招聘平台爬虫。
+
+### 11.4 还没方向真实岗位验证路线
+
+建议分支名：
+
+```text
+v0.7-route-no-direction
+```
+
+依赖：
+
+```ts
+V07JobRoute = 'no_direction'
+```
+
+目标：
+
+- 帮用户找现实中可搜索、可投递、可验证的岗位样本。
+- 通过真实岗位样本验证可探索方向。
+
+必须遵守：
+
+- 方向必须经过真实岗位验证。
+- AI 不能凭空判断用户适合什么职业。
+- 未验证前只能叫“可探索方向”。
+- 不能叫“推荐职业”或“最适合方向”。
+
+### 11.5 最后整合分支
+
+最后通过整合分支统一：
+
+- 四条路线 UI 样式
+- 首页与路线入口文案
+- 每日任务卡片
+- 记录 / 复盘 / 调整结构
+- 反馈字段
+- 全流程测试
+- README
+- V0.7 version record
+- 必要的产品文档
+
+## 12. 建议开发顺序
+
+建议顺序：
+
+1. 公共底座分支
+2. 有方向但简历未准备路线
+3. 目标岗位判断路线
+4. 已投递但没反馈轻量版
+5. 还没方向真实岗位验证
+6. V0.7 整合分支
+
+原因：
+
+- 有方向但简历未准备路线最贴近现有 `inventory` 能力，适合作为 V0.7 陪跑闭环的第一条落地路线。
+- 目标岗位判断路线可复用现有 `jd` 能力，适合第二步验证“岗位判断 + 今日行动”。
+- 已投递但没反馈轻量版需要新增投递记录结构，但必须保持轻量，先验证记录和复盘是否有价值。
+- 还没方向路线必须引入真实岗位验证，产品判断更复杂，放在前三条路线后更稳。
+
+## 13. 总结
+
+V0.7 公共底座分支的正确完成状态不是“看起来功能很多”，而是后面四个路线分支都能做到：
+
+- 只接入自己的 route 页面、任务和结果。
+- 不需要再改首页。
+- 不需要重命名核心类型。
+- 不需要重新解释伦理边界。
+- 不会破坏旧有 JD / 无 JD 诊断能力。
+
+这个分支应该克制、稳定、可测试。
+
+它是 V0.7 从“一次性报告工具”转向“21 天求职行动陪跑”的地基。

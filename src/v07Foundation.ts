@@ -1,0 +1,132 @@
+import type { Mode, PersistedState, Step, V07DailyTask, V07JobRoute, V07PersistedState, V07PlanState, V07Step } from './types';
+
+export const v07Routes: V07JobRoute[] = [
+  'no_direction',
+  'has_direction_resume_not_ready',
+  'applying_no_feedback',
+  'target_job_fit'
+];
+
+export const v07Steps: V07Step[] = [
+  'route',
+  'intake',
+  'diagnosis',
+  'plan',
+  'daily_task',
+  'record',
+  'review',
+  'result'
+];
+
+export function isV07Route(value: unknown): value is V07JobRoute {
+  return typeof value === 'string' && (v07Routes as string[]).includes(value);
+}
+
+export function isV07Step(value: unknown): value is V07Step {
+  return typeof value === 'string' && (v07Steps as string[]).includes(value);
+}
+
+export function getLegacyModeForRoute(route: V07JobRoute): Mode {
+  return route === 'target_job_fit' ? 'jd' : 'inventory';
+}
+
+export function getV07StepForLegacyStep(step: Step): V07Step {
+  switch (step) {
+    case 'start':
+      return 'route';
+    case 'input':
+      return 'intake';
+    case 'assets':
+    case 'dig':
+    case 'direction':
+    case 'match':
+      return 'diagnosis';
+    case 'result':
+      return 'result';
+  }
+}
+
+export function getLegacyStepForV07Step(step: V07Step): Step {
+  switch (step) {
+    case 'route':
+      return 'start';
+    case 'intake':
+      return 'input';
+    case 'diagnosis':
+      return 'assets';
+    case 'result':
+      return 'result';
+    case 'plan':
+    case 'daily_task':
+    case 'record':
+    case 'review':
+      return 'input';
+  }
+}
+
+export function getInitialRoutePlan(route: V07JobRoute): V07PlanState {
+  const routeTitles: Record<V07JobRoute, string> = {
+    no_direction: '找 3 个真实可搜索的岗位样本',
+    has_direction_resume_not_ready: '整理 1 段能写进简历的真实经历',
+    applying_no_feedback: '记录最近 5 次投递和反馈状态',
+    target_job_fit: '拆开 1 个目标岗位要求并标出证据'
+  };
+
+  const tasks: V07DailyTask[] = Array.from({ length: 21 }, (_, index) => {
+    const day = index + 1;
+    const reviewDay = day % 7 === 0;
+    return {
+      day,
+      title: reviewDay ? `第 ${day} 天：复盘本周求职行动` : `第 ${day} 天：${routeTitles[route]}`,
+      route,
+      actionLoopStage: reviewDay ? 'review' : day === 1 ? 'diagnosis' : day % 3 === 0 ? 'record' : 'action',
+      taskType: reviewDay
+        ? 'review'
+        : route === 'no_direction'
+          ? 'search_job'
+          : route === 'target_job_fit'
+            ? 'compare_jd'
+            : route === 'applying_no_feedback'
+              ? 'record_feedback'
+              : 'rewrite_resume',
+      status: day === 1 ? 'today' : day <= 3 ? 'todo' : 'locked',
+      difficulty: day === 1 ? 'stretch' : reviewDay ? 'comfort' : 'stretch',
+      estimatedMinutes: reviewDay ? 20 : 30,
+      expectedOutput: reviewDay ? '一段本周复盘和下一步调整记录。' : '一个可以被保存、复制或继续修改的求职行动产物。',
+      evidenceRequired: reviewDay ? '本周已完成任务、投递记录或材料修改记录。' : '真实岗位、真实经历、真实投递或真实反馈中的一种证据。'
+    };
+  });
+
+  return {
+    route,
+    currentDay: 1,
+    totalDays: 21,
+    tasks
+  };
+}
+
+export function migrateLegacySession(legacy: PersistedState): V07PersistedState {
+  if (legacy.stage === 'junior') {
+    return {
+      version: 'v0.7',
+      route: null,
+      step: 'route',
+      plan: null,
+      legacy
+    };
+  }
+
+  const route = legacy.mode === 'jd'
+    ? 'target_job_fit'
+    : legacy.mode === 'inventory'
+      ? 'has_direction_resume_not_ready'
+      : null;
+
+  return {
+    version: 'v0.7',
+    route,
+    step: getV07StepForLegacyStep(legacy.step),
+    plan: route ? getInitialRoutePlan(route) : null,
+    legacy
+  };
+}
