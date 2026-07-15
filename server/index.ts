@@ -635,7 +635,7 @@ function ensureClientSafeReport(report: DiagnosisReport, mode: Mode, body: unkno
   if (!blockers.length) {
     return checked;
   }
-  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode }), mode);
+  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode, route: isRecord(body) ? body.route : undefined }), mode);
 }
 
 function markReportTaskQualityFallback(task: ReportGenerationTask, checked: DiagnosisReport) {
@@ -669,7 +669,7 @@ function ensureClientSafeReportForTask(report: DiagnosisReport, mode: Mode, body
     return checked;
   }
   markReportTaskQualityFallback(task, checked);
-  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode }), mode);
+  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode, route: isRecord(body) ? body.route : undefined }), mode);
 }
 
 function isAiTaskResult<T>(value: AiRuntimeResult<T>): value is { data: T; usage: AiUsage | null } {
@@ -1418,7 +1418,7 @@ function assembleReportFromModules(mode: Mode, task: ReportGenerationTask): Diag
 }
 
 function assembleMixedBasicReport(mode: Mode, task: ReportGenerationTask, body: unknown): DiagnosisReport {
-  const report = buildBasicReport({ ...(isRecord(body) ? body : {}), mode });
+  const report = buildBasicReport({ ...(isRecord(body) ? body : {}), mode, route: isRecord(body) ? body.route : undefined });
 
   if (task.completedModules.includes('highlights')) {
     const highlights = validateReportModule('report-highlights', validateReportHighlightsModule, task.modules.highlights);

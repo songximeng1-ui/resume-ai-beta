@@ -2000,13 +2000,15 @@ test('report task returns mixed basic report on partial module failure without l
     const firstResponse = await fetch(`${server.baseUrl}/api/ai/report`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'inventory', stage: 'senior', profile: {}, assets: [], jdText: '' })
+      body: JSON.stringify({ mode: 'inventory', route: 'no_direction', stage: 'senior', profile: {}, assets: [], jdText: '' })
     });
     const partial = await firstResponse.json();
 
     expect(firstResponse.status).toBe(200);
     expect(partial.isBasic).toBe(true);
     expect(partial.summary).toContain('当前已为你生成基础版报告');
+    expect(JSON.stringify(partial)).toContain('1 个真实可搜索的初级岗位样本');
+    expect(JSON.stringify(partial)).toContain('可探索方向');
     expect(partial.highlights).toHaveLength(valid.highlights.length);
     expect(partial.highlights[0]).toMatchObject({
       sourceExperience: valid.highlights[0].sourceExperience,

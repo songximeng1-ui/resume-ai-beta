@@ -1536,15 +1536,63 @@ test('基础版报告在结果页展示保守交付说明', () => {
       resumeText: '',
       jdText: '',
       jdFit: null,
-      report: { ...mockReport(), mode: 'inventory', isBasic: true, jdFit: undefined, interviews: undefined, usage: null }
+      report: { ...mockReport(), source: 'real', mode: 'inventory', isBasic: true, jdFit: undefined, interviews: undefined, usage: null }
     })
   );
 
   render(<App />);
 
-  expect(screen.getByRole('heading', { name: '基础版报告' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: '基础版兜底报告' })).toBeInTheDocument();
+  expect(screen.getAllByText('基础版兜底报告').length).toBeGreaterThanOrEqual(2);
+  expect(screen.queryByText('真实 AI 诊断')).not.toBeInTheDocument();
   expect(screen.getByText(/内容基于你确认过的信息和稳定规则整理/)).toBeInTheDocument();
   expect(screen.getByText(/不会替你编造经历/)).toBeInTheDocument();
+});
+
+test('深度 AI 报告和演示结果在结果页保留各自身份标识', () => {
+  window.localStorage.setItem(BETA_STORAGE_KEY, JSON.stringify({ authorized: true, betaAccessCode: 'private-beta' }));
+  window.localStorage.setItem(
+    SESSION_STORAGE_KEY,
+    JSON.stringify({
+      step: 'result',
+      stage: 'senior',
+      mode: 'inventory',
+      profile: baseProfile,
+      fieldStatuses: {},
+      assets: [],
+      truthConfirmed: true,
+      resumeText: '',
+      jdText: '',
+      jdFit: null,
+      report: { ...mockReport(), source: 'real', mode: 'inventory', isBasic: false, jdFit: undefined, interviews: undefined, usage: null }
+    })
+  );
+
+  const { unmount } = render(<App />);
+  expect(screen.getByText('深度 AI 报告')).toBeInTheDocument();
+  expect(screen.queryByText('基础版兜底报告')).not.toBeInTheDocument();
+  unmount();
+
+  window.localStorage.setItem(
+    SESSION_STORAGE_KEY,
+    JSON.stringify({
+      step: 'result',
+      stage: 'senior',
+      mode: 'inventory',
+      profile: baseProfile,
+      fieldStatuses: {},
+      assets: [],
+      truthConfirmed: true,
+      resumeText: '',
+      jdText: '',
+      jdFit: null,
+      report: { ...mockReport(), source: 'demo', mode: 'inventory', jdFit: undefined, interviews: undefined, usage: null }
+    })
+  );
+
+  render(<App />);
+  expect(screen.getByText('演示结果')).toBeInTheDocument();
+  expect(screen.queryByText('深度 AI 报告')).not.toBeInTheDocument();
 });
 
 test('有岗位要求路线直接生成报告失败时显示脱敏错误提示', async () => {
@@ -1635,7 +1683,12 @@ test('报告生成部分失败后保留进度，并可继续生成剩余模块',
 
   await user.click(screen.getByRole('button', { name: '继续生成剩余部分' }));
 
+  expect(reportBodies[0]).toMatchObject({
+    mode: 'inventory',
+    route: 'has_direction_resume_not_ready'
+  });
   expect(reportBodies[1]).toMatchObject({
+    route: 'has_direction_resume_not_ready',
     reportTask: {
       id: 'task-1',
       completedModules: ['highlights', 'directions']
