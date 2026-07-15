@@ -262,11 +262,12 @@ function saveBetaAccessState(betaAccessCode: string) {
   window.localStorage.setItem(BETA_ACCESS_STORAGE_KEY, JSON.stringify({ authorized: true, betaAccessCode }));
 }
 
-function SourceBadge({ source }: { source?: 'real' | 'demo' }) {
+function SourceBadge({ source, isBasic }: { source?: 'real' | 'demo'; isBasic?: boolean }) {
   if (!source) {
     return null;
   }
-  return <span className={source === 'real' ? 'source-badge real' : 'source-badge demo'}>{source === 'real' ? '真实 AI 诊断' : '演示结果'}</span>;
+  const label = source === 'demo' ? '演示结果' : isBasic ? '基础版兜底报告' : '深度 AI 报告';
+  return <span className={source === 'real' ? 'source-badge real' : 'source-badge demo'}>{label}</span>;
 }
 
 function SafetyNotice() {
@@ -763,7 +764,7 @@ function App() {
     setAiLoadingTask('report');
     try {
       const fit = mode === 'jd' ? jdFit || (await aiService.analyzeJdFit({ stage, profile, assets: reportAssets, jdText })) : undefined;
-      const nextReport = await aiService.generateReport({ mode: mode || 'inventory', stage, profile, assets: reportAssets, jdText, jdFit: fit, reportTask });
+      const nextReport = await aiService.generateReport({ mode: mode || 'inventory', route, stage, profile, assets: reportAssets, jdText, jdFit: fit, reportTask });
       if (fit) {
         setJdFit(fit);
       }
@@ -2803,7 +2804,7 @@ function ResultPage({
           <p className="eyebrow">V0.6 有岗位要求路线</p>
           <h1>岗位要求匹配分析</h1>
           <p>这份报告基于你确认的真实经历和目标岗位描述生成。判断只是投递建议，不是录取预测。</p>
-          <SourceBadge source={report.source} />
+          <SourceBadge source={report.source} isBasic={report.isBasic} />
         </div>
 
         <BasicReportNotice show={report.isBasic} />
@@ -2952,7 +2953,7 @@ function ResultPage({
           <p className="eyebrow">V0.6 无岗位要求路线</p>
           <h1>经历诊断报告</h1>
           <p>这份报告基于你确认的真实经历生成。它不是替你决定人生方向，而是帮你看清当前筹码、可探索方向和下一步补强路径。</p>
-          <SourceBadge source={report.source} />
+          <SourceBadge source={report.source} isBasic={report.isBasic} />
         </div>
 
         <BasicReportNotice show={report.isBasic} />
@@ -3109,7 +3110,7 @@ function ResultPage({
         <p className="eyebrow">V0.4 AI 求职诊断</p>
         <h1>诊断报告</h1>
         <p>报告只基于已确认真实经历生成。复制到第三方平台后，隐私保护由第三方平台规则决定。</p>
-        <SourceBadge source={report.source} />
+        <SourceBadge source={report.source} isBasic={report.isBasic} />
       </div>
 
       <BasicReportNotice show={report.isBasic} />
@@ -3248,7 +3249,7 @@ function BasicReportNotice({ show }: { show?: boolean }) {
   if (!show) return null;
   return (
     <section className="result-block basic-report-notice">
-      <h2>基础版报告</h2>
+      <h2>基础版兜底报告</h2>
       <p>当前已为你生成基础版报告。内容基于你确认过的信息和稳定规则整理，会偏保守，但不会替你编造经历。你可以先参考，系统也会继续尝试补全深度内容。</p>
     </section>
   );

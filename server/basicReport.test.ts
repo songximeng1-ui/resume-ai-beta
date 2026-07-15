@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { buildBasicReport, BASIC_REPORT_NOTICE } from './basicReport.ts';
-import type { AssetCard, Profile } from '../src/types.ts';
+import type { AssetCard, Profile, V07JobRoute } from '../src/types.ts';
 
 const profile: Profile = {
   education: '本科',
@@ -92,5 +92,92 @@ describe('buildBasicReport', () => {
     expect(report.interviews?.map((item) => item.sampleAnswer).join('\n')).toContain('请按你的真实情况补充');
     expect(JSON.stringify(report)).not.toContain('待核实学生会经历');
     expect(JSON.stringify(report)).not.toMatch(unsafeWords);
+  });
+
+  test.each([
+    {
+      route: 'has_direction_resume_not_ready',
+      mode: 'inventory',
+      expectedPhrases: ['先整理', '今天先补', '写进简历', '经历证据', '简历材料'],
+      forbidden: /完美简历|夸大经历/,
+      materialPhrases: ['维护学生社群', '公众号推文素材'],
+      mainAction: /先整理|今天先补/,
+      routeRule: /经历证据|简历材料/
+    },
+    {
+      route: 'target_job_fit',
+      mode: 'jd',
+      expectedPhrases: ['当前材料能证明', '岗位要求', '证据不足', '投递前'],
+      forbidden: /保证 offer|一定进面|匹配度百分比|你不适合/,
+      materialPhrases: ['维护学生社群', '用户反馈整理'],
+      mainAction: /逐条标出当前材料能证明的岗位要求|投递前/,
+      routeRule: /当前材料能证明.*岗位要求|材料证据判断/
+    },
+    {
+      route: 'applying_no_feedback',
+      mode: 'inventory',
+      expectedPhrases: ['最多 3 条投递记录', '简历版本', '反馈状态', '可疑线索', '复盘'],
+      forbidden: /你不行|简历很差|海投|每天投很多/,
+      materialPhrases: ['维护学生社群', '记录用户反馈'],
+      mainAction: /整理最多 3 条投递记录|最多 3 条投递记录/,
+      routeRule: /复盘|可疑线索/
+    },
+    {
+      route: 'no_direction',
+      mode: 'inventory',
+      expectedPhrases: ['1 个真实可搜索的初级岗位样本', '可探索方向', '没有真实岗位样本时不下方向结论'],
+      forbidden: /推荐职业|推荐你做|你最适合|AI 帮你选职业|你的职业方向是/,
+      materialPhrases: ['维护学生社群', '校园二手交易调研项目'],
+      mainAction: /先找 1 个真实可搜索的初级岗位样本/,
+      routeRule: /不能下方向结论|不下方向结论|真实岗位样本/
+    }
+  ] as Array<{
+    route: V07JobRoute;
+    mode: 'inventory' | 'jd';
+    expectedPhrases: string[];
+    forbidden: RegExp;
+    materialPhrases: string[];
+    mainAction: RegExp;
+    routeRule: RegExp;
+  }>)('builds route-aware basic copy for $route', ({ route, mode, expectedPhrases, forbidden, materialPhrases, mainAction, routeRule }) => {
+    const report = buildBasicReport({
+      mode,
+      route,
+      profile,
+      assets,
+      jdText: route === 'target_job_fit' ? '用户运营助理，需要社群维护、用户反馈整理、内容协作。' : ''
+    });
+    const serialized = JSON.stringify(report);
+    const todayActions = report.actionPlan.plans.filter((item) => item.period === '7 天内');
+
+    expect(report.isBasic).toBe(true);
+    expect(report.source).toBe('real');
+    expect(todayActions).toHaveLength(2);
+    expect(todayActions[0].what).toMatch(mainAction);
+    expect(serialized).toMatch(routeRule);
+    for (const phrase of expectedPhrases) {
+      expect(serialized).toContain(phrase);
+    }
+    for (const phrase of materialPhrases) {
+      expect(serialized).toContain(phrase);
+    }
+    expect(serialized).not.toMatch(forbidden);
+    expect((serialized.match(/执行、协作、整理、反馈/g) || []).length).toBeLessThanOrEqual(1);
+    expect((serialized.match(/请按你的真实情况补充/g) || []).length).toBeLessThanOrEqual(1);
+  });
+
+  test('route-aware basic report avoids repeating generic execution collaboration template copy', () => {
+    const report = buildBasicReport({
+      mode: 'inventory',
+      route: 'has_direction_resume_not_ready',
+      profile,
+      assets,
+      jdText: ''
+    });
+    const serialized = JSON.stringify(report);
+
+    expect(serialized).not.toContain('回应岗位中与执行、协作、整理或反馈相关的要求');
+    expect(serialized).not.toContain('岗位中与执行、协作、复盘相关的要求');
+    expect((serialized.match(/执行、协作、整理、反馈/g) || []).length).toBeLessThanOrEqual(1);
   });
 });

@@ -13,6 +13,7 @@ import {
   type ResumeRewrite,
   type Stage,
   type StructuredResume,
+  type V07JobRoute,
   type AiStatus,
   assetTitles,
   diggableAssetIds,
@@ -59,6 +60,7 @@ export interface AiCareerService {
   }): Promise<ActionPlanReport>;
   generateReport(input: {
     mode: 'inventory' | 'jd';
+    route?: V07JobRoute | null;
     stage: Stage;
     profile: Profile;
     assets: AssetCard[];
@@ -636,6 +638,7 @@ class DemoCareerService implements AiCareerService {
 
   async generateReport(input: {
     mode: 'inventory' | 'jd';
+    route?: V07JobRoute | null;
     stage: Stage;
     profile: Profile;
     assets: AssetCard[];
@@ -768,6 +771,7 @@ class BackendCareerService implements AiCareerService {
 
   async generateReport(input: {
     mode: 'inventory' | 'jd';
+    route?: V07JobRoute | null;
     stage: Stage;
     profile: Profile;
     assets: AssetCard[];
