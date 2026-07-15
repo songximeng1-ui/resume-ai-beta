@@ -161,6 +161,45 @@ export function getInitialRoutePlan(route: V07JobRoute): V07PlanState {
     }
   ];
 
+  const applyingNoFeedbackTasks: V07DailyTask[] = [
+    {
+      day: 1,
+      title: '第 1 天：整理最多 3 条真实投递记录',
+      route: 'applying_no_feedback',
+      actionLoopStage: 'diagnosis',
+      taskType: 'record_feedback',
+      status: 'today',
+      difficulty: 'stretch',
+      estimatedMinutes: 25,
+      expectedOutput: '最多 3 条投递记录，每条包含岗位、投递时间、简历版本、反馈状态。',
+      evidenceRequired: '用户手动回忆或复制的真实投递记录、岗位名称、投递日期、使用的简历版本。'
+    },
+    {
+      day: 2,
+      title: '第 2 天：找出 1 个最常见的无反馈线索',
+      route: 'applying_no_feedback',
+      actionLoopStage: 'review',
+      taskType: 'review',
+      status: 'todo',
+      difficulty: 'stretch',
+      estimatedMinutes: 25,
+      expectedOutput: '1 条可复盘线索，例如岗位太散、简历版本不清、岗位要求没被证明、反馈周期太短。',
+      evidenceRequired: 'Day 1 投递记录、岗位要求摘要、简历版本说明、反馈状态。'
+    },
+    {
+      day: 3,
+      title: '第 3 天：为下一次投递改 1 个小点',
+      route: 'applying_no_feedback',
+      actionLoopStage: 'adjust',
+      taskType: 'rewrite_resume',
+      status: 'todo',
+      difficulty: 'stretch',
+      estimatedMinutes: 30,
+      expectedOutput: '1 个投递前调整动作，例如补 1 条简历证据、缩小 1 类岗位、调整 1 句简历表达。',
+      evidenceRequired: 'Day 2 复盘线索、当前简历版本、下一次准备投递的岗位方向。'
+    }
+  ];
+
   const tasks: V07DailyTask[] = Array.from({ length: 21 }, (_, index) => {
     const day = index + 1;
     if (route === 'has_direction_resume_not_ready' && day <= 3) {
@@ -168,6 +207,9 @@ export function getInitialRoutePlan(route: V07JobRoute): V07PlanState {
     }
     if (route === 'target_job_fit' && day <= 3) {
       return targetJobFitTasks[index];
+    }
+    if (route === 'applying_no_feedback' && day <= 3) {
+      return applyingNoFeedbackTasks[index];
     }
     const reviewDay = day % 7 === 0;
     return {

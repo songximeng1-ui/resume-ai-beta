@@ -2647,6 +2647,159 @@ function V07TargetJobFitRoutePanel({
   );
 }
 
+function V07ApplyingNoFeedbackRoutePanel({
+  plan,
+  records,
+  onSaveRecord
+}: {
+  plan: V07PlanState | null;
+  records: V07TaskRecord[];
+  onSaveRecord: (record: V07TaskRecord) => void;
+}) {
+  const routeTasks = plan?.route === 'applying_no_feedback' ? plan.tasks.slice(0, 3) : [];
+  const todayTask = routeTasks.find((task) => task.status === 'today') || routeTasks[0];
+  const [completionStatus, setCompletionStatus] = useState<V07TaskRecord['completionStatus']>('done');
+  const [outputText, setOutputText] = useState('');
+  const [evidenceText, setEvidenceText] = useState('');
+  const [reflectionText, setReflectionText] = useState('');
+  const [nextAdjustment, setNextAdjustment] = useState('');
+  const [message, setMessage] = useState('');
+
+  if (!todayTask) {
+    return null;
+  }
+
+  const routeRecords = records.filter((record) => record.route === 'applying_no_feedback');
+
+  const submitRecord = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSaveRecord({
+      route: 'applying_no_feedback',
+      day: todayTask.day,
+      taskTitle: todayTask.title,
+      taskType: todayTask.taskType,
+      completionStatus,
+      outputText: outputText.trim(),
+      evidenceText: evidenceText.trim(),
+      reflectionText: reflectionText.trim(),
+      nextAdjustment: nextAdjustment.trim(),
+      createdAt: new Date().toISOString()
+    });
+    setMessage('已保存今日记录。');
+    setOutputText('');
+    setEvidenceText('');
+    setReflectionText('');
+    setNextAdjustment('');
+  };
+
+  return (
+    <section className="result-block" aria-labelledby="v07-applying-route-title">
+      <p className="eyebrow">21 天陪跑 · 已投递但没反馈</p>
+      <h2 id="v07-applying-route-title">V0.7 投递复盘路线</h2>
+
+      <article className="verdict-panel">
+        <p>
+          <span>当前无反馈诊断</span>
+          现在先看投递记录是否足够复盘。无反馈可能和岗位选择、简历版本、投递节奏、市场反馈周期有关；这里不评价用户本人，只整理下一步能调整的线索。
+        </p>
+        <p>
+          <span>下一步调整提示</span>
+          今天只整理最多 3 条真实投递记录，先找一个最可疑的线索；下一次投递前只改一个小点，避免一次改太多看不出效果。
+        </p>
+      </article>
+
+      <section className="result-block">
+        <h3>今日复盘行动</h3>
+        <article className="plan-card">
+          <p><strong>今日任务：{todayTask.title}</strong></p>
+          <p><strong>任务类型：</strong>{todayTask.taskType}</p>
+          <p><strong>难度：</strong>{todayTask.difficulty}</p>
+          <p><strong>预计时间：</strong>{todayTask.estimatedMinutes} 分钟</p>
+          <p><strong>产出标准：</strong>{todayTask.expectedOutput}</p>
+          <p><strong>需要证据：</strong>{todayTask.evidenceRequired}</p>
+        </article>
+      </section>
+
+      <section className="result-block">
+        <h3>Day 1-3 任务</h3>
+        <div className="card-list">
+          {routeTasks.map((task) => (
+            <article className="plan-card" key={task.day}>
+              <p><strong>{task.title}</strong></p>
+              <p><strong>难度：</strong>{task.difficulty}</p>
+              <p><strong>预计：</strong>{task.estimatedMinutes} 分钟</p>
+              <p><strong>产出：</strong>{task.expectedOutput}</p>
+              <p><strong>证据：</strong>{task.evidenceRequired}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <form className="form-section" onSubmit={submitRecord}>
+        <h3>今日记录入口</h3>
+        <p className="context-note">反馈状态可以写：未读 / 已读无回复 / 拒绝 / 邀约 / 不确定。</p>
+        <fieldset className="inline-options">
+          <legend>完成状态</legend>
+          {(['done', 'partly', 'not_done'] as const).map((status) => (
+            <label key={status}>
+              <input
+                type="radio"
+                name="v07ApplyingCompletionStatus"
+                checked={completionStatus === status}
+                onChange={() => setCompletionStatus(status)}
+              />
+              {completionStatusLabels[status]}
+            </label>
+          ))}
+        </fieldset>
+
+        <label className="field" htmlFor="v07-applying-output-text">
+          <span>今天整理的投递记录</span>
+          <textarea id="v07-applying-output-text" value={outputText} onChange={(event) => setOutputText(event.target.value)} rows={3} />
+        </label>
+
+        <label className="field" htmlFor="v07-applying-evidence-text">
+          <span>这些记录来自哪里</span>
+          <textarea id="v07-applying-evidence-text" value={evidenceText} onChange={(event) => setEvidenceText(event.target.value)} rows={2} />
+        </label>
+
+        <label className="field" htmlFor="v07-applying-reflection-text">
+          <span>目前最可疑的问题线索</span>
+          <textarea id="v07-applying-reflection-text" value={reflectionText} onChange={(event) => setReflectionText(event.target.value)} rows={2} />
+        </label>
+
+        <label className="field" htmlFor="v07-applying-next-adjustment">
+          <span>下一次投递前先调整什么</span>
+          <textarea id="v07-applying-next-adjustment" value={nextAdjustment} onChange={(event) => setNextAdjustment(event.target.value)} rows={2} />
+        </label>
+
+        <button className="primary-button" type="submit">保存今日记录</button>
+        {message ? <p className="context-note">{message}</p> : null}
+      </form>
+
+      {routeRecords.length ? (
+        <section className="result-block">
+          <h3>已记录的今日行动</h3>
+          <div className="card-list">
+            {routeRecords.map((record) => (
+              <article className="insight-card" key={`${record.createdAt}-${record.day}`}>
+                <p><strong>{record.taskTitle}</strong></p>
+                <p><strong>完成状态：</strong>{completionStatusLabels[record.completionStatus]}</p>
+                <p><strong>投递记录：</strong>{record.outputText || '暂未填写'}</p>
+                <p><strong>记录来源：</strong>{record.evidenceText || '暂未填写'}</p>
+                <p><strong>复盘线索：</strong>{record.reflectionText || '暂未填写'}</p>
+                <p><strong>下次调整：</strong>{record.nextAdjustment || '暂未填写'}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <p className="context-note">旧 inventory 报告会作为简历材料和投递复盘依据库保留；真正要推进的是今天的记录、复盘和下一步小调整。</p>
+    </section>
+  );
+}
+
 function ResultPage({
   report,
   mode,
@@ -2831,6 +2984,10 @@ function ResultPage({
 
         {route === 'has_direction_resume_not_ready' ? (
           <V07ResumeRoutePanel plan={plan} records={records} onSaveRecord={onSaveRecord} />
+        ) : null}
+
+        {route === 'applying_no_feedback' ? (
+          <V07ApplyingNoFeedbackRoutePanel plan={plan} records={records} onSaveRecord={onSaveRecord} />
         ) : null}
 
         <section className="result-block">
