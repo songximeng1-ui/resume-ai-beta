@@ -2800,6 +2800,163 @@ function V07ApplyingNoFeedbackRoutePanel({
   );
 }
 
+function V07NoDirectionRoutePanel({
+  plan,
+  records,
+  onSaveRecord
+}: {
+  plan: V07PlanState | null;
+  records: V07TaskRecord[];
+  onSaveRecord: (record: V07TaskRecord) => void;
+}) {
+  const routeTasks = plan?.route === 'no_direction' ? plan.tasks.slice(0, 3) : [];
+  const todayTask = routeTasks.find((task) => task.status === 'today') || routeTasks[0];
+  const [completionStatus, setCompletionStatus] = useState<V07TaskRecord['completionStatus']>('done');
+  const [outputText, setOutputText] = useState('');
+  const [evidenceText, setEvidenceText] = useState('');
+  const [reflectionText, setReflectionText] = useState('');
+  const [nextAdjustment, setNextAdjustment] = useState('');
+  const [message, setMessage] = useState('');
+
+  if (!todayTask) {
+    return null;
+  }
+
+  const routeRecords = records.filter((record) => record.route === 'no_direction');
+
+  const submitRecord = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSaveRecord({
+      route: 'no_direction',
+      day: todayTask.day,
+      taskTitle: todayTask.title,
+      taskType: todayTask.taskType,
+      completionStatus,
+      outputText: outputText.trim(),
+      evidenceText: evidenceText.trim(),
+      reflectionText: reflectionText.trim(),
+      nextAdjustment: nextAdjustment.trim(),
+      createdAt: new Date().toISOString()
+    });
+    setMessage('已保存今日记录。');
+    setOutputText('');
+    setEvidenceText('');
+    setReflectionText('');
+    setNextAdjustment('');
+  };
+
+  return (
+    <section className="result-block" aria-labelledby="v07-no-direction-route-title">
+      <p className="eyebrow">21 天陪跑 · 还没方向</p>
+      <h2 id="v07-no-direction-route-title">V0.7 岗位样本验证路线</h2>
+
+      <article className="verdict-panel">
+        <p>
+          <span>当前方向状态</span>
+          当前还不能下方向结论。没有真实岗位样本时，不判断方向；先验证 1 个真实可搜索的初级岗位样本，再看它是否能成为可探索方向。
+        </p>
+        <p>
+          <span>真实岗位样本提醒</span>
+          样本必须是现实中可搜索、可投递、可看 JD 的具体岗位名，不能只写行业或泛方向。所有方向只能叫“可探索方向”。
+        </p>
+        <p>
+          <span>下一步调整提示</span>
+          今天只做一个动作：手动找 1 个初级岗位样本，记录岗位名、平台和 JD 摘要；没有样本前先不做方向判断。
+        </p>
+      </article>
+
+      <section className="result-block">
+        <h3>今日岗位验证行动</h3>
+        <article className="plan-card">
+          <p><strong>今日任务：{todayTask.title}</strong></p>
+          <p><strong>任务类型：</strong>{todayTask.taskType}</p>
+          <p><strong>难度：</strong>{todayTask.difficulty}</p>
+          <p><strong>预计时间：</strong>{todayTask.estimatedMinutes} 分钟</p>
+          <p><strong>产出标准：</strong>{todayTask.expectedOutput}</p>
+          <p><strong>需要证据：</strong>{todayTask.evidenceRequired}</p>
+        </article>
+      </section>
+
+      <section className="result-block">
+        <h3>Day 1-3 任务</h3>
+        <div className="card-list">
+          {routeTasks.map((task) => (
+            <article className="plan-card" key={task.day}>
+              <p><strong>{task.title}</strong></p>
+              <p><strong>难度：</strong>{task.difficulty}</p>
+              <p><strong>预计：</strong>{task.estimatedMinutes} 分钟</p>
+              <p><strong>产出：</strong>{task.expectedOutput}</p>
+              <p><strong>证据：</strong>{task.evidenceRequired}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <form className="form-section" onSubmit={submitRecord}>
+        <h3>今日记录入口</h3>
+        <p className="context-note">先记录岗位样本本身，不需要现在决定方向。</p>
+        <fieldset className="inline-options">
+          <legend>完成状态</legend>
+          {(['done', 'partly', 'not_done'] as const).map((status) => (
+            <label key={status}>
+              <input
+                type="radio"
+                name="v07NoDirectionCompletionStatus"
+                checked={completionStatus === status}
+                onChange={() => setCompletionStatus(status)}
+              />
+              {completionStatusLabels[status]}
+            </label>
+          ))}
+        </fieldset>
+
+        <label className="field" htmlFor="v07-no-direction-output-text">
+          <span>今天找到的真实岗位样本</span>
+          <textarea id="v07-no-direction-output-text" value={outputText} onChange={(event) => setOutputText(event.target.value)} rows={3} />
+        </label>
+
+        <label className="field" htmlFor="v07-no-direction-evidence-text">
+          <span>这个样本来自哪里</span>
+          <textarea id="v07-no-direction-evidence-text" value={evidenceText} onChange={(event) => setEvidenceText(event.target.value)} rows={2} />
+        </label>
+
+        <label className="field" htmlFor="v07-no-direction-reflection-text">
+          <span>哪些要求目前有/没有经历证据</span>
+          <textarea id="v07-no-direction-reflection-text" value={reflectionText} onChange={(event) => setReflectionText(event.target.value)} rows={2} />
+        </label>
+
+        <label className="field" htmlFor="v07-no-direction-next-adjustment">
+          <span>下一步只做一个动作</span>
+          <textarea id="v07-no-direction-next-adjustment" value={nextAdjustment} onChange={(event) => setNextAdjustment(event.target.value)} rows={2} />
+        </label>
+
+        <button className="primary-button" type="submit">保存今日记录</button>
+        {message ? <p className="context-note">{message}</p> : null}
+      </form>
+
+      {routeRecords.length ? (
+        <section className="result-block">
+          <h3>已记录的今日行动</h3>
+          <div className="card-list">
+            {routeRecords.map((record) => (
+              <article className="insight-card" key={`${record.createdAt}-${record.day}`}>
+                <p><strong>{record.taskTitle}</strong></p>
+                <p><strong>完成状态：</strong>{completionStatusLabels[record.completionStatus]}</p>
+                <p><strong>岗位样本：</strong>{record.outputText || '暂未填写'}</p>
+                <p><strong>样本来源：</strong>{record.evidenceText || '暂未填写'}</p>
+                <p><strong>证据对照：</strong>{record.reflectionText || '暂未填写'}</p>
+                <p><strong>下一步动作：</strong>{record.nextAdjustment || '暂未填写'}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <p className="context-note">旧 inventory 报告会作为经历材料和岗位样本验证依据库保留；真正要推进的是今天的真实岗位样本记录和下一步验证动作。</p>
+    </section>
+  );
+}
+
 function ResultPage({
   report,
   mode,
@@ -2988,6 +3145,10 @@ function ResultPage({
 
         {route === 'applying_no_feedback' ? (
           <V07ApplyingNoFeedbackRoutePanel plan={plan} records={records} onSaveRecord={onSaveRecord} />
+        ) : null}
+
+        {route === 'no_direction' ? (
+          <V07NoDirectionRoutePanel plan={plan} records={records} onSaveRecord={onSaveRecord} />
         ) : null}
 
         <section className="result-block">

@@ -213,6 +213,40 @@ describe('V0.7 public foundation helpers', () => {
     ]);
   });
 
+  test('no direction route starts with three real job sample verification tasks', () => {
+    const plan = getInitialRoutePlan('no_direction');
+
+    expect(plan.tasks.slice(0, 3)).toMatchObject([
+      {
+        day: 1,
+        title: '第 1 天：找 1 个真实可搜索的初级岗位样本',
+        taskType: 'search_job',
+        difficulty: 'stretch',
+        estimatedMinutes: 25,
+        expectedOutput: '1 个真实岗位样本，包含岗位名、招聘平台、JD 摘要。',
+        evidenceRequired: '用户手动搜索、收藏或粘贴的真实岗位信息；岗位必须具体到名称，不能只写行业。'
+      },
+      {
+        day: 2,
+        title: '第 2 天：从岗位样本里摘出 3 条岗位要求',
+        taskType: 'compare_jd',
+        difficulty: 'stretch',
+        estimatedMinutes: 30,
+        expectedOutput: '3 条岗位要求，并标记自己是否有对应经历证据。',
+        evidenceRequired: 'Day 1 岗位样本、岗位职责或任职要求、用户自己的真实经历材料。'
+      },
+      {
+        day: 3,
+        title: '第 3 天：给这个岗位样本做一次探索标记',
+        taskType: 'review',
+        difficulty: 'stretch',
+        estimatedMinutes: 25,
+        expectedOutput: '将岗位样本标记为可继续探索 / 暂时证据不足 / 需要换样本，并写出下一步只做一个动作。',
+        evidenceRequired: 'Day 1 岗位样本、Day 2 三条岗位要求、用户确认的经历证据。'
+      }
+    ]);
+  });
+
   test('V0.7 persisted state can carry task records with completionStatus', () => {
     const record: V07TaskRecord = {
       route: 'has_direction_resume_not_ready',
