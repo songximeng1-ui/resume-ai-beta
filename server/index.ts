@@ -82,7 +82,8 @@ import {
   type ReportModuleKey,
   type ResumeRewrite,
   type Stage,
-  type StructuredResume
+  type StructuredResume,
+  type V07JobRoute
 } from '../src/types.ts';
 
 const DEMO_MESSAGE = '当前为演示模式，请在服务端 .env 中配置 OPENAI_API_KEY';
@@ -617,17 +618,31 @@ function getReportQualityMode(body: unknown): Mode {
   return isRecord(body) && body.mode === 'inventory' ? 'inventory' : 'jd';
 }
 
-function attachReportQuality(report: DiagnosisReport, mode: Mode): DiagnosisReport {
+function normalizeV07Route(value: unknown): V07JobRoute | undefined {
+  return value === 'has_direction_resume_not_ready' ||
+    value === 'target_job_fit' ||
+    value === 'applying_no_feedback' ||
+    value === 'no_direction'
+    ? value
+    : undefined;
+}
+
+function readReportRoute(body: unknown): V07JobRoute | undefined {
+  return normalizeV07Route(isRecord(body) ? body.route : undefined);
+}
+
+function attachReportQuality(report: DiagnosisReport, mode: Mode, route?: unknown): DiagnosisReport {
   const qualityMode = mode === 'jd' ? 'jd' : 'inventory';
   const safeReport = sanitizeRiskyResumeLanguage(report);
   return {
     ...safeReport,
-    quality: validateReportQuality(safeReport, qualityMode)
+    quality: validateReportQuality(safeReport, qualityMode, normalizeV07Route(route))
   };
 }
 
 function ensureClientSafeReport(report: DiagnosisReport, mode: Mode, body: unknown): DiagnosisReport {
-  const checked = attachReportQuality(report, mode);
+  const route = readReportRoute(body);
+  const checked = attachReportQuality(report, mode, route);
   if (checked.quality?.passed) {
     return checked;
   }
@@ -635,7 +650,7 @@ function ensureClientSafeReport(report: DiagnosisReport, mode: Mode, body: unkno
   if (!blockers.length) {
     return checked;
   }
-  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode, route: isRecord(body) ? body.route : undefined }), mode);
+  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode, route }), mode, route);
 }
 
 function markReportTaskQualityFallback(task: ReportGenerationTask, checked: DiagnosisReport) {
@@ -660,7 +675,8 @@ function markReportTaskQualityFallback(task: ReportGenerationTask, checked: Diag
 }
 
 function ensureClientSafeReportForTask(report: DiagnosisReport, mode: Mode, body: unknown, task: ReportGenerationTask): DiagnosisReport {
-  const checked = attachReportQuality(report, mode);
+  const route = readReportRoute(body);
+  const checked = attachReportQuality(report, mode, route);
   if (checked.quality?.passed) {
     return checked;
   }
@@ -669,7 +685,7 @@ function ensureClientSafeReportForTask(report: DiagnosisReport, mode: Mode, body
     return checked;
   }
   markReportTaskQualityFallback(task, checked);
-  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode, route: isRecord(body) ? body.route : undefined }), mode);
+  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode, route }), mode, route);
 }
 
 function isAiTaskResult<T>(value: AiRuntimeResult<T>): value is { data: T; usage: AiUsage | null } {

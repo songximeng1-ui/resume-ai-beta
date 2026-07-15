@@ -1,4 +1,13 @@
-import type { DiagnosisReport, InterviewPrep, JdFitReport, Mode, ReportQualityResult, ResumeRewrite, UnsafeFinding } from '../src/types.ts';
+import type {
+  DiagnosisReport,
+  InterviewPrep,
+  JdFitReport,
+  Mode,
+  ReportQualityResult,
+  ResumeRewrite,
+  UnsafeFinding,
+  V07JobRoute
+} from '../src/types.ts';
 
 export type { ReportQualityResult, UnsafeFinding };
 
@@ -482,7 +491,32 @@ function checkJdReport(report: DiagnosisReport, blockers: string[], warnings: st
   }
 }
 
-function checkInventoryReport(report: DiagnosisReport, blockers: string[]) {
+function hasActionPlanText(report: DiagnosisReport, pattern: RegExp) {
+  return report.actionPlan.plans.some((plan) =>
+    pattern.test([plan.what, plan.action, plan.how, plan.completionStandard, plan.deliverable].join('\n'))
+  );
+}
+
+function reportText(report: DiagnosisReport) {
+  return collectText(report).join('\n');
+}
+
+function checkRouteReport(report: DiagnosisReport, route: V07JobRoute | null | undefined, blockers: string[]) {
+  if (route === 'has_direction_resume_not_ready') {
+    if (!hasActionPlanText(report, /(先选|先整理|今天先补|补清|经历证据|本人动作|工具|周期|交付物)/)) {
+      blockers.push('有方向但简历未准备好路线必须给出先整理 1 段真实经历证据的今日行动。');
+    }
+  }
+
+  if (route === 'applying_no_feedback') {
+    const text = reportText(report);
+    if (!/(最多\s*3\s*条|3\s*条投递|投递记录)/.test(text) || !/(简历版本|投递时间|反馈状态|可疑线索)/.test(text)) {
+      blockers.push('已投递但没反馈路线必须引导整理最多 3 条投递记录，并包含岗位、简历版本、投递时间、反馈状态和可疑线索。');
+    }
+  }
+}
+
+function checkInventoryReport(report: DiagnosisReport, blockers: string[], route?: V07JobRoute | null) {
   if (report.jdFit) {
     blockers.push('无 JD 报告不应输出 JD 证据矩阵或假装已有 JD。');
   }
@@ -492,31 +526,36 @@ function checkInventoryReport(report: DiagnosisReport, blockers: string[]) {
     blockers.push('无 JD 报告必须包含 2-3 个岗位方向建议。');
   }
 
-  const incompleteDirection = (report.directionOptions ?? []).some(
-    (direction) =>
-      !hasUsefulText(direction.directionName) ||
-      !hasUsefulText(direction.name) ||
-      !directionPriorities.includes(direction.priority) ||
-      !hasUsefulText(direction.whyExplore) ||
-      !hasUsefulText(direction.why) ||
-      !hasUsefulText(direction.evidence) ||
-      !hasUsefulText(direction.gap) ||
-      !hasUsefulText(direction.sevenDayValidation) ||
-      !hasUsefulText(direction.next) ||
-      direction.searchableJobNames.length < 3 ||
-      direction.searchableJobNames.length > 5 ||
-      direction.keywords.length < 3
-  );
-  if (incompleteDirection) {
-    blockers.push('每个方向建议都必须包含方向名称、3-5 个可搜索岗位、探索原因、用户已有证据、风险或缺口、7 天验证动作。');
+  const requiresExploratoryDirections = !route || route === 'no_direction';
+  if (requiresExploratoryDirections) {
+    const incompleteDirection = (report.directionOptions ?? []).some(
+      (direction) =>
+        !hasUsefulText(direction.directionName) ||
+        !hasUsefulText(direction.name) ||
+        !directionPriorities.includes(direction.priority) ||
+        !hasUsefulText(direction.whyExplore) ||
+        !hasUsefulText(direction.why) ||
+        !hasUsefulText(direction.evidence) ||
+        !hasUsefulText(direction.gap) ||
+        !hasUsefulText(direction.sevenDayValidation) ||
+        !hasUsefulText(direction.next) ||
+        direction.searchableJobNames.length < 3 ||
+        direction.searchableJobNames.length > 5 ||
+        direction.keywords.length < 3
+    );
+    if (incompleteDirection) {
+      blockers.push('每个方向建议都必须包含方向名称、3-5 个可搜索岗位、探索原因、用户已有证据、风险或缺口、7 天验证动作。');
+    }
   }
+
+  checkRouteReport(report, route, blockers);
 }
 
 function calculateScore(blockers: string[], warnings: string[]): number {
   return Math.max(0, Math.min(100, 100 - blockers.length * 25 - warnings.length * 8));
 }
 
-export function validateReportQuality(report: DiagnosisReport, mode: Mode): ReportQualityResult {
+export function validateReportQuality(report: DiagnosisReport, mode: Mode, route?: V07JobRoute | null): ReportQualityResult {
   const blockers: string[] = [];
   const warnings: string[] = [];
   const safetyFindings = [...findUnsafeAdvice(report), ...findUnsafeRewriteClaims(report)];
@@ -526,7 +565,7 @@ export function validateReportQuality(report: DiagnosisReport, mode: Mode): Repo
   if (mode === 'jd') {
     checkJdReport(report, blockers, warnings);
   } else {
-    checkInventoryReport(report, blockers);
+    checkInventoryReport(report, blockers, route);
   }
 
   return {

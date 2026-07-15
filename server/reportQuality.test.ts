@@ -204,6 +204,128 @@ describe('report quality checks', () => {
     expect(result.blockers).toEqual([]);
   });
 
+  test('has_direction_resume_not_ready 不因缺少方向探索岗位列表而进入基础版', () => {
+    const base = inventoryReport();
+    const routeDirections = base.directionOptions!.map((direction) => ({
+      ...direction,
+      directionName: '简历材料整理',
+      name: '简历材料整理',
+      searchableJobNames: [],
+      keywords: [],
+      whyExplore: '用户已经有特斯拉销售实习经历，当前重点是先补清对象、动作、工具、周期和交付物。',
+      why: '先把一段最稳经历整理成可写入简历的证据。',
+      evidence: '特斯拉销售实习：接待客户、记录需求、协助跟进试驾安排。',
+      gap: '还缺少周期、工具、交付物和本人边界。',
+      sevenDayValidation: '今天先补 1 条经历证据，不需要先列岗位方向。',
+      next: '补完事实后再生成保守简历表达。'
+    }));
+    const actionPlan = {
+      ...v04ActionPlan(),
+      plans: [
+        {
+          ...v04ActionPlan().plans[0],
+          period: '今天',
+          what: '先选特斯拉销售实习这一段经历，补清对象、本人动作、工具、周期和交付物。',
+          why: '先补事实，再形成保守简历表达。',
+          how: '用 20-35 分钟列出五项事实，只写能解释清楚的信息。',
+          completionStandard: '完成 1 条经历证据清单。',
+          jobSearchValue: '用于生成第一条保守简历表达。',
+          action: '先选特斯拉销售实习这一段经历，补清对象、本人动作、工具、周期和交付物。',
+          deliverable: '完成 1 条经历证据清单。',
+          resumeUsage: '用于生成第一条保守简历表达。',
+          targetAbility: '经历证据整理'
+        },
+        ...v04ActionPlan().plans.slice(1)
+      ]
+    };
+
+    const result = validateReportQuality(
+      inventoryReport({
+        directionOptions: routeDirections,
+        actionPlan
+      }),
+      'inventory',
+      'has_direction_resume_not_ready'
+    );
+
+    expect(result.blockers).not.toContain(
+      '每个方向建议都必须包含方向名称、3-5 个可搜索岗位、探索原因、用户已有证据、风险或缺口、7 天验证动作。'
+    );
+    expect(result.passed).toBe(true);
+  });
+
+  test('applying_no_feedback 不因缺少方向探索岗位列表而进入基础版', () => {
+    const base = inventoryReport();
+    const routeDirections = base.directionOptions!.map((direction) => ({
+      ...direction,
+      directionName: '投递记录复盘',
+      name: '投递记录复盘',
+      searchableJobNames: [],
+      keywords: [],
+      whyExplore: '用户已经有投递无反馈问题，当前重点是复盘最近记录。',
+      why: '先从岗位、简历版本、投递时间、反馈状态和可疑线索定位问题。',
+      evidence: '简历中有特斯拉销售实习和校园经历，可用于对照最近投递版本。',
+      gap: '还缺少最近 3 条投递记录。',
+      sevenDayValidation: '今天整理最多 3 条投递记录。',
+      next: '只调整一个变量，再观察下一轮反馈。'
+    }));
+    const actionPlan = {
+      ...v04ActionPlan(),
+      plans: [
+        {
+          ...v04ActionPlan().plans[0],
+          period: '今天',
+          what: '整理最多 3 条投递记录，记录岗位、简历版本、投递时间、反馈状态和可疑线索。',
+          why: '先复盘事实，不评价用户本人。',
+          how: '只记录最近 3 条，不扩大成完整 CRM。',
+          completionStandard: '完成最多 3 条投递记录。',
+          jobSearchValue: '判断问题可能在材料、岗位、节奏还是市场反馈。',
+          action: '整理最多 3 条投递记录。',
+          deliverable: '完成最多 3 条投递记录。',
+          resumeUsage: '判断问题可能在材料、岗位、节奏还是市场反馈。',
+          targetAbility: '投递复盘'
+        },
+        ...v04ActionPlan().plans.slice(1)
+      ]
+    };
+
+    const result = validateReportQuality(
+      inventoryReport({
+        directionOptions: routeDirections,
+        actionPlan
+      }),
+      'inventory',
+      'applying_no_feedback'
+    );
+
+    expect(result.blockers).not.toContain(
+      '每个方向建议都必须包含方向名称、3-5 个可搜索岗位、探索原因、用户已有证据、风险或缺口、7 天验证动作。'
+    );
+    expect(result.passed).toBe(true);
+  });
+
+  test('no_direction 仍要求真实岗位样本验证所需的方向细节', () => {
+    const brokenDirections = inventoryReport().directionOptions!.map((direction) => ({
+      ...direction,
+      searchableJobNames: [],
+      keywords: [],
+      sevenDayValidation: '',
+      next: ''
+    }));
+
+    const result = validateReportQuality(
+      inventoryReport({
+        directionOptions: brokenDirections
+      }),
+      'inventory',
+      'no_direction'
+    );
+
+    expect(result.blockers).toContain(
+      '每个方向建议都必须包含方向名称、3-5 个可搜索岗位、探索原因、用户已有证据、风险或缺口、7 天验证动作。'
+    );
+  });
+
   test('无 JD 报告引用简历原文中的职责和结果证据时不误判为夸大建议', () => {
     const originalEvidence =
       '运营推广：负责门店官方抖音账号日常运营、内容推广及直播策划，独立完成视频合集题材策划、素材拍摄与剪辑，单场直播引流效果提升超30%，累计策划制作视频13条。';
