@@ -11,5 +11,6 @@ docs/v0.3/three-round-real-sample-acceptance-record.md
 *.local
 *.log
 *.tsbuildinfo
+resume-ai-beta-work-upload.zip
 vite.config.js
 vite.config.d.ts

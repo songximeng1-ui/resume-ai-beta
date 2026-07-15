@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { getInitialRoutePlan, isV07Route, isV07Step, migrateLegacySession, toggleV07LeastHelpfulPart } from './v07Foundation';
-import type { PersistedState, V07FeedbackSubmission, V07PersistedState, V07TaskRecord } from './types';
+import type { PersistedState, V07FeedbackSubmission, V07JobRoute, V07PersistedState, V07TaskRecord } from './types';
 
 const legacyBase: PersistedState = {
   step: 'start',
@@ -109,6 +109,60 @@ describe('V0.7 public foundation helpers', () => {
       evidenceRequired: expect.any(String)
     });
     expect(plan.tasks.every((task) => task.estimatedMinutes > 0)).toBe(true);
+  });
+
+  test('all four V0.7 routes expose 21 day plans and records can share one session shape', () => {
+    const routes: V07JobRoute[] = [
+      'no_direction',
+      'has_direction_resume_not_ready',
+      'applying_no_feedback',
+      'target_job_fit'
+    ];
+
+    const records: V07TaskRecord[] = routes.map((route, index) => {
+      const task = getInitialRoutePlan(route).tasks[0];
+      return {
+        route,
+        day: task.day,
+        taskTitle: task.title,
+        taskType: task.taskType,
+        completionStatus: index % 2 === 0 ? 'done' : 'partly',
+        outputText: `route ${route} output`,
+        evidenceText: `route ${route} evidence`,
+        reflectionText: `route ${route} reflection`,
+        nextAdjustment: `route ${route} next`,
+        createdAt: `2026-07-15T00:00:0${index}.000Z`
+      };
+    });
+
+    for (const route of routes) {
+      const plan = getInitialRoutePlan(route);
+      expect(plan).toMatchObject({ route, totalDays: 21 });
+      expect(plan.tasks).toHaveLength(21);
+      for (const task of plan.tasks.slice(0, 3)) {
+        expect(task).toMatchObject({
+          route,
+          difficulty: expect.any(String),
+          estimatedMinutes: expect.any(Number),
+          expectedOutput: expect.any(String),
+          evidenceRequired: expect.any(String)
+        });
+        expect(task.estimatedMinutes).toBeGreaterThan(0);
+        expect(task.expectedOutput.trim()).not.toBe('');
+        expect(task.evidenceRequired.trim()).not.toBe('');
+      }
+    }
+
+    const persisted: V07PersistedState = {
+      version: 'v0.7',
+      route: 'no_direction',
+      step: 'result',
+      plan: getInitialRoutePlan('no_direction'),
+      records,
+      legacy: legacyBase
+    };
+
+    expect(persisted.records?.map((record) => record.route)).toEqual(routes);
   });
 
   test('has direction resume route starts with three small resume preparation tasks', () => {
