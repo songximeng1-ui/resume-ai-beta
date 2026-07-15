@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
+import { getInitialRoutePlan } from './v07Foundation';
 import type {
   ActionPlanReport,
   AssetCard,
@@ -520,6 +521,80 @@ test('简历准备路线结果页提供今日行动记录，并保存恢复 reco
   expect(screen.getByText(/教育机构新媒体运营实习，维护3个学生社群/)).toBeInTheDocument();
   expect(screen.getAllByText(/完成一部分/).length).toBeGreaterThanOrEqual(1);
   expect(screen.getByTestId('app-root')).not.toHaveTextContent(/token|tokens|成本|模型：|gpt-5\.4|provider|API key|base URL|schema|parse|OpenAI|DeepSeek|Qwen|Kimi/i);
+
+  await user.click(screen.getAllByRole('button', { name: '清除本次分析数据' })[0]);
+  await waitFor(() => expect(window.localStorage.getItem(SESSION_STORAGE_KEY)).toBeNull());
+});
+
+test('目标岗位判断路线结果页提供投递前行动记录，并保存恢复 records', async () => {
+  const user = userEvent.setup();
+  window.localStorage.setItem(BETA_STORAGE_KEY, JSON.stringify({ authorized: true, betaAccessCode: 'private-beta' }));
+  window.localStorage.setItem(
+    SESSION_STORAGE_KEY,
+    JSON.stringify({
+      version: 'v0.7',
+      route: 'target_job_fit',
+      step: 'result',
+      plan: getInitialRoutePlan('target_job_fit'),
+      records: [],
+      legacy: {
+        step: 'result',
+        stage: 'senior',
+        mode: 'jd',
+        profile: baseProfile,
+        fieldStatuses: {},
+        assets: [],
+        truthConfirmed: true,
+        resumeText: '本科 市场营销，目标用户运营。',
+        jdText: '用户运营助理，负责社群维护、用户反馈整理和活动触达。',
+        jdFit: mockJdFit(),
+        report: { ...mockReport(), mode: 'jd', usage: null },
+        reportTask: null
+      }
+    })
+  );
+
+  const { unmount } = render(<App />);
+
+  expect(screen.getByRole('heading', { name: 'V0.7 目标岗位判断路线' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: '今日投递前行动' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Day 1-3 任务' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: '今日记录入口' })).toBeInTheDocument();
+  expect(screen.getByText(/当前岗位诊断/)).toBeInTheDocument();
+  expect(screen.getByText(/当前材料能证明/)).toBeInTheDocument();
+  expect(screen.getByText('第 1 天：从 AI 拆出的岗位要求里，选出最影响投递的 3 条')).toBeInTheDocument();
+  expect(screen.getByText('第 3 天：生成 1 条投递前简历表达，并写 1 句提醒')).toBeInTheDocument();
+  expect(screen.getByText(/岗位判断依据和材料库/)).toBeInTheDocument();
+
+  await user.click(screen.getByRole('radio', { name: '完成一部分' }));
+  await user.type(screen.getByLabelText('今天改出的简历表达或岗位要求判断'), '当前材料能证明社群维护和内容整理，但用户反馈整理证据不足。');
+  await user.type(screen.getByLabelText('对应的真实经历或材料来源'), '教育机构新媒体运营实习，维护3个学生社群。');
+  await user.type(screen.getByLabelText('还不能证明哪条岗位要求'), '还不能证明用户反馈整理和复盘能力。');
+  await user.type(screen.getByLabelText('投递前先补哪条证据或表达'), '先补一条用户反馈整理的真实例子。');
+  await user.click(screen.getByRole('button', { name: '保存今日记录' }));
+
+  expect(screen.getByText('已保存今日记录。')).toBeInTheDocument();
+  const saved = JSON.parse(window.localStorage.getItem(SESSION_STORAGE_KEY) || '{}');
+  expect(saved.records).toHaveLength(1);
+  expect(saved.records[0]).toMatchObject({
+    route: 'target_job_fit',
+    day: 1,
+    completionStatus: 'partly',
+    outputText: '当前材料能证明社群维护和内容整理，但用户反馈整理证据不足。',
+    evidenceText: '教育机构新媒体运营实习，维护3个学生社群。',
+    reflectionText: '还不能证明用户反馈整理和复盘能力。',
+    nextAdjustment: '先补一条用户反馈整理的真实例子。'
+  });
+
+  unmount();
+  render(<App />);
+  expect(screen.getByRole('heading', { name: '已记录的今日行动' })).toBeInTheDocument();
+  expect(screen.getByText(/当前材料能证明社群维护和内容整理/)).toBeInTheDocument();
+
+  for (const heading of ['投递判断摘要', '岗位要求证据矩阵', '简历改写建议', '面试追问与回答准备', '风险提醒']) {
+    expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument();
+  }
+  expect(screen.getByTestId('app-root')).not.toHaveTextContent(/provider|token|tokens|成本|模型：|gpt-5\.4|API key|base URL|原始错误|保证 offer|一定进面|你不适合|匹配度\s*\d+%/i);
 
   await user.click(screen.getAllByRole('button', { name: '清除本次分析数据' })[0]);
   await waitFor(() => expect(window.localStorage.getItem(SESSION_STORAGE_KEY)).toBeNull());

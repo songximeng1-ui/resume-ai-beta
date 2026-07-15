@@ -122,10 +122,52 @@ export function getInitialRoutePlan(route: V07JobRoute): V07PlanState {
     }
   ];
 
+  const targetJobFitTasks: V07DailyTask[] = [
+    {
+      day: 1,
+      title: '第 1 天：从 AI 拆出的岗位要求里，选出最影响投递的 3 条',
+      route: 'target_job_fit',
+      actionLoopStage: 'diagnosis',
+      taskType: 'compare_jd',
+      status: 'today',
+      difficulty: 'stretch',
+      estimatedMinutes: 30,
+      expectedOutput: '3 条关键岗位要求，并分别标记已有证据 / 证据不足 / 暂无证据。',
+      evidenceRequired: 'AI 已拆出的岗位要求、用户手动粘贴的真实 JD、当前简历或经历材料。'
+    },
+    {
+      day: 2,
+      title: '第 2 天：为 1 条关键岗位要求补 1 段真实经历证据',
+      route: 'target_job_fit',
+      actionLoopStage: 'action',
+      taskType: 'rewrite_resume',
+      status: 'todo',
+      difficulty: 'stretch',
+      estimatedMinutes: 30,
+      expectedOutput: '一段能证明某条岗位要求的真实经历草稿。',
+      evidenceRequired: '用户真实经历原文、JD 中对应要求、不能夸大的边界。'
+    },
+    {
+      day: 3,
+      title: '第 3 天：生成 1 条投递前简历表达，并写 1 句提醒',
+      route: 'target_job_fit',
+      actionLoopStage: 'record',
+      taskType: 'rewrite_resume',
+      status: 'todo',
+      difficulty: 'stretch',
+      estimatedMinutes: 25,
+      expectedOutput: '1 条可放入简历的表达 + 1 句投递前提醒：现在材料最需要补哪一点。',
+      evidenceRequired: 'Day 1 岗位要求、Day 2 经历证据、用户确认的真实事实。'
+    }
+  ];
+
   const tasks: V07DailyTask[] = Array.from({ length: 21 }, (_, index) => {
     const day = index + 1;
     if (route === 'has_direction_resume_not_ready' && day <= 3) {
       return hasDirectionResumeTasks[index];
+    }
+    if (route === 'target_job_fit' && day <= 3) {
+      return targetJobFitTasks[index];
     }
     const reviewDay = day % 7 === 0;
     return {

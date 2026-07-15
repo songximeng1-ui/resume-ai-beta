@@ -2492,6 +2492,161 @@ function V07ResumeRoutePanel({
   );
 }
 
+function V07TargetJobFitRoutePanel({
+  plan,
+  records,
+  jdFit,
+  onSaveRecord
+}: {
+  plan: V07PlanState | null;
+  records: V07TaskRecord[];
+  jdFit: JdFitReport;
+  onSaveRecord: (record: V07TaskRecord) => void;
+}) {
+  const routeTasks = plan?.route === 'target_job_fit' ? plan.tasks.slice(0, 3) : [];
+  const todayTask = routeTasks.find((task) => task.status === 'today') || routeTasks[0];
+  const [completionStatus, setCompletionStatus] = useState<V07TaskRecord['completionStatus']>('done');
+  const [outputText, setOutputText] = useState('');
+  const [evidenceText, setEvidenceText] = useState('');
+  const [reflectionText, setReflectionText] = useState('');
+  const [nextAdjustment, setNextAdjustment] = useState('');
+  const [message, setMessage] = useState('');
+
+  if (!todayTask) {
+    return null;
+  }
+
+  const routeRecords = records.filter((record) => record.route === 'target_job_fit');
+
+  const submitRecord = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSaveRecord({
+      route: 'target_job_fit',
+      day: todayTask.day,
+      taskTitle: todayTask.title,
+      taskType: todayTask.taskType,
+      completionStatus,
+      outputText: outputText.trim(),
+      evidenceText: evidenceText.trim(),
+      reflectionText: reflectionText.trim(),
+      nextAdjustment: nextAdjustment.trim(),
+      createdAt: new Date().toISOString()
+    });
+    setMessage('已保存今日记录。');
+    setOutputText('');
+    setEvidenceText('');
+    setReflectionText('');
+    setNextAdjustment('');
+  };
+
+  return (
+    <section className="result-block" aria-labelledby="v07-target-route-title">
+      <p className="eyebrow">21 天陪跑 · 有目标岗位，想判断能不能投</p>
+      <h2 id="v07-target-route-title">V0.7 目标岗位判断路线</h2>
+
+      <article className="verdict-panel">
+        <p>
+          <span>当前岗位诊断</span>
+          当前材料能证明的部分是：{jdFit.strongestEvidence}。仍需要补清楚的是：{jdFit.mainGap}。这里判断的是材料和岗位要求之间的证据关系，不评价你本人。
+        </p>
+        <p>
+          <span>复盘/调整提示</span>
+          今天先从已拆出的岗位要求里选 3 条关键要求，标记证据状态；如果证据不足，下一步先补真实材料，再考虑表达优化。
+        </p>
+      </article>
+
+      <section className="result-block">
+        <h3>今日投递前行动</h3>
+        <article className="plan-card">
+          <p><strong>今日任务：{todayTask.title}</strong></p>
+          <p><strong>任务类型：</strong>{todayTask.taskType}</p>
+          <p><strong>难度：</strong>{todayTask.difficulty}</p>
+          <p><strong>预计时间：</strong>{todayTask.estimatedMinutes} 分钟</p>
+          <p><strong>产出标准：</strong>{todayTask.expectedOutput}</p>
+          <p><strong>需要证据：</strong>{todayTask.evidenceRequired}</p>
+        </article>
+      </section>
+
+      <section className="result-block">
+        <h3>Day 1-3 任务</h3>
+        <div className="card-list">
+          {routeTasks.map((task) => (
+            <article className="plan-card" key={task.day}>
+              <p><strong>{task.title}</strong></p>
+              <p><strong>难度：</strong>{task.difficulty}</p>
+              <p><strong>预计：</strong>{task.estimatedMinutes} 分钟</p>
+              <p><strong>产出：</strong>{task.expectedOutput}</p>
+              <p><strong>证据：</strong>{task.evidenceRequired}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <form className="form-section" onSubmit={submitRecord}>
+        <h3>今日记录入口</h3>
+        <p className="context-note">先不用看完整报告，今天只要完成下面这条记录。</p>
+        <fieldset className="inline-options">
+          <legend>完成状态</legend>
+          {(['done', 'partly', 'not_done'] as const).map((status) => (
+            <label key={status}>
+              <input
+                type="radio"
+                name="v07TargetCompletionStatus"
+                checked={completionStatus === status}
+                onChange={() => setCompletionStatus(status)}
+              />
+              {completionStatusLabels[status]}
+            </label>
+          ))}
+        </fieldset>
+
+        <label className="field" htmlFor="v07-target-output-text">
+          <span>今天改出的简历表达或岗位要求判断</span>
+          <textarea id="v07-target-output-text" value={outputText} onChange={(event) => setOutputText(event.target.value)} rows={3} />
+        </label>
+
+        <label className="field" htmlFor="v07-target-evidence-text">
+          <span>对应的真实经历或材料来源</span>
+          <textarea id="v07-target-evidence-text" value={evidenceText} onChange={(event) => setEvidenceText(event.target.value)} rows={2} />
+        </label>
+
+        <label className="field" htmlFor="v07-target-reflection-text">
+          <span>还不能证明哪条岗位要求</span>
+          <textarea id="v07-target-reflection-text" value={reflectionText} onChange={(event) => setReflectionText(event.target.value)} rows={2} />
+        </label>
+
+        <label className="field" htmlFor="v07-target-next-adjustment">
+          <span>投递前先补哪条证据或表达</span>
+          <textarea id="v07-target-next-adjustment" value={nextAdjustment} onChange={(event) => setNextAdjustment(event.target.value)} rows={2} />
+        </label>
+
+        <button className="primary-button" type="submit">保存今日记录</button>
+        {message ? <p className="context-note">{message}</p> : null}
+      </form>
+
+      {routeRecords.length ? (
+        <section className="result-block">
+          <h3>已记录的今日行动</h3>
+          <div className="card-list">
+            {routeRecords.map((record) => (
+              <article className="insight-card" key={`${record.createdAt}-${record.day}`}>
+                <p><strong>{record.taskTitle}</strong></p>
+                <p><strong>完成状态：</strong>{completionStatusLabels[record.completionStatus]}</p>
+                <p><strong>今天改出的内容：</strong>{record.outputText || '暂未填写'}</p>
+                <p><strong>材料来源：</strong>{record.evidenceText || '暂未填写'}</p>
+                <p><strong>证据缺口：</strong>{record.reflectionText || '暂未填写'}</p>
+                <p><strong>投递前调整：</strong>{record.nextAdjustment || '暂未填写'}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <p className="context-note">旧 JD 报告会作为岗位判断依据和材料库保留；真正要推进的是今天的投递前行动、记录和下一步调整。</p>
+    </section>
+  );
+}
+
 function ResultPage({
   report,
   mode,
@@ -2524,6 +2679,10 @@ function ResultPage({
         </div>
 
         <BasicReportNotice show={report.isBasic} />
+
+        {route === 'target_job_fit' ? (
+          <V07TargetJobFitRoutePanel plan={plan} records={records} jdFit={jdFit} onSaveRecord={onSaveRecord} />
+        ) : null}
 
         <section className="result-block">
           <h2>投递判断摘要</h2>

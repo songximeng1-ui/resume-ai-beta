@@ -145,6 +145,40 @@ describe('V0.7 public foundation helpers', () => {
     ]);
   });
 
+  test('target job fit route starts with three small pre-application tasks', () => {
+    const plan = getInitialRoutePlan('target_job_fit');
+
+    expect(plan.tasks.slice(0, 3)).toMatchObject([
+      {
+        day: 1,
+        title: '第 1 天：从 AI 拆出的岗位要求里，选出最影响投递的 3 条',
+        taskType: 'compare_jd',
+        difficulty: 'stretch',
+        estimatedMinutes: 30,
+        expectedOutput: '3 条关键岗位要求，并分别标记已有证据 / 证据不足 / 暂无证据。',
+        evidenceRequired: 'AI 已拆出的岗位要求、用户手动粘贴的真实 JD、当前简历或经历材料。'
+      },
+      {
+        day: 2,
+        title: '第 2 天：为 1 条关键岗位要求补 1 段真实经历证据',
+        taskType: 'rewrite_resume',
+        difficulty: 'stretch',
+        estimatedMinutes: 30,
+        expectedOutput: '一段能证明某条岗位要求的真实经历草稿。',
+        evidenceRequired: '用户真实经历原文、JD 中对应要求、不能夸大的边界。'
+      },
+      {
+        day: 3,
+        title: '第 3 天：生成 1 条投递前简历表达，并写 1 句提醒',
+        taskType: 'rewrite_resume',
+        difficulty: 'stretch',
+        estimatedMinutes: 25,
+        expectedOutput: '1 条可放入简历的表达 + 1 句投递前提醒：现在材料最需要补哪一点。',
+        evidenceRequired: 'Day 1 岗位要求、Day 2 经历证据、用户确认的真实事实。'
+      }
+    ]);
+  });
+
   test('V0.7 persisted state can carry task records with completionStatus', () => {
     const record: V07TaskRecord = {
       route: 'has_direction_resume_not_ready',
