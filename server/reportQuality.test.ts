@@ -304,6 +304,38 @@ describe('report quality checks', () => {
     expect(result.passed).toBe(true);
   });
 
+  test('applying_no_feedback 接受自然表达的轻量投递复盘行动', () => {
+    const result = validateReportQuality(
+      inventoryReport({
+        actionPlan: {
+          ...v04ActionPlan(),
+          plans: [
+            {
+              ...v04ActionPlan().plans[0],
+              what: '整理最近 3 条投递记录，先对照岗位、简历版本和反馈线索。',
+              why: '判断无反馈更可能来自岗位匹配、材料表达、投递节奏还是市场反馈。',
+              how: '只记录最近几次投递，不扩大成完整 CRM；每条写下岗位名称、使用的简历版本和目前反馈。',
+              completionStandard: '完成 3 条以内投递记录复盘。',
+              jobSearchValue: '下一轮只调整一个变量，再观察反馈变化。',
+              action: '整理最近 3 条投递记录，先对照岗位、简历版本和反馈线索。',
+              deliverable: '完成 3 条以内投递记录复盘。',
+              resumeUsage: '下一轮只调整一个变量，再观察反馈变化。',
+              targetAbility: '投递复盘'
+            },
+            ...v04ActionPlan().plans.slice(1)
+          ]
+        }
+      }),
+      'inventory',
+      'applying_no_feedback'
+    );
+
+    expect(result.blockers).not.toContain(
+      '已投递但没反馈路线必须引导整理最多 3 条投递记录，并包含岗位、简历版本、投递时间、反馈状态和可疑线索。'
+    );
+    expect(result.passed).toBe(true);
+  });
+
   test('no_direction 仍要求真实岗位样本验证所需的方向细节', () => {
     const brokenDirections = inventoryReport().directionOptions!.map((direction) => ({
       ...direction,
