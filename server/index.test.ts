@@ -1998,6 +1998,44 @@ test('applying_no_feedback report uses route-specific delivery review action pla
   }
 });
 
+test('inventory action plan ignores punctuation-only target role', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const valid = validInventoryReport();
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
+    if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: valid.directionOptions }, usage: null };
+    if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: valid.rewrites }, usage: null };
+    throw new Error(`unexpected task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'inventory',
+        route: 'has_direction_resume_not_ready',
+        stage: 'senior',
+        profile: { targetRole: '。' },
+        assets: [],
+        jdText: ''
+      })
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.isBasic).toBe(false);
+    expect(body.actionPlan.plans[0].what).not.toContain('围绕。整理');
+    expect(body.actionPlan.plans[0].what).toContain('目标方向');
+  } finally {
+    await server.close();
+  }
+});
+
 test('report task returns mixed basic report on partial module failure without losing completed modules', async () => {
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';

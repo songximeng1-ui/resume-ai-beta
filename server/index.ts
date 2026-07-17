@@ -97,6 +97,11 @@ function readString(value: unknown) {
   return typeof value === 'string' ? value : '';
 }
 
+function readMeaningfulText(value: unknown) {
+  const text = readString(value).trim();
+  return /[\p{L}\p{N}]/u.test(text) ? text : '';
+}
+
 function getBetaAccessCode() {
   return process.env.BETA_ACCESS_CODE?.trim() || '';
 }
@@ -1175,7 +1180,7 @@ function buildRuleActionPlanModule(body: unknown, mode: Mode): ReportModuleResul
   const profile = normalizeProfile(payload.profile);
   const route = normalizeV07Route(payload.route);
   const assets = activeAssetSummaries(body);
-  const target = profile.targetRole || (mode === 'jd' ? '目标岗位' : '可探索岗位方向');
+  const target = readMeaningfulText(profile.targetRole) || (mode === 'jd' ? '目标岗位' : '目标方向');
   const mainEvidence = firstUsefulText(profile.internship, profile.project, profile.campus, profile.partTime, profile.skills, assets[0], '已确认的真实经历材料');
   const plans =
     route === 'applying_no_feedback'
