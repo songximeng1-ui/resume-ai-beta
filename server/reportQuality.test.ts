@@ -358,6 +358,72 @@ describe('report quality checks', () => {
     );
   });
 
+  test('route gap 不得把证据缺口写成用户能力或方向否定', () => {
+    const hasDirectionResult = validateReportQuality(
+      inventoryReport({
+        directionOptions: [
+          {
+            ...inventoryReport().directionOptions![0],
+            gap: '你缺乏数据分析能力。'
+          },
+          inventoryReport().directionOptions![1]
+        ]
+      }),
+      'inventory',
+      'has_direction_resume_not_ready'
+    );
+    const applyingResult = validateReportQuality(
+      inventoryReport({
+        directionOptions: [
+          {
+            ...inventoryReport().directionOptions![0],
+            directionName: '投递记录复盘',
+            name: '投递记录复盘',
+            searchableJobNames: [],
+            keywords: [],
+            gap: '你投错方向了。'
+          },
+          {
+            ...inventoryReport().directionOptions![1],
+            directionName: '反馈线索复盘',
+            name: '反馈线索复盘',
+            searchableJobNames: [],
+            keywords: [],
+            gap: '目前信息不足，只能先补投递记录。'
+          }
+        ]
+      }),
+      'inventory',
+      'applying_no_feedback'
+    );
+
+    expect(hasDirectionResult.passed).toBe(false);
+    expect(hasDirectionResult.safetyFindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'directionOptions[0].gap',
+          riskKind: 'exaggeration'
+        })
+      ])
+    );
+    expect(applyingResult.passed).toBe(false);
+    expect(applyingResult.safetyFindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'directionOptions[0].gap',
+          riskKind: 'exaggeration'
+        })
+      ])
+    );
+  });
+
+  test('target_job_fit 不因没有 5 个面试追问而被旧 JD 报告形状打回', () => {
+    const result = validateReportQuality(jdReport({ interviews: undefined }), 'jd', 'target_job_fit');
+
+    expect(result.blockers).not.toContain('有 JD 报告必须包含至少 5 个目标岗位 HR 面试追问。');
+    expect(result.passed).toBe(true);
+  });
+
   test('无 JD 报告引用简历原文中的职责和结果证据时不误判为夸大建议', () => {
     const originalEvidence =
       '运营推广：负责门店官方抖音账号日常运营、内容推广及直播策划，独立完成视频合集题材策划、素材拍摄与剪辑，单场直播引流效果提升超30%，累计策划制作视频13条。';

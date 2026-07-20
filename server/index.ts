@@ -102,6 +102,113 @@ function readMeaningfulText(value: unknown) {
   return /[\p{L}\p{N}]/u.test(text) ? text : '';
 }
 
+function countReviewableApplicationRecords(value: unknown): number {
+  if (!Array.isArray(value)) return 0;
+  return value.filter((item) => {
+    if (!isRecord(item)) return false;
+    const jobTitle = readMeaningfulText(item.jobTitle) || readMeaningfulText(item.position) || readMeaningfulText(item.role);
+    const feedbackStatus = readMeaningfulText(item.feedbackStatus) || readMeaningfulText(item.status);
+    const resumeVersion = readMeaningfulText(item.resumeVersion);
+    const jdRequirement = readMeaningfulText(item.jdRequirement) || readMeaningfulText(item.requirementSummary);
+    const relatedExperience = readMeaningfulText(item.relatedExperience);
+    return Boolean(jobTitle && feedbackStatus && (resumeVersion || jdRequirement || relatedExperience));
+  }).length;
+}
+
+function hasOnlyUnreviewableApplyingClaim(body: unknown): boolean {
+  if (!isRecord(body) || normalizeV07Route(body.route) !== 'applying_no_feedback') return false;
+  if (Array.isArray(body.applicationRecords)) {
+    return countReviewableApplicationRecords(body.applicationRecords) < 2;
+  }
+  if (countReviewableApplicationRecords(body.applicationRecords) >= 2) return false;
+  const profile = normalizeProfile(body.profile);
+  const text = [
+    body.resumeText,
+    body.jdText,
+    profile.targetRole,
+    profile.internship,
+    profile.project,
+    profile.campus,
+    profile.partTime,
+    profile.skills
+  ].map(readString).join('\n');
+  const claimsNoFeedback = /(投|投递|申请).{0,12}(很多|不少|多|一堆|好多).{0,12}(没|没有|无).{0,8}(反馈|回复|面试|邀约)/.test(text) ||
+    /(没|没有|无).{0,8}(反馈|回复|面试|邀约)/.test(text);
+  const hasRecordLikeDetails = /(20\d{2}|[一二三四五六七八九十\d]{1,2}\s*月|\d{1,2}[./-]\d{1,2}|简历版本|通用版|运营版|市场版|已读|未读|被拒|笔试|面试|岗位要求|JD)/i.test(text);
+  return claimsNoFeedback && !hasRecordLikeDetails;
+}
+
+function lightActionPlanItem(
+  period: string,
+  what: string,
+  why: string,
+  how: string,
+  completionStandard: string,
+  jobSearchValue: string
+): ActionPlanReport['plans'][number] {
+  return {
+    period,
+    what,
+    why,
+    how,
+    completionStandard,
+    jobSearchValue,
+    action: what,
+    deliverable: completionStandard,
+    resumeUsage: jobSearchValue,
+    targetAbility: why
+  };
+}
+
+function buildApplyingNeedsMoreInputReport(): DiagnosisReport {
+  return {
+    mode: 'inventory',
+    source: 'real',
+    isBasic: false,
+    v07Status: 'needs_more_input',
+    summary: '先补齐记录再复盘：现在信息还不够，不适合直接判断。先把最近 2-3 条真实投递记录补齐，再做可靠复盘。',
+    highlights: [
+      {
+        sourceExperience: '当前只看到无反馈描述',
+        capability: '先整理真实投递记录',
+        jdRequirement: '岗位要求缺失，先补 JD 摘要',
+        whyNotFlattery: '这不是能力结论，只是当前记录不足以复盘。',
+        professionalExpression: '先补齐最近 2-3 条投递记录，再判断可疑线索。'
+      },
+      {
+        sourceExperience: '待补充的投递记录',
+        capability: '记录岗位、简历版本、投递时间和反馈状态',
+        jdRequirement: '岗位要求缺失，先补 JD 摘要',
+        whyNotFlattery: '只有具体记录才能区分材料表达、岗位样本或投递节奏问题。',
+        professionalExpression: '每条记录只写真实发生过的信息，不确定就写“不确定”。'
+      }
+    ],
+    rewrites: [],
+    actionPlan: {
+      source: 'real',
+      plans: [
+        lightActionPlanItem(
+          '今天',
+          '补齐最近 2-3 条真实投递记录。',
+          '当前只有“投了很多没反馈”，还不能可靠判断原因。',
+          '每条记录填写：岗位名称、公司或平台、投递时间、简历版本、反馈状态、岗位要求摘要、对应经历、自己的怀疑问题。',
+          '完成 2-3 条可复盘投递记录。',
+          '补齐后再让 AI 找可疑线索、今日动作和下一轮 1-3 个岗位的小样本验证。'
+        )
+      ],
+      confidenceSummary: '无反馈不等于你本人失败；现在先把记录补齐，再看哪些线索值得验证。'
+    },
+    safetyNotes: ['只记录真实投过、真实做过、真实记得的内容；不确定可以写“不确定”。'],
+    resumeText: [],
+    platformFields: [],
+    previewLines: [
+      '先补齐记录再复盘',
+      '每条记录写：岗位名称、公司或平台、投递时间、简历版本、反馈状态、岗位要求摘要、对应经历、怀疑问题。',
+      '补齐后再做可疑线索和下一轮小样本验证。'
+    ]
+  };
+}
+
 function getBetaAccessCode() {
   return process.env.BETA_ACCESS_CODE?.trim() || '';
 }
@@ -1974,6 +2081,10 @@ export function createAiServer(runtime: Partial<AiRuntime> = {}): Server {
   app.post('/api/ai/report', async (req, res) => {
     const config = getOpenAiConfig();
     const qualityMode = getReportQualityMode(req.body);
+    if (hasOnlyUnreviewableApplyingClaim(req.body)) {
+      res.json(attachUsage(buildApplyingNeedsMoreInputReport(), null));
+      return;
+    }
     if (!isAiConfigured(config)) {
       res.json(attachUsage(ensureClientSafeReport(demoReport(req.body), qualityMode, req.body), null));
       return;

@@ -14,6 +14,7 @@ import {
   type Stage,
   type StructuredResume,
   type V07JobRoute,
+  type V07ApplicationRecord,
   type AiStatus,
   assetTitles,
   diggableAssetIds,
@@ -65,6 +66,7 @@ export interface AiCareerService {
     profile: Profile;
     assets: AssetCard[];
     jdText: string;
+    applicationRecords?: V07ApplicationRecord[];
     jdFit?: JdFitReport;
     reportTask?: ReportGenerationTask | null;
   }): Promise<DiagnosisReport>;
@@ -643,6 +645,7 @@ class DemoCareerService implements AiCareerService {
     profile: Profile;
     assets: AssetCard[];
     jdText: string;
+    applicationRecords?: V07ApplicationRecord[];
     jdFit?: JdFitReport;
     reportTask?: ReportGenerationTask | null;
   }): Promise<DiagnosisReport> {
@@ -776,6 +779,7 @@ class BackendCareerService implements AiCareerService {
     profile: Profile;
     assets: AssetCard[];
     jdText: string;
+    applicationRecords?: V07ApplicationRecord[];
     jdFit?: JdFitReport;
     reportTask?: ReportGenerationTask | null;
   }): Promise<DiagnosisReport> {

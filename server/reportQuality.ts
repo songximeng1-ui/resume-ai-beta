@@ -30,6 +30,10 @@ const unsafeAdvicePatterns: Array<{
   { pattern: /把课程作业包装成企业项目/, riskKind: 'fabrication', severity: 'blocker' },
   { pattern: /夸大在职时间/, riskKind: 'fabrication', severity: 'blocker' },
   { pattern: /(?:主导|独立负责|独立完成|显著提升|大幅增长|全流程|闭环|从\s*0\s*到\s*1)/, riskKind: 'exaggeration', severity: 'blocker' },
+  { pattern: /你.{0,8}(?:缺乏|没有|不具备).{0,12}(?:能力|经验|要求|条件)/, riskKind: 'exaggeration', severity: 'blocker' },
+  { pattern: /你.{0,8}(?:不适合|投错方向|不符合岗位要求)/, riskKind: 'exaggeration', severity: 'blocker' },
+  { pattern: /(?:经历|材料|简历).{0,8}不足以胜任/, riskKind: 'exaggeration', severity: 'blocker' },
+  { pattern: /简历不符合岗位要求/, riskKind: 'exaggeration', severity: 'blocker' },
   { pattern: /(?:保证|必过|确保)(?!.*(?:不承诺|不能|不要|不建议))/, riskKind: 'overpromise', severity: 'blocker' }
 ];
 
@@ -441,7 +445,7 @@ function checkCommonReport(report: DiagnosisReport, blockers: string[], warnings
   }
 }
 
-function checkJdReport(report: DiagnosisReport, blockers: string[], warnings: string[]) {
+function checkJdReport(report: DiagnosisReport, blockers: string[], warnings: string[], route?: V07JobRoute | null) {
   if (!report.jdFit) {
     blockers.push('有 JD 报告必须包含投递判断和 JD 证据匹配结构。');
     return;
@@ -466,6 +470,10 @@ function checkJdReport(report: DiagnosisReport, blockers: string[], warnings: st
   );
   if (!matrixIsConcrete) {
     blockers.push('JD 证据矩阵必须同时包含岗位要求、匹配程度、用户证据、缺口、简历写法和面试风险。');
+  }
+
+  if (route === 'target_job_fit') {
+    return;
   }
 
   if (!report.interviews || report.interviews.length < 5) {
@@ -563,7 +571,7 @@ export function validateReportQuality(report: DiagnosisReport, mode: Mode, route
   checkCommonReport(report, blockers, warnings, safetyFindings);
   checkEvidenceAlignment(report, warnings);
   if (mode === 'jd') {
-    checkJdReport(report, blockers, warnings);
+    checkJdReport(report, blockers, warnings, route);
   } else {
     checkInventoryReport(report, blockers, route);
   }

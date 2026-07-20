@@ -269,6 +269,7 @@ export interface DiagnosisReport {
   mode?: Mode;
   source: AiSource;
   isBasic?: boolean;
+  v07Status?: 'deep_report_ready' | 'needs_more_input' | 'safety_blocked' | 'fallback_basic';
   summary?: string;
   highlights: HiddenHighlight[];
   rewrites: ResumeRewrite[];
@@ -389,12 +390,24 @@ export interface V07TaskRecord {
   createdAt: string;
 }
 
+export interface V07ApplicationRecord {
+  jobTitle: string;
+  companyOrPlatform: string;
+  appliedAt: string;
+  resumeVersion: string;
+  feedbackStatus: string;
+  jdRequirement: string;
+  relatedExperience: string;
+  doubt: string;
+}
+
 export interface V07PersistedState {
   version: 'v0.7';
   route: V07JobRoute | null;
   step: V07Step;
   plan: V07PlanState | null;
   records?: V07TaskRecord[];
+  applicationRecords?: V07ApplicationRecord[];
   legacy?: PersistedState;
 }
 

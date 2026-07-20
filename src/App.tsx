@@ -18,6 +18,7 @@ import {
   type Step,
   type V07JobRoute,
   type V07PersistedState,
+  type V07ApplicationRecord,
   type V07DailyTask,
   type V07TaskRecord,
   type V07PlanState,
@@ -74,6 +75,27 @@ const initialV07State: V07PersistedState = {
   plan: null,
   records: []
 };
+
+const emptyApplicationRecord: V07ApplicationRecord = {
+  jobTitle: '',
+  companyOrPlatform: '',
+  appliedAt: '',
+  resumeVersion: '',
+  feedbackStatus: '',
+  jdRequirement: '',
+  relatedExperience: '',
+  doubt: ''
+};
+
+const initialApplicationRecords: V07ApplicationRecord[] = Array.from({ length: 3 }, () => ({ ...emptyApplicationRecord }));
+
+function hasApplicationRecordContent(record: V07ApplicationRecord) {
+  return Object.values(record).some((value) => value.trim().length > 0);
+}
+
+function filterApplicationRecords(records: V07ApplicationRecord[]) {
+  return records.filter(hasApplicationRecordContent);
+}
 
 const v07RouteOptions: {
   route: V07JobRoute;
@@ -204,6 +226,31 @@ function normalizeV07TaskRecords(value: unknown): V07TaskRecord[] {
   });
 }
 
+function normalizeV07ApplicationRecords(value: unknown): V07ApplicationRecord[] {
+  if (!Array.isArray(value)) {
+    return initialApplicationRecords.map((record) => ({ ...record }));
+  }
+
+  const records = value
+    .filter((item): item is Partial<V07ApplicationRecord> => Boolean(item && typeof item === 'object'))
+    .map((item) => ({
+      jobTitle: typeof item.jobTitle === 'string' ? item.jobTitle : '',
+      companyOrPlatform: typeof item.companyOrPlatform === 'string' ? item.companyOrPlatform : '',
+      appliedAt: typeof item.appliedAt === 'string' ? item.appliedAt : '',
+      resumeVersion: typeof item.resumeVersion === 'string' ? item.resumeVersion : '',
+      feedbackStatus: typeof item.feedbackStatus === 'string' ? item.feedbackStatus : '',
+      jdRequirement: typeof item.jdRequirement === 'string' ? item.jdRequirement : '',
+      relatedExperience: typeof item.relatedExperience === 'string' ? item.relatedExperience : '',
+      doubt: typeof item.doubt === 'string' ? item.doubt : ''
+    }));
+
+  while (records.length < 3) {
+    records.push({ ...emptyApplicationRecord });
+  }
+
+  return records.slice(0, 5);
+}
+
 function readPersistedSession(): RestoredSession {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -229,6 +276,7 @@ function readPersistedSession(): RestoredSession {
           step,
           plan,
           records: normalizeV07TaskRecords(parsed.records),
+          applicationRecords: normalizeV07ApplicationRecords(parsed.applicationRecords),
           legacy
         },
         legacy: { ...legacy, step: getLegacyStepForV07Step(step) }
@@ -266,7 +314,7 @@ function SourceBadge({ source, isBasic }: { source?: 'real' | 'demo'; isBasic?: 
   if (!source) {
     return null;
   }
-  const label = source === 'demo' ? '演示结果' : isBasic ? '基础版兜底报告' : '深度 AI 报告';
+  const label = source === 'demo' ? '演示结果' : isBasic ? '保守版行动建议' : 'AI 深度建议';
   return <span className={source === 'real' ? 'source-badge real' : 'source-badge demo'}>{label}</span>;
 }
 
@@ -418,6 +466,9 @@ function App() {
   const [route, setRoute] = useState<V07JobRoute | null>(restored.v07.route);
   const [plan, setPlan] = useState<V07PlanState | null>(restored.v07.plan);
   const [records, setRecords] = useState<V07TaskRecord[]>(restored.v07.records || []);
+  const [applicationRecords, setApplicationRecords] = useState<V07ApplicationRecord[]>(
+    normalizeV07ApplicationRecords(restored.v07.applicationRecords)
+  );
   const [step, setStep] = useState<Step>(restored.legacy.step);
   const [stage, setStage] = useState<Stage | null>(restored.legacy.stage);
   const [mode, setMode] = useState<Mode | null>(restored.legacy.mode);
@@ -492,10 +543,11 @@ function App() {
       step: getV07StepForLegacyStep(step),
       plan,
       records,
+      applicationRecords,
       legacy
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [assets, fieldStatuses, jdFit, jdText, mode, plan, profile, records, report, reportTask, resumeText, route, stage, step, truthConfirmed]);
+  }, [applicationRecords, assets, fieldStatuses, jdFit, jdText, mode, plan, profile, records, report, reportTask, resumeText, route, stage, step, truthConfirmed]);
 
   const diggableAssets = useMemo(() => diggableAssetIds.map((id) => assets.find((asset) => asset.id === id && canEnterDig(asset))).filter(Boolean) as AssetCard[], [assets]);
   const currentDigAsset = diggableAssets[Math.min(digIndex, Math.max(diggableAssets.length - 1, 0))];
@@ -522,6 +574,7 @@ function App() {
     setRoute(null);
     setPlan(null);
     setRecords([]);
+    setApplicationRecords(initialApplicationRecords.map((record) => ({ ...record })));
     setProfile(emptyProfile);
     setFieldStatuses(emptyFieldStatuses);
     setResumeText('');
@@ -574,6 +627,9 @@ function App() {
     const nextMode = getLegacyModeForRoute(route);
     setStage('senior');
     setMode(nextMode);
+    if (route !== 'applying_no_feedback') {
+      setApplicationRecords(initialApplicationRecords.map((record) => ({ ...record })));
+    }
     setPlan((current) => (current?.route === route ? current : getInitialRoutePlan(route)));
     setStep('input');
   };
@@ -764,7 +820,18 @@ function App() {
     setAiLoadingTask('report');
     try {
       const fit = mode === 'jd' ? jdFit || (await aiService.analyzeJdFit({ stage, profile, assets: reportAssets, jdText })) : undefined;
-      const nextReport = await aiService.generateReport({ mode: mode || 'inventory', route, stage, profile, assets: reportAssets, jdText, jdFit: fit, reportTask });
+      const reportApplicationRecords = route === 'applying_no_feedback' ? filterApplicationRecords(applicationRecords) : undefined;
+      const nextReport = await aiService.generateReport({
+        mode: mode || 'inventory',
+        route,
+        stage,
+        profile,
+        assets: reportAssets,
+        jdText,
+        ...(reportApplicationRecords ? { applicationRecords: reportApplicationRecords } : {}),
+        jdFit: fit,
+        reportTask
+      });
       if (fit) {
         setJdFit(fit);
       }
@@ -869,11 +936,13 @@ function App() {
 
       {betaAuthorized && step === 'input' ? (
         <InputPage
+          route={route}
           mode={mode}
           profile={profile}
           fieldStatuses={fieldStatuses}
           resumeText={resumeText}
           jdText={jdText}
+          applicationRecords={applicationRecords}
           structureSource={structureSource}
           structureMessage={structureMessage}
           truthConfirmed={truthConfirmed}
@@ -883,6 +952,7 @@ function App() {
           onProfileChange={updateProfile}
           onResumeTextChange={setResumeText}
           onJdTextChange={setJdText}
+          onApplicationRecordsChange={setApplicationRecords}
           resumeFileMessage={resumeFileMessage}
           onResumeFile={attachResumeFile}
           onStructure={structureResume}
@@ -981,11 +1051,13 @@ function App() {
 }
 
 function InputPage({
+  route,
   mode,
   profile,
   fieldStatuses,
   resumeText,
   jdText,
+  applicationRecords,
   structureSource,
   structureMessage,
   aiStatusMessage,
@@ -996,6 +1068,7 @@ function InputPage({
   onProfileChange,
   onResumeTextChange,
   onJdTextChange,
+  onApplicationRecordsChange,
   resumeFileMessage,
   onResumeFile,
   onStructure,
@@ -1003,11 +1076,13 @@ function InputPage({
   onGenerateAssets,
   onBack
 }: {
+  route: V07JobRoute | null;
   mode: Mode | null;
   profile: Profile;
   fieldStatuses: Record<keyof Profile, FieldStatus>;
   resumeText: string;
   jdText: string;
+  applicationRecords: V07ApplicationRecord[];
   structureSource: 'real' | 'demo' | null;
   structureMessage: string;
   aiStatusMessage: string;
@@ -1018,6 +1093,7 @@ function InputPage({
   onProfileChange: (key: keyof Profile, value: string) => void;
   onResumeTextChange: (value: string) => void;
   onJdTextChange: (value: string) => void;
+  onApplicationRecordsChange: (records: V07ApplicationRecord[]) => void;
   resumeFileMessage: string;
   onResumeFile: (file: File | null) => void;
   onStructure: () => void;
@@ -1028,6 +1104,19 @@ function InputPage({
   const background = inferSchoolBackground(profile.schoolName);
   const basicFields: (keyof Profile)[] = ['education', 'schoolName', 'major', 'graduation', 'city', 'targetRole'];
   const experienceFields: (keyof Profile)[] = ['internship', 'project', 'campus', 'partTime', 'awards', 'skills', 'portfolio'];
+  const updateApplicationRecord = (index: number, key: keyof V07ApplicationRecord, value: string) => {
+    onApplicationRecordsChange(applicationRecords.map((record, currentIndex) => (currentIndex === index ? { ...record, [key]: value } : record)));
+  };
+  const addApplicationRecord = () => {
+    if (applicationRecords.length >= 5) {
+      return;
+    }
+    onApplicationRecordsChange([...applicationRecords, { ...emptyApplicationRecord }]);
+  };
+  const removeApplicationRecord = (index: number) => {
+    const next = applicationRecords.filter((_, currentIndex) => currentIndex !== index);
+    onApplicationRecordsChange(next.length ? next : [{ ...emptyApplicationRecord }]);
+  };
   const basicPlaceholder = (key: keyof Profile) => {
     if (key === 'schoolName') return '例如：杭州应用技术学院';
     if (key === 'city') return '不确定可以先空着';
@@ -1093,6 +1182,116 @@ function InputPage({
           />
           <p className="helper-text">有岗位要求路线会先基于岗位要求和你的经历生成追问；页面不会展示内部追问方法。</p>
         </label>
+      ) : null}
+
+      {route === 'applying_no_feedback' ? (
+        <section className="form-section application-record-section">
+          <div className="section-heading compact">
+            <h2>投递记录</h2>
+            <p>请先整理 2-3 条最近真实投递。没有完整 JD 时，只写你看得到的岗位要求摘要，不确定就留空。</p>
+          </div>
+          <div className="application-record-list">
+            {applicationRecords.map((record, index) => (
+              <article className="application-record-card" key={index}>
+                <div className="matrix-heading">
+                  <h3>记录 {index + 1}</h3>
+                  {applicationRecords.length > 1 ? (
+                    <button className="ghost-button" type="button" onClick={() => removeApplicationRecord(index)}>
+                      删除
+                    </button>
+                  ) : null}
+                </div>
+                <div className="field-grid">
+                  <label className="field" htmlFor={`application-jobTitle-${index}`}>
+                    <span>岗位名称</span>
+                    <input
+                      id={`application-jobTitle-${index}`}
+                      value={record.jobTitle}
+                      onChange={(event) => updateApplicationRecord(index, 'jobTitle', event.target.value)}
+                      placeholder="例如：新媒体运营助理"
+                    />
+                  </label>
+                  <label className="field" htmlFor={`application-company-${index}`}>
+                    <span>公司/平台</span>
+                    <input
+                      id={`application-company-${index}`}
+                      value={record.companyOrPlatform}
+                      onChange={(event) => updateApplicationRecord(index, 'companyOrPlatform', event.target.value)}
+                      placeholder="公司名、招聘平台或渠道"
+                    />
+                  </label>
+                  <label className="field" htmlFor={`application-appliedAt-${index}`}>
+                    <span>投递时间</span>
+                    <input
+                      id={`application-appliedAt-${index}`}
+                      value={record.appliedAt}
+                      onChange={(event) => updateApplicationRecord(index, 'appliedAt', event.target.value)}
+                      placeholder="例如：7月10日"
+                    />
+                  </label>
+                  <label className="field" htmlFor={`application-resumeVersion-${index}`}>
+                    <span>简历版本</span>
+                    <input
+                      id={`application-resumeVersion-${index}`}
+                      value={record.resumeVersion}
+                      onChange={(event) => updateApplicationRecord(index, 'resumeVersion', event.target.value)}
+                      placeholder="例如：运营版 v1 / 通用版"
+                    />
+                  </label>
+                  <label className="field" htmlFor={`application-feedback-${index}`}>
+                    <span>反馈状态</span>
+                    <select
+                      id={`application-feedback-${index}`}
+                      value={record.feedbackStatus}
+                      onChange={(event) => updateApplicationRecord(index, 'feedbackStatus', event.target.value)}
+                    >
+                      <option value="">请选择</option>
+                      <option value="未读">未读</option>
+                      <option value="已读无回复">已读无回复</option>
+                      <option value="拒绝">拒绝</option>
+                      <option value="邀约">邀约</option>
+                      <option value="不确定">不确定</option>
+                    </select>
+                  </label>
+                  <label className="field" htmlFor={`application-doubt-${index}`}>
+                    <span>你怀疑的问题</span>
+                    <input
+                      id={`application-doubt-${index}`}
+                      value={record.doubt}
+                      onChange={(event) => updateApplicationRecord(index, 'doubt', event.target.value)}
+                      placeholder="例如：简历里没有用户反馈整理证据"
+                    />
+                  </label>
+                </div>
+                <div className="field-grid single">
+                  <label className="field" htmlFor={`application-jd-${index}`}>
+                    <span>岗位要求摘要</span>
+                    <textarea
+                      id={`application-jd-${index}`}
+                      value={record.jdRequirement}
+                      onChange={(event) => updateApplicationRecord(index, 'jdRequirement', event.target.value)}
+                      rows={3}
+                      placeholder="只写 JD 或招聘页里真实出现的要求；没有看到就留空。"
+                    />
+                  </label>
+                  <label className="field" htmlFor={`application-related-${index}`}>
+                    <span>你投递时用了哪段经历</span>
+                    <textarea
+                      id={`application-related-${index}`}
+                      value={record.relatedExperience}
+                      onChange={(event) => updateApplicationRecord(index, 'relatedExperience', event.target.value)}
+                      rows={3}
+                      placeholder="写简历里真实放进去的经历或关键词。"
+                    />
+                  </label>
+                </div>
+              </article>
+            ))}
+          </div>
+          <button className="secondary-button" type="button" onClick={addApplicationRecord} disabled={applicationRecords.length >= 5}>
+            增加一条记录
+          </button>
+        </section>
       ) : null}
 
       <div className="action-row">
@@ -2133,46 +2332,8 @@ function FeedbackSection({ mode }: { mode: Mode | null }) {
 }
 
 function QualityCheckSection({ report }: { report: DiagnosisReport }) {
-  const quality = report.quality;
-
-  return (
-    <section className="result-block" aria-labelledby="quality-check-title">
-      <h2 id="quality-check-title">内部质量检查</h2>
-      {quality ? (
-        <>
-          <div className="matrix-heading">
-            <p>检查状态：{quality.passed ? '通过' : '需要复核'}</p>
-            <span className="status-pill">质量分：{quality.score} 分</span>
-          </div>
-          <div className="card-list">
-            <article className="insight-card">
-              <p><strong>阻断项</strong></p>
-              {quality.blockers.length ? (
-                <ul>
-                  {quality.blockers.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              ) : (
-                <p>暂无阻断项</p>
-              )}
-            </article>
-            <article className="insight-card">
-              <p><strong>提醒项</strong></p>
-              {quality.warnings.length ? (
-                <ul>
-                  {quality.warnings.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              ) : (
-                <p>暂无提醒项</p>
-              )}
-            </article>
-          </div>
-          <p className="context-note">该区域用于内部验收报告质量，不代表录取预测，也不会替代人工复核。</p>
-        </>
-      ) : (
-        <p className="context-note">本次报告未返回质量检查结果。</p>
-      )}
-    </section>
-  );
+  void report;
+  return null;
 }
 
 function CopyButton({ text, children }: { text: string; children: ReactNode }) {
@@ -2776,6 +2937,64 @@ function V07NoDirectionRoutePanel({
     />
   );
 }
+
+function V07ApplyingNeedsMoreInputPage({
+  report,
+  onBack,
+  onClear
+}: {
+  report: DiagnosisReport;
+  onBack: () => void;
+  onClear: () => void;
+}) {
+  const firstAction = report.actionPlan.plans[0];
+  return (
+    <section className="flow-section result-section">
+      <div className="section-heading">
+        <p className="eyebrow">21 天陪跑 · 已投递但没反馈</p>
+        <h1>先补齐记录再复盘</h1>
+        <p>现在信息还不够，不适合直接判断。我们先把最近 2-3 条真实投递记录补齐，再看可疑线索和下一步小调整。</p>
+      </div>
+
+      <section className="result-block">
+        <h2>今天先做这一步</h2>
+        <article className="plan-card">
+          <p><strong>动作：</strong>{firstAction?.action || '补齐最近 2-3 条真实投递记录。'}</p>
+          <p><strong>为什么：</strong>{firstAction?.why || '没有具体记录时，不能可靠判断无反馈来自哪里。'}</p>
+          <p><strong>怎么填：</strong>{firstAction?.how || '每条记录写岗位名称、投递时间、简历版本和反馈状态。'}</p>
+          <p><strong>完成标准：</strong>{firstAction?.deliverable || '完成 2-3 条可复盘投递记录。'}</p>
+        </article>
+      </section>
+
+      <section className="result-block">
+        <h2>每条记录写这些</h2>
+        <div className="card-list">
+          {['岗位名称', '公司或平台', '投递时间', '简历版本', '反馈状态', '岗位要求摘要', '对应的一段真实经历', '你怀疑的问题'].map((item) => (
+            <article className="insight-card" key={item}>
+              <p>{item}</p>
+            </article>
+          ))}
+        </div>
+        <p className="context-note">不需要写得漂亮，也不要补不存在的经历；不确定的地方可以写“不确定”。</p>
+      </section>
+
+      <section className="result-block">
+        <h2>补齐后再复盘什么</h2>
+        <p>{report.actionPlan.confidenceSummary || '无反馈不等于你本人失败；补齐记录后，再判断是材料表达、岗位样本、投递节奏还是信息不足。'}</p>
+      </section>
+
+      <div className="action-row">
+        <button className="secondary-button" type="button" onClick={onBack}>
+          返回补充材料
+        </button>
+        <button className="danger-button" type="button" onClick={onClear}>
+          清除本次分析数据
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function ResultPage({
   report,
   mode,
@@ -2795,13 +3014,17 @@ function ResultPage({
   onBack: () => void;
   onClear: () => void;
 }) {
+  if (route === 'applying_no_feedback' && report.v07Status === 'needs_more_input') {
+    return <V07ApplyingNeedsMoreInputPage report={report} onBack={onBack} onClear={onClear} />;
+  }
+
   if (mode === 'jd' && report.jdFit) {
     const jdFit = report.jdFit;
     const interviews = report.interviews || [];
     return (
       <section className="flow-section result-section">
         <div className="section-heading">
-          <p className="eyebrow">V0.6 有岗位要求路线</p>
+          <p className="eyebrow">V0.7 目标岗位判断路线</p>
           <h1>岗位要求匹配分析</h1>
           <p>这份报告基于你确认的真实经历和目标岗位描述生成。判断只是投递建议，不是录取预测。</p>
           <SourceBadge source={report.source} isBasic={report.isBasic} />
@@ -2950,7 +3173,7 @@ function ResultPage({
     return (
       <section className="flow-section result-section">
         <div className="section-heading">
-          <p className="eyebrow">V0.6 无岗位要求路线</p>
+          <p className="eyebrow">V0.7 求职行动路线</p>
           <h1>经历诊断报告</h1>
           <p>这份报告基于你确认的真实经历生成。它不是替你决定人生方向，而是帮你看清当前筹码、可探索方向和下一步补强路径。</p>
           <SourceBadge source={report.source} isBasic={report.isBasic} />
@@ -3249,8 +3472,8 @@ function BasicReportNotice({ show }: { show?: boolean }) {
   if (!show) return null;
   return (
     <section className="result-block basic-report-notice">
-      <h2>基础版兜底报告</h2>
-      <p>当前已为你生成基础版报告。内容基于你确认过的信息和稳定规则整理，会偏保守，但不会替你编造经历。你可以先参考，系统也会继续尝试补全深度内容。</p>
+      <h2>保守版行动建议</h2>
+      <p>当前先给你一版保守建议。内容基于你确认过的信息整理，会偏谨慎，但不会替你编造经历。</p>
     </section>
   );
 }

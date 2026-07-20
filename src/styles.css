@@ -418,6 +418,30 @@ li {
   grid-template-columns: 1fr;
 }
 
+.application-record-list {
+  display: grid;
+  gap: 14px;
+}
+
+.application-record-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #d9e2db;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.section-heading.compact {
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+.section-heading.compact h2 {
+  margin: 0;
+}
+
 .field {
   display: grid;
   gap: 8px;

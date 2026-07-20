@@ -256,11 +256,14 @@ export function buildCompactReportContext(payload: unknown, task: ReportModuleTa
   const source = isRecord(payload) ? payload : {};
   const mode = source.mode === 'inventory' ? 'inventory' : 'jd';
   const assets = compactAssets(source.assets);
+  const route = typeof source.route === 'string' ? source.route : undefined;
   const base = {
     mode,
+    route,
     stage: source.stage === 'junior' ? 'junior' : 'senior',
     profile: compactProfile(source.profile),
     assets,
+    applicationRecords: Array.isArray(source.applicationRecords) ? source.applicationRecords.slice(0, 5) : undefined,
     ...(task === 'report-highlights' ||
     task === 'report-rewrites' ||
     task === 'report-directions' ||
@@ -291,6 +294,7 @@ export function buildCompactReportContext(payload: unknown, task: ReportModuleTa
 
 export function reportModulePrompt(payload: unknown, task: ReportModuleTask, repair = false) {
   const mode = typeof payload === 'object' && payload && 'mode' in payload ? (payload as { mode?: unknown }).mode : 'jd';
+  const route = typeof payload === 'object' && payload && 'route' in payload ? (payload as { route?: unknown }).route : undefined;
   const repairInstruction = repair
     ? '\n修复：上次 JSON 不符合 schema。只补结构/缺字段，不改真实性边界。'
     : '';
@@ -317,6 +321,29 @@ ${JSON.stringify(context)}
 
 ${common}`;
     case 'report-directions':
+      if (route === 'applying_no_feedback') {
+        return `任务：生成 applying_no_feedback 的 directionOptions，但这里的 directionOptions 表示“无反馈可疑线索”，不是职业方向建议。
+- 生成 2-3 个可疑线索，每项仍按 schema 填 directionName/name、searchableJobNames、whyExplore/why、evidence、gap、priority/level、sevenDayValidation/next、keywords。
+- directionName/name 写线索名称，例如“简历版本和岗位类型可能没对齐”“岗位要求摘要缺失，暂不能判断”“样本太少，先做小范围验证”。
+- searchableJobNames/keywords 只放用户记录里真实出现的岗位名、岗位类型或“岗位要求缺失，先补 JD 摘要”；不得编造岗位要求。
+- evidence 必须绑定具体投递记录、简历版本、用户经历或明确写“信息不足”。
+- gap 只能写“信息缺口 / 可验证假设 / 下一步验证”，不能写成用户能力不足、投错方向、简历不符合。
+- sevenDayValidation/next 必须围绕补齐 2-3 条记录、改 1 条表达、下一轮 1-3 个岗位小样本验证。
+- 禁止海投、批量投递、完整 CRM、自动投递、人格归因、职业不适合结论。
+
+${common}`;
+      }
+      if (route === 'has_direction_resume_not_ready') {
+        return `任务：生成 has_direction_resume_not_ready 的 directionOptions，但这里表示“优先整理哪一段真实经历”，不是扩展职业方向。
+- 生成 2 个左右整理建议，每项仍按 schema 填 directionName/name、searchableJobNames、whyExplore/why、evidence、gap、priority/level、sevenDayValidation/next、keywords。
+- directionName/name 写“先整理的经历名称”或“事实证据补齐方向”，不要写推荐职业。
+- searchableJobNames/keywords 可填目标方向关键词、目标岗位类型或“先补事实证据”，不得编造岗位。
+- evidence 必须来自 sourceExperienceCandidates 或明确写“当前材料还不够”。
+- gap 只能写“当前材料里暂时看不出哪些事实证据”，不能写用户缺乏能力、不具备要求、经历不足以胜任。
+- sevenDayValidation/next 必须是今天整理 1 段经历、查找真实记录、补动作/工具/对象/交付物。
+
+${common}`;
+      }
       return `任务：生成 inventory 的 directionOptions。
 - 2-3 个“可探索岗位方向”，用于帮助用户拿真实 JD 验证方向，不替用户决定职业方向。
 - 每项必须含 directionName/name、searchableJobNames 3-5 个现实可搜索岗位名、whyExplore/why、evidence、gap、priority/level、sevenDayValidation/next、keywords 3-5 个。
@@ -342,6 +369,9 @@ ${common}`;
 - versionAfterSupplement 只能写需要用户补充哪些依据，不能输出“若补充依据，可写为...”后的虚构完整简历句。
 - 禁止把“参与、协助、整理”写成“主导、负责、独立完成”；不能把课程作业包装成企业项目。
 - 禁止输出“显著提升、大幅增长、保证进面、保证 offer、必过、确保”等夸大或承诺表达。
+${route === 'applying_no_feedback' ? '\n- applying_no_feedback：只生成小范围材料微调建议。没有 JD 或岗位要求摘要时，jdRequirement 必须写“岗位要求缺失，先补 JD 摘要”；不得自行编造岗位要求。reason/risk 必须说明这只是可验证假设，不是用户能力结论。' : ''}
+${route === 'has_direction_resume_not_ready' ? '\n- has_direction_resume_not_ready：只生成一段真实克制的简历片段草稿；缺事实时输出补事实提醒，不要写完整简历，不要编数据。' : ''}
+${route === 'no_direction' ? '\n- no_direction：没有真实 JD 时，不要生成职业推荐式结论；改写只服务于找岗位样本，不说“最适合”。' : ''}
 
 ${common}`;
     case 'report-jd-fit-summary':
@@ -360,6 +390,8 @@ ${common}`;
 - 不要把证据不足写成用户能力不行。
 - resumeWriting 保持协助/参与边界，无依据数据写待核实；禁止夸大成负责、主导、独立完成或承诺结果。
 - 有 JD 模式，不能输出无 JD 方向探索内容、directionOptions、searchableJobNames 或 7 天验证动作。
+${route === 'target_job_fit' ? '\n- target_job_fit：判断的是“当前材料是否支撑这次投递”，不是用户本人适不适合；不得输出匹配度百分比、录取概率、一定能投/不能投。必须给出投递前最小修改动作。' : ''}
+${route === 'no_direction' ? '\n- no_direction 用户贴回 JD 后：这是岗位样本验证，不是职业结论；需要结合 JD 和用户材料，并可输出克制的初步沟通语。' : ''}
 
 ${common}`;
     case 'report-interviews':
