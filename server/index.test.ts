@@ -1998,6 +1998,72 @@ test('applying_no_feedback report uses route-specific delivery review action pla
   }
 });
 
+test('applying_no_feedback report is anchored to application records instead of generic career directions', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';
+  process.env.OPENAI_MODEL_REPORT = 'gpt-5.4';
+
+  const valid = validInventoryReport();
+  const callReportModelJson = vi.fn(async (options: JsonCallOptions) => {
+    if (options.task === 'report-highlights') return { data: { source: 'real', highlights: valid.highlights }, usage: null };
+    if (options.task === 'report-directions') return { data: { source: 'real', directionOptions: valid.directionOptions }, usage: null };
+    if (options.task === 'report-rewrites') return { data: { source: 'real', rewrites: valid.rewrites }, usage: null };
+    throw new Error(`unexpected task ${options.task}`);
+  });
+
+  const server = await withServer({ callReportModelJson });
+  try {
+    const { response, body } = await requestReport(server, {
+      mode: 'inventory',
+      route: 'applying_no_feedback',
+      stage: 'senior',
+      profile: {
+        targetRole: '我投了几个行政和采购助理岗都没有反馈',
+        internship: '在学院办公室整理活动报名表和物资清单，协助老师核对信息。',
+        project: '课程项目做过供应商资料整理和 Excel 分类汇总。'
+      },
+      applicationRecords: [
+        {
+          jobTitle: '行政助理',
+          companyOrPlatform: 'Boss 直聘',
+          appliedAt: '2026-07-10',
+          resumeVersion: '通用版 v1',
+          feedbackStatus: '已读未回',
+          jdRequirement: '整理资料、会议支持、Excel 表格',
+          relatedExperience: '学院办公室整理活动报名表和物资清单',
+          doubt: '简历里没有写清 Excel 和资料整理'
+        },
+        {
+          jobTitle: '采购助理',
+          companyOrPlatform: '实习僧',
+          appliedAt: '2026-07-14',
+          resumeVersion: '行政版 v2',
+          feedbackStatus: '无反馈',
+          jdRequirement: '供应商资料整理、表格维护、沟通跟进',
+          relatedExperience: '课程项目供应商资料整理和 Excel 分类汇总',
+          doubt: '不确定课程项目能不能支撑采购助理'
+        }
+      ],
+      assets: [],
+      jdText: ''
+    });
+    const reportText = JSON.stringify(body);
+
+    expect(response.status).toBe(200);
+    expect(body.isBasic).toBe(false);
+    expect(body.quality.passed).toBe(true);
+    expect(reportText).toContain('行政助理');
+    expect(reportText).toContain('采购助理');
+    expect(reportText).toContain('通用版 v1');
+    expect(reportText).toContain('行政版 v2');
+    expect(body.directionOptions.map((item: { name: string }) => item.name).join('\n')).not.toMatch(/用户运营|社群运营|新媒体运营|教务/);
+    expect(body.rewrites.map((item: { jdRequirement: string }) => item.jdRequirement).join('\n')).toContain('整理资料、会议支持、Excel 表格');
+    expect(body.rewrites.map((item: { jdRequirement: string }) => item.jdRequirement).join('\n')).toContain('供应商资料整理、表格维护、沟通跟进');
+  } finally {
+    await server.close();
+  }
+});
+
 test('applying_no_feedback with unreviewable input returns a light record action instead of basic fallback', async () => {
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_MODEL_SMALL = 'gpt-5.4-mini';

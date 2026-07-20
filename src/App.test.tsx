@@ -697,6 +697,9 @@ test('投递复盘路线结果页提供无反馈记录入口，并保存恢复 r
   expect(screen.getByText(/未读 \/ 已读无回复 \/ 拒绝 \/ 邀约 \/ 不确定/)).toBeInTheDocument();
   expect(screen.getByText(/简历材料和投递复盘依据库/)).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: '报告摘要' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: '投递复盘线索' })).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: '可探索岗位方向' })).not.toBeInTheDocument();
+  expect(screen.getByTestId('app-root')).not.toHaveTextContent(/建议优先探索方向|可探索岗位方向/);
 
   await user.click(screen.getByRole('radio', { name: '完成一部分' }));
   await user.type(screen.getByLabelText('今天整理的投递记录'), '用户运营助理，7月10日投递，运营版 v1，已读无回复。');

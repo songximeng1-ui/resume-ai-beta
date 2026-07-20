@@ -209,6 +209,140 @@ function buildApplyingNeedsMoreInputReport(): DiagnosisReport {
   };
 }
 
+type ReviewableApplicationRecord = {
+  jobTitle: string;
+  companyOrPlatform: string;
+  appliedAt: string;
+  resumeVersion: string;
+  feedbackStatus: string;
+  jdRequirement: string;
+  relatedExperience: string;
+  doubt: string;
+};
+
+function normalizeReviewableApplicationRecords(value: unknown): ReviewableApplicationRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(isRecord)
+    .map((item) => ({
+      jobTitle: readMeaningfulText(item.jobTitle) || readMeaningfulText(item.position) || readMeaningfulText(item.role),
+      companyOrPlatform: readMeaningfulText(item.companyOrPlatform) || readMeaningfulText(item.company) || readMeaningfulText(item.platform),
+      appliedAt: readMeaningfulText(item.appliedAt) || readMeaningfulText(item.appliedDate) || readMeaningfulText(item.date),
+      resumeVersion: readMeaningfulText(item.resumeVersion),
+      feedbackStatus: readMeaningfulText(item.feedbackStatus) || readMeaningfulText(item.status),
+      jdRequirement: readMeaningfulText(item.jdRequirement) || readMeaningfulText(item.requirementSummary),
+      relatedExperience: readMeaningfulText(item.relatedExperience),
+      doubt: readMeaningfulText(item.doubt) || readMeaningfulText(item.suspectedIssue)
+    }))
+    .filter((item) => item.jobTitle && item.feedbackStatus && (item.resumeVersion || item.jdRequirement || item.relatedExperience))
+    .slice(0, 3);
+}
+
+function applicationRecordKeywords(records: ReviewableApplicationRecord[]) {
+  const values = records.flatMap((record) => [
+    record.jobTitle,
+    record.jdRequirement || '岗位要求缺失，先补 JD 摘要',
+    record.resumeVersion || '简历版本待补充'
+  ]);
+  return Array.from(new Set(values.filter(Boolean))).slice(0, 5);
+}
+
+function applicationRecordLabel(record: ReviewableApplicationRecord, index: number) {
+  return [
+    `记录 ${index + 1}`,
+    record.jobTitle,
+    record.companyOrPlatform,
+    record.appliedAt,
+    record.resumeVersion,
+    record.feedbackStatus
+  ].filter(Boolean).join(' / ');
+}
+
+function buildApplyingReviewDirections(records: ReviewableApplicationRecord[]): DirectionOption[] {
+  const first = records[0];
+  const second = records[1] || records[0];
+  const third = records[2];
+  const keywords = applicationRecordKeywords(records);
+  const direction = (
+    name: string,
+    evidence: string,
+    gap: string,
+    next: string,
+    localKeywords = keywords
+  ): DirectionOption => ({
+    directionName: name,
+    name,
+    level: '先补证据',
+    priority: '先补证据',
+    searchableJobNames: localKeywords.slice(0, 5),
+    whyExplore: '这是基于已填写投递记录的可疑线索，只用于决定下一轮小样本验证，不是职业方向推荐。',
+    why: '这是基于已填写投递记录的可疑线索，只用于决定下一轮小样本验证，不是职业方向推荐。',
+    evidence,
+    gap,
+    sevenDayValidation: next,
+    next,
+    keywords: localKeywords.slice(0, 5)
+  });
+
+  const directions = [
+    direction(
+      '先看简历版本和岗位要求是否对上',
+      `${applicationRecordLabel(first, 0)}；岗位要求：${first.jdRequirement || '岗位要求缺失，先补 JD 摘要'}；对应经历：${first.relatedExperience || '对应经历待补充'}`,
+      first.doubt || '当前只能看到投递和反馈状态，还需要确认这版简历是否写清岗位要求对应证据。',
+      `今天先对照“${first.jobTitle}”这条记录，只改 1 条简历表达，并保留原版本便于复盘。`
+    ),
+    direction(
+      '再看无反馈是否集中在同一类要求',
+      `${applicationRecordLabel(second, 1)}；岗位要求：${second.jdRequirement || '岗位要求缺失，先补 JD 摘要'}；对应经历：${second.relatedExperience || '对应经历待补充'}`,
+      second.doubt || '当前还不能判断问题在岗位样本、简历表达还是投递节奏，需要继续补记录。',
+      `下一轮只选 1-3 个和“${second.jobTitle}”要求相近的真实岗位做小样本验证，继续记录反馈状态。`
+    )
+  ];
+
+  if (third) {
+    directions.push(
+      direction(
+        '保留第三条作为对照样本',
+        `${applicationRecordLabel(third, 2)}；岗位要求：${third.jdRequirement || '岗位要求缺失，先补 JD 摘要'}；对应经历：${third.relatedExperience || '对应经历待补充'}`,
+        third.doubt || '第三条记录先作为对照，不把无反馈直接归因到用户本人。',
+        `本周用“${third.jobTitle}”和前两条对照，只调整一个变量再观察。`
+      )
+    );
+  }
+
+  return directions;
+}
+
+function alignApplyingRewrites(rewrites: ResumeRewrite[], records: ReviewableApplicationRecord[]): ResumeRewrite[] {
+  return rewrites.map((rewrite, index) => {
+    const record = records[index % records.length];
+    const jdRequirement = record.jdRequirement || '岗位要求缺失，先补 JD 摘要';
+    const relatedExperience = record.relatedExperience || rewrite.relatedExperience;
+    const original = record.doubt || rewrite.original;
+    return {
+      ...rewrite,
+      relatedExperience,
+      original,
+      originalIssue: record.doubt || rewrite.originalIssue,
+      jdRequirement,
+      reason: `围绕“${record.jobTitle}”这条真实投递记录做小范围调整，不把无反馈直接归因到用户本人。`,
+      risk: rewrite.risk || '只使用真实记录和真实岗位要求摘要；没有 JD 时先补摘要，不编岗位要求。',
+      usageReminder: rewrite.usageReminder || '只使用真实记录和真实岗位要求摘要；没有 JD 时先补摘要，不编岗位要求。'
+    };
+  });
+}
+
+function alignApplyingReportToRecords(report: DiagnosisReport, body: unknown): DiagnosisReport {
+  if (!isRecord(body) || normalizeV07Route(body.route) !== 'applying_no_feedback') return report;
+  const records = normalizeReviewableApplicationRecords(body.applicationRecords);
+  if (records.length < 2) return report;
+  return validateDiagnosisReport({
+    ...report,
+    directionOptions: buildApplyingReviewDirections(records),
+    rewrites: alignApplyingRewrites(report.rewrites, records)
+  });
+}
+
 function getBetaAccessCode() {
   return process.env.BETA_ACCESS_CODE?.trim() || '';
 }
@@ -754,7 +888,7 @@ function attachReportQuality(report: DiagnosisReport, mode: Mode, route?: unknow
 
 function ensureClientSafeReport(report: DiagnosisReport, mode: Mode, body: unknown): DiagnosisReport {
   const route = readReportRoute(body);
-  const checked = attachReportQuality(report, mode, route);
+  const checked = attachReportQuality(alignApplyingReportToRecords(report, body), mode, route);
   if (checked.quality?.passed) {
     return checked;
   }
@@ -762,7 +896,7 @@ function ensureClientSafeReport(report: DiagnosisReport, mode: Mode, body: unkno
   if (!blockers.length) {
     return checked;
   }
-  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode, route }), mode, route);
+  return attachReportQuality(alignApplyingReportToRecords(buildBasicReport({ ...(isRecord(body) ? body : {}), mode, route }), body), mode, route);
 }
 
 function markReportTaskQualityFallback(task: ReportGenerationTask, checked: DiagnosisReport) {
@@ -788,7 +922,7 @@ function markReportTaskQualityFallback(task: ReportGenerationTask, checked: Diag
 
 function ensureClientSafeReportForTask(report: DiagnosisReport, mode: Mode, body: unknown, task: ReportGenerationTask): DiagnosisReport {
   const route = readReportRoute(body);
-  const checked = attachReportQuality(report, mode, route);
+  const checked = attachReportQuality(alignApplyingReportToRecords(report, body), mode, route);
   if (checked.quality?.passed) {
     return checked;
   }
@@ -797,7 +931,7 @@ function ensureClientSafeReportForTask(report: DiagnosisReport, mode: Mode, body
     return checked;
   }
   markReportTaskQualityFallback(task, checked);
-  return attachReportQuality(buildBasicReport({ ...(isRecord(body) ? body : {}), mode, route }), mode, route);
+  return attachReportQuality(alignApplyingReportToRecords(buildBasicReport({ ...(isRecord(body) ? body : {}), mode, route }), body), mode, route);
 }
 
 function isAiTaskResult<T>(value: AiRuntimeResult<T>): value is { data: T; usage: AiUsage | null } {

@@ -2003,6 +2003,13 @@ const weakPartOptions = [
   '其他，请说明'
 ];
 
+const applyingHelpfulPartOptions = helpfulPartOptions.map((part) =>
+  part === '可探索岗位方向' ? '投递复盘线索' : part
+);
+const applyingWeakPartOptions = weakPartOptions.map((part) =>
+  part === '可探索岗位方向' ? '投递复盘线索' : part
+);
+
 const payOptions = ['不能', '5-10 元', '10-30 元', '30 元以上'];
 const scoreOptions = [
   { score: 1, symbol: '↓', label: '没有帮助', tone: 'score-1' },
@@ -2037,16 +2044,23 @@ const emptyFeedback: ReportFeedback = {
   anonymousConsent: false
 };
 
-function FeedbackSection({ mode }: { mode: Mode | null }) {
+function FeedbackSection({ mode, route }: { mode: Mode | null; route?: V07JobRoute | null }) {
   const [feedback, setFeedback] = useState<ReportFeedback>(emptyFeedback);
   const [scoreError, setScoreError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const isApplyingFeedback = route === 'applying_no_feedback';
+  const currentHelpfulPartOptions = isApplyingFeedback ? applyingHelpfulPartOptions : helpfulPartOptions;
+  const currentWeakPartOptions = isApplyingFeedback ? applyingWeakPartOptions : weakPartOptions;
   const actionQuestion =
-    mode === 'inventory'
+    isApplyingFeedback
+      ? '看完报告后，你是否更清楚下一次投递前先调整什么？'
+      : mode === 'inventory'
       ? '看完报告后，你是否更清楚下一步该探索什么方向？'
       : '你是否愿意根据这份报告修改简历并投递该岗位？';
   const actionOptions =
-    mode === 'inventory'
+    isApplyingFeedback
+      ? ['更清楚先调整什么了', '有一点帮助', '还是不清楚']
+      : mode === 'inventory'
       ? ['更清楚下一步方向了', '有一点帮助', '还是不清楚']
       : ['会修改简历并投递', '可能会', '不会'];
 
@@ -2161,7 +2175,7 @@ function FeedbackSection({ mode }: { mode: Mode | null }) {
       <fieldset className="form-section">
         <legend>哪一部分最有帮助？（可多选）</legend>
         <div className="field-grid single">
-          {helpfulPartOptions.map((part) => (
+          {currentHelpfulPartOptions.map((part) => (
             <label className="truth-check" key={part}>
               <input type="checkbox" checked={feedback.helpfulParts.includes(part)} onChange={() => toggleHelpfulPart(part)} />
               <span>{part}</span>
@@ -2173,7 +2187,7 @@ function FeedbackSection({ mode }: { mode: Mode | null }) {
       <fieldset className="form-section">
         <legend>哪个模块最没用、不准或帮助较小？（可多选）</legend>
         <div className="field-grid single">
-          {weakPartOptions.map((part) => (
+          {currentWeakPartOptions.map((part) => (
             <label className="truth-check" key={part}>
               <input type="checkbox" checked={feedback.weakParts.includes(part)} onChange={() => toggleWeakPart(part)} />
               <span>{part}</span>
@@ -3148,7 +3162,7 @@ function ResultPage({
 
         <QualityCheckSection report={report} />
 
-        <FeedbackSection mode={mode} />
+        <FeedbackSection mode={mode} route={route} />
 
         <div className="action-row">
           <button className="secondary-button" type="button" onClick={onBack}>
@@ -3163,6 +3177,7 @@ function ResultPage({
   }
 
   if (mode === 'inventory') {
+    const isApplyingReport = route === 'applying_no_feedback';
     const evidenceItems = getInventoryEvidenceItems(report);
     const directions = buildInventoryReportDirections(report);
     const evidenceSummary = evidenceItems.length
@@ -3174,8 +3189,12 @@ function ResultPage({
       <section className="flow-section result-section">
         <div className="section-heading">
           <p className="eyebrow">V0.7 求职行动路线</p>
-          <h1>经历诊断报告</h1>
-          <p>这份报告基于你确认的真实经历生成。它不是替你决定人生方向，而是帮你看清当前筹码、可探索方向和下一步补强路径。</p>
+          <h1>{isApplyingReport ? '投递复盘报告' : '经历诊断报告'}</h1>
+          <p>
+            {isApplyingReport
+              ? '这份报告基于你确认的真实经历和投递记录生成。它不评价你本人，只帮你找可疑线索、信息缺口和下一轮小样本验证动作。'
+              : '这份报告基于你确认的真实经历生成。它不是替你决定人生方向，而是帮你看清当前筹码、可探索方向和下一步补强路径。'}
+          </p>
           <SourceBadge source={report.source} isBasic={report.isBasic} />
         </div>
 
@@ -3196,9 +3215,19 @@ function ResultPage({
         <section className="result-block">
           <h2>报告摘要</h2>
           <article className="verdict-panel">
-            <p><span>当前求职起点</span>你不是“没有经历”，而是经历还没有被整理成岗位语言。当前最可用的筹码是：{evidenceSummary}。</p>
-            <p><span>建议优先探索方向</span>基于当前材料，可以先从“{primaryDirection}”开始探索，同时保留相邻方向作为比较。</p>
-            <p><span>下一步重点</span>先把 1-2 段真实经历补清楚动作、对象、工具、频率和产出，再用于简历表达。</p>
+            {isApplyingReport ? (
+              <>
+                <p><span>当前复盘起点</span>现在先看最近 2-3 条真实投递记录。当前可用材料是：{evidenceSummary}。</p>
+                <p><span>优先检查线索</span>先从“{primaryDirection}”这条线索开始，不把无反馈直接归因到你本人。</p>
+                <p><span>下一步重点</span>今天只补齐岗位名称、简历版本、投递时间、反馈状态和岗位要求摘要；下一轮只验证 1-3 个岗位样本。</p>
+              </>
+            ) : (
+              <>
+                <p><span>当前求职起点</span>你不是“没有经历”，而是经历还没有被整理成岗位语言。当前最可用的筹码是：{evidenceSummary}。</p>
+                <p><span>建议优先探索方向</span>基于当前材料，可以先从“{primaryDirection}”开始探索，同时保留相邻方向作为比较。</p>
+                <p><span>下一步重点</span>先把 1-2 段真实经历补清楚动作、对象、工具、频率和产出，再用于简历表达。</p>
+              </>
+            )}
           </article>
         </section>
 
@@ -3234,7 +3263,7 @@ function ResultPage({
         </section>
 
         <section className="result-block">
-          <h2>可探索岗位方向</h2>
+          <h2>{isApplyingReport ? '投递复盘线索' : '可探索岗位方向'}</h2>
           <div className="card-list">
             {directions.map((item) => (
               <article className="plan-card" data-testid="report-direction-card" key={item.name}>
@@ -3242,12 +3271,12 @@ function ResultPage({
                   <h3>{item.name}</h3>
                   <span className="status-pill">{item.level}</span>
                 </div>
-                <p><strong>探索优先级：</strong>{item.level}</p>
-                <p><strong>为什么可以探索：</strong>{item.why}</p>
-                <p><strong>对应经历证据：</strong>{item.evidence}</p>
-                <p><strong>当前缺口：</strong>{item.gap}</p>
-                <p><strong>7 天验证动作：</strong>{item.next}</p>
-                <p><strong>可搜索岗位名称：</strong>{item.keywords.join('、')}</p>
+                <p><strong>{isApplyingReport ? '处理优先级：' : '探索优先级：'}</strong>{item.level}</p>
+                <p><strong>{isApplyingReport ? '为什么要看这条线索：' : '为什么可以探索：'}</strong>{item.why}</p>
+                <p><strong>{isApplyingReport ? '对应投递记录：' : '对应经历证据：'}</strong>{item.evidence}</p>
+                <p><strong>{isApplyingReport ? '信息缺口：' : '当前缺口：'}</strong>{item.gap}</p>
+                <p><strong>{isApplyingReport ? '下一轮验证动作：' : '7 天验证动作：'}</strong>{item.next}</p>
+                <p><strong>{isApplyingReport ? '记录关键词：' : '可搜索岗位名称：'}</strong>{item.keywords.join('、')}</p>
               </article>
             ))}
           </div>
@@ -3313,7 +3342,7 @@ function ResultPage({
 
         <QualityCheckSection report={report} />
 
-        <FeedbackSection mode={mode} />
+        <FeedbackSection mode={mode} route={route} />
 
         <div className="action-row">
           <button className="secondary-button" type="button" onClick={onBack}>
@@ -3454,7 +3483,7 @@ function ResultPage({
 
       <QualityCheckSection report={report} />
 
-      <FeedbackSection mode={mode} />
+      <FeedbackSection mode={mode} route={route} />
 
       <div className="action-row">
         <button className="secondary-button" type="button" onClick={onBack}>
